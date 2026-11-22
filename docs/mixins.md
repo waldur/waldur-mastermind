@@ -134,6 +134,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
 | [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration` | No description available |
+| [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`RegisteredScopeMixin`](#registeredscopemixin) | `waldur_mastermind.matrix_chat.tests.test_room_scopes` | Registers Customer, for the test only, as a kind of room scope whose members ... |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
@@ -168,6 +169,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ReviewerSuggestionsTestMixin`](#reviewersuggestionstestmixin) | `waldur_mastermind.proposal.tests.test_proposal_reviewer_suggestions` | No description available |
 | [`EvaluatorRoleTestMixin`](#evaluatorroletestmixin) | `waldur_mastermind.proposal.tests.test_proposal_roles` | A call with a rapporteur role, picked from its panel members in an assignment... |
 | [`ProposalTeamMixin`](#proposalteammixin) | `waldur_mastermind.proposal.tests.test_proposal_team` | No description available |
+| [`DeclineReasonTestMixin`](#declinereasontestmixin) | `waldur_mastermind.proposal.tests.test_review_decline_reason` | No description available |
 | [`ReviewRolesMixin`](#reviewrolesmixin) | `waldur_mastermind.proposal.tests.test_reviewer_pool_visibility` | No description available |
 | [`CallSetupMixin`](#callsetupmixin) | `waldur_mastermind.proposal.tests.test_reviewer_registry` | No description available |
 | [`StepInputsTestMixin`](#stepinputstestmixin) | `waldur_mastermind.proposal.tests.test_step_inputs` | No description available |
@@ -1787,6 +1789,15 @@ Mixin to execute scripts in containers for marketplace script processing.
 
 **Description:** No description available.
 
+### AgentConfigurationTrustTestMixin
+
+**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration_trust`
+
+**Description:**
+
+An offering with a SLURM agent configuration, its owner, service provider
+manager and offering manager, with the roles' grants from permissions.yaml.
+
 ### ResourceGlauthAccessMixin
 
 **Module:** `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access`
@@ -2160,6 +2171,12 @@ assignment step right after the administrative check.
 ### ProposalTeamMixin
 
 **Module:** `waldur_mastermind.proposal.tests.test_proposal_team`
+
+**Description:** No description available.
+
+### DeclineReasonTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_review_decline_reason`
 
 **Description:** No description available.
 

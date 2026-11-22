@@ -3982,7 +3982,8 @@ Reminder: submit your access request {{ proposal_name }}
         <strong>Assignment details:</strong><br>
         - Reviewer: {{ reviewer_name }}<br>
         - Assigned date: {{ assign_date }}<br>
-        - Rejected date: {{ rejection_date }}
+        - Rejected date: {{ rejection_date }}{% if decline_reason %}<br>
+        - Reason: {{ decline_reason|linebreaksbr }}{% endif %}
     </p>
 
     <p>
@@ -4287,6 +4288,17 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 <body>
     {{ body|linebreaks }}
 
+    {% if audience == "reviewers" %}
+    <p>
+        Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
+        Your review: <a href="{{ review_url }}">{{ review_url }}</a>
+    </p>
+
+    <p>
+        You receive this message as a reviewer of this proposal. It was sent
+        by the call manager through {{ site_name }}.
+    </p>
+    {% else %}
     <p>
         Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
         <a href="{{ proposal_url }}">{{ proposal_url }}</a>
@@ -4295,6 +4307,7 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
     <p>
         This message was sent by the call manager through {{ site_name }}.
     </p>
+    {% endif %}
 </body>
 </html>
 
@@ -4992,7 +5005,8 @@ Assignment details:
 - Reviewer: {{ reviewer_name }}
 - Assigned date: {{ assign_date }}
 - Rejected date: {{ rejection_date }}
-
+{% if decline_reason %}- Reason: {{ decline_reason }}
+{% endif %}
 ACTION REQUIRED: Please assign a new reviewer to maintain the minimum required number of reviews for this proposal.
 
 Review Progress:
@@ -5751,9 +5765,11 @@ Proposal state update: {{ proposal_name }} - {{ new_state }}
 {{ body }}
 
 Proposal: {{ proposal_name }} (call "{{ call_name }}")
-{{ proposal_url }}
+{% if audience == "reviewers" %}Your review: {{ review_url }}
 
-This message was sent by the call manager through {{ site_name }}.
+You receive this message as a reviewer of this proposal. It was sent by the call manager through {{ site_name }}.{% else %}{{ proposal_url }}
+
+This message was sent by the call manager through {{ site_name }}.{% endif %}
 
 ```
 

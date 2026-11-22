@@ -4554,7 +4554,7 @@ Tells a proposal creator that their draft, still open when its round's cut-off p
 
 ### proposal.proposal_manager_message
 
-A message a call manager writes to the applicants of selected proposals. Subject and body are the manager's own text.
+A message a call manager writes to the applicants or the reviewers of selected proposals. Subject and body are the manager's own text. Each reviewer gets a message of their own, linking to their review.
 
 #### Templates
 
@@ -4573,9 +4573,11 @@ A message a call manager writes to the applicants of selected proposals. Subject
     {{ body }}
 
     Proposal: {{ proposal_name }} (call "{{ call_name }}")
-    {{ proposal_url }}
+    {% if audience == "reviewers" %}Your review: {{ review_url }}
 
-    This message was sent by the call manager through {{ site_name }}.
+    You receive this message as a reviewer of this proposal. It was sent by the call manager through {{ site_name }}.{% else %}{{ proposal_url }}
+
+    This message was sent by the call manager through {{ site_name }}.{% endif %}
 
 ```
 
@@ -4590,6 +4592,17 @@ A message a call manager writes to the applicants of selected proposals. Subject
     <body>
         {{ body|linebreaks }}
 
+        {% if audience == "reviewers" %}
+        <p>
+            Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
+            Your review: <a href="{{ review_url }}">{{ review_url }}</a>
+        </p>
+
+        <p>
+            You receive this message as a reviewer of this proposal. It was sent
+            by the call manager through {{ site_name }}.
+        </p>
+        {% else %}
         <p>
             Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
             <a href="{{ proposal_url }}">{{ proposal_url }}</a>
@@ -4598,6 +4611,7 @@ A message a call manager writes to the applicants of selected proposals. Subject
         <p>
             This message was sent by the call manager through {{ site_name }}.
         </p>
+        {% endif %}
     </body>
     </html>
 
@@ -5539,7 +5553,8 @@ A notification to the call managers about a rejected review.
     - Reviewer: {{ reviewer_name }}
     - Assigned date: {{ assign_date }}
     - Rejected date: {{ rejection_date }}
-
+    {% if decline_reason %}- Reason: {{ decline_reason }}
+    {% endif %}
     ACTION REQUIRED: Please assign a new reviewer to maintain the minimum required number of reviews for this proposal.
 
     Review Progress:
@@ -5572,7 +5587,8 @@ A notification to the call managers about a rejected review.
             <strong>Assignment details:</strong><br>
             - Reviewer: {{ reviewer_name }}<br>
             - Assigned date: {{ assign_date }}<br>
-            - Rejected date: {{ rejection_date }}
+            - Rejected date: {{ rejection_date }}{% if decline_reason %}<br>
+            - Reason: {{ decline_reason|linebreaksbr }}{% endif %}
         </p>
 
         <p>

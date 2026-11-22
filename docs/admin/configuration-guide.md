@@ -347,6 +347,7 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'EMAIL_CHANGE_MAX_AGE': datetime.timedelta(days=1),
  'ENABLE_ACCOUNTING_START_DATE': False,
  'ENABLE_PROJECT_KIND_COURSE': False,
+ 'EVENT_RETENTION_DAYS': 0,
  'EXTENSIONS_AUTOREGISTER': True,
  'EXTERNAL_LINKS': [],
  'HOMEPORT_SENTRY_DSN': None,
@@ -541,6 +542,12 @@ Allows to enable accounting for organizations using value of accounting_start_da
 **Type:** bool
 
 Enable course kind for projects.
+
+#### EVENT_RETENTION_DAYS
+
+**Type:** int
+
+Delete events older than this many days, together with their feed entries, in a daily background job. 0 or a negative value keeps events forever. Deletion is permanent, and the event log is the audit trail users and auditors read, so the period is a policy decision for the deployment. Set by the deployment (in the container image through the WALDUR_EVENT_RETENTION_DAYS environment variable); staff cannot change it at runtime.
 
 #### EXTENSIONS_AUTOREGISTER
 
