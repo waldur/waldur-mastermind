@@ -108,6 +108,16 @@ class WaldurCore(BaseModel):
         timedelta(days=7),
         description="Files older that specified interval are filtered out.",
     )
+    EVENT_RETENTION_DAYS: int = Field(
+        0,
+        description="Delete events older than this many days, together with "
+        "their feed entries, in a daily background job. 0 or a negative value "
+        "keeps events forever. Deletion is permanent, and the event log is the "
+        "audit trail users and auditors read, so the period is a policy "
+        "decision for the deployment. Set by the deployment (in the container "
+        "image through the WALDUR_EVENT_RETENTION_DAYS environment variable); "
+        "staff cannot change it at runtime.",
+    )
     HTTP_CHUNK_SIZE: int = Field(
         50,
         description="Chunk size for resource fetching from backend API. "

@@ -1,9 +1,11 @@
 import logging
+import time
 from collections import defaultdict
 from datetime import timedelta
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q, QuerySet
@@ -662,6 +664,101 @@ def cleanup_user_data_access_logs() -> dict:
     )
 
     return {"deleted_count": deleted_count, "retention_days": retention_days}
+
+
+# Events deleted per transaction by delete_expired_events, so that each batch
+# holds its row locks only briefly.
+EVENT_RETENTION_BATCH_SIZE = 5000
+
+# Seconds one run of delete_expired_events spends deleting before it hands the
+# rest to a fresh task. Well below CELERY_TASK_SOFT_TIME_LIMIT (1200), so a run
+# on a large table stops between batches instead of being cut off inside one.
+EVENT_RETENTION_TIME_BUDGET = 600
+
+
+@shared_task(name="waldur_core.logging.delete_expired_events")
+def delete_expired_events(batch_size: int = EVENT_RETENTION_BATCH_SIZE) -> int:
+    """Delete events older than EVENT_RETENTION_DAYS, with their feed entries.
+
+    WALDUR_CORE["EVENT_RETENTION_DAYS"] is a deployment setting, not a runtime
+    one; 0 (the default) keeps events forever. Events are deleted oldest first
+    in batches, each in its own transaction, so the first run on a large table
+    neither holds one long transaction nor locks the table. Feed rows go with
+    their event through the cascade.
+
+    A run stops after EVENT_RETENTION_TIME_BUDGET seconds, or when the soft
+    time limit interrupts it, and queues a fresh run for the rest. Overlapping
+    runs (a manual one, or a queued one meeting the next beat) skip the rows
+    another run has locked rather than wait for them.
+
+    Returns the number of events this run deleted.
+    """
+    retention_days = settings.WALDUR_CORE["EVENT_RETENTION_DAYS"]
+    if not retention_days or retention_days < 0:
+        logger.debug(
+            "EVENT_RETENTION_DAYS is %s, skipping event cleanup", retention_days
+        )
+        return 0
+
+    try:
+        cutoff = timezone.now() - timedelta(days=retention_days)
+    except OverflowError:
+        # The period reaches past year 1, so no event is old enough.
+        logger.warning(
+            "EVENT_RETENTION_DAYS is %s, which is too long to compute a cutoff "
+            "date; no events are deleted.",
+            retention_days,
+        )
+        return 0
+
+    expired = Event.objects.filter(created__lt=cutoff).order_by("created", "id")
+    deadline = time.monotonic() + EVENT_RETENTION_TIME_BUDGET
+    deleted = 0
+    finished = False
+    try:
+        while True:
+            with transaction.atomic():
+                batch = list(
+                    expired.select_for_update(skip_locked=True).values_list(
+                        "id", flat=True
+                    )[:batch_size]
+                )
+                if not batch:
+                    finished = True
+                    break
+                # Feed is the only relation to Event and neither model has
+                # delete signal receivers, so the cascade needs the ids alone:
+                # .only("id") keeps the message and context columns unread.
+                _, counts = Event.objects.filter(id__in=batch).only("id").delete()
+            deleted += counts.get(Event._meta.label, 0)
+            if time.monotonic() >= deadline:
+                break
+    except SoftTimeLimitExceeded:
+        # The batch in flight was rolled back; the ones before it are
+        # committed and counted.
+        logger.warning(
+            "Event cleanup reached the soft time limit after deleting %d events.",
+            deleted,
+        )
+
+    logger.info(
+        "Deleted %d events created before %s (EVENT_RETENTION_DAYS is %s)%s.",
+        deleted,
+        cutoff.isoformat(),
+        retention_days,
+        "" if finished else "; more remain",
+    )
+    if not finished:
+        if deleted:
+            delete_expired_events.delay(batch_size)
+        else:
+            # Not one batch fit in the run; queueing another would only repeat
+            # it. The next scheduled run tries again.
+            logger.error(
+                "Event cleanup made no progress before it was stopped; "
+                "leaving the rest to the next scheduled run."
+            )
+    return deleted
 
 
 @shared_task(name="waldur_core.logging.delete_dangling_event_subscriptions")
