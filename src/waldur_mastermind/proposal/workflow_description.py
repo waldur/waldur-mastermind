@@ -223,8 +223,8 @@ ALWAYS_SENT = (
         [OFFERING_TEAM],
     ),
     ("notify_award_provision_failed", "award_provision_failed", [CALL_MANAGER]),
-    # Written by a call manager to the applicants of chosen proposals.
-    ("notify_proposals", "call_manager_message", [APPLICANT]),
+    # Written by a call manager to the applicants or reviewers of chosen proposals.
+    ("notify_proposals", "call_manager_message", [APPLICANT, REVIEWER]),
 )
 
 # Tasks sending only what the rules say, and those that only call others.

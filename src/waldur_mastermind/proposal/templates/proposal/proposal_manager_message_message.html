@@ -5,6 +5,17 @@
 <body>
     {{ body|linebreaks }}
 
+    {% if audience == "reviewers" %}
+    <p>
+        Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
+        Your review: <a href="{{ review_url }}">{{ review_url }}</a>
+    </p>
+
+    <p>
+        You receive this message as a reviewer of this proposal. It was sent
+        by the call manager through {{ site_name }}.
+    </p>
+    {% else %}
     <p>
         Proposal: {{ proposal_name }} (call "{{ call_name }}")<br>
         <a href="{{ proposal_url }}">{{ proposal_url }}</a>
@@ -13,5 +24,6 @@
     <p>
         This message was sent by the call manager through {{ site_name }}.
     </p>
+    {% endif %}
 </body>
 </html>

@@ -327,6 +327,7 @@ class EventType(StrEnum):
     PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
     PROPOSAL_WORKFLOW_NOTIFICATION_SENT = "proposal_workflow_notification_sent"
     PROPOSAL_NOTIFICATION_SENT = "proposal_notification_sent"
+    PROPOSAL_REVIEWERS_NOTIFIED = "proposal_reviewers_notified"
     ROUND_CLOSED = "round_closed"
     ROUND_DECISION_STARTED = "round_decision_started"
     ROUND_EVALUATION_STARTED = "round_evaluation_started"
@@ -826,6 +827,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PROPOSAL_WORKFLOW_ADVANCED,
         EventType.PROPOSAL_WORKFLOW_NOTIFICATION_SENT,
         EventType.PROPOSAL_NOTIFICATION_SENT,
+        EventType.PROPOSAL_REVIEWERS_NOTIFIED,
         EventType.ROUND_CLOSED,
         EventType.ROUND_DECISION_STARTED,
         EventType.ROUND_EVALUATION_STARTED,
