@@ -740,6 +740,7 @@ def notify_call_managers_about_rejected_review(review_uuid):
         "reviewer_name": review.reviewer.full_name,
         "assign_date": review.created,
         "rejection_date": review.modified,
+        "decline_reason": review.decline_reason,
         "create_review_link": core_utils.format_homeport_link(
             "call-management/{customer_uuid}/proposals/",
             customer_uuid=review.proposal.round.call.manager.customer.uuid,

@@ -799,7 +799,6 @@ class ProposalReviewSerializer(
     reviewer_uuid = serializers.UUIDField(read_only=True, source="reviewer.uuid")
     reviewer_image = serializers.ImageField(source="reviewer.image", read_only=True)
     anonymous_reviewer_name = serializers.SerializerMethodField()
-
     proposal_name = serializers.ReadOnlyField(source="proposal.name")
     proposal_uuid = serializers.UUIDField(read_only=True, source="proposal.uuid")
     proposal_slug = serializers.ReadOnlyField(source="proposal.slug")
@@ -864,6 +863,7 @@ class ProposalReviewSerializer(
             "criteria_scores",
             "summary_public_comment",
             "summary_private_comment",
+            "decline_reason",
             "round_uuid",
             "round_name",
             "round_slug",
@@ -888,7 +888,12 @@ class ProposalReviewSerializer(
             "created",
             "modified",
         )
-        read_only_fields = ("coi_confirmed", "coi_confirmed_at")
+        read_only_fields = (
+            "coi_confirmed",
+            "coi_confirmed_at",
+            # Set by the reject action alone.
+            "decline_reason",
+        )
         protected_fields = ("proposal", "reviewer")
         extra_kwargs = {
             "url": {
@@ -1018,8 +1023,10 @@ class ProposalReviewSerializer(
         else:
             # Show real reviewer info, hide anonymous identifier
             data.pop("anonymous_reviewer_name", None)
-        # Always remove private comments for non-authorized users
+        # Always remove private comments for non-authorized users, and why a
+        # reviewer sent a review back: that is for the call team alone.
         data.pop("summary_private_comment", None)
+        data.pop("decline_reason", None)
         return data
 
     def create(self, validated_data):
@@ -1060,8 +1067,29 @@ set_override(
         "reviewer_full_name",
         "reviewer_uuid",
         "summary_private_comment",
+        "decline_reason",
     ],
 )
+
+
+# Long enough for any real explanation; bounds what goes into the mail.
+REVIEW_DECLINE_REASON_MAX_LENGTH = 2000
+
+
+class ReviewRejectSerializer(serializers.Serializer):
+    """The reviewer sending back a review they accepted. The same shape as
+    ``AssignmentItemDeclineSerializer``, for declining before accepting."""
+
+    reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=REVIEW_DECLINE_REASON_MAX_LENGTH,
+        help_text=(
+            "Why the reviewer sends the review back, such as a conflict of "
+            "interest. Kept on the review as decline_reason and sent to the "
+            "call's managers."
+        ),
+    )
 
 
 class ReviewSubmitSerializer(serializers.ModelSerializer):

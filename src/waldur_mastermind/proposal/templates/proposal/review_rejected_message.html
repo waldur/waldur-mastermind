@@ -12,7 +12,8 @@
         <strong>Assignment details:</strong><br>
         - Reviewer: {{ reviewer_name }}<br>
         - Assigned date: {{ assign_date }}<br>
-        - Rejected date: {{ rejection_date }}
+        - Rejected date: {{ rejection_date }}{% if decline_reason %}<br>
+        - Reason: {{ decline_reason|linebreaksbr }}{% endif %}
     </p>
 
     <p>

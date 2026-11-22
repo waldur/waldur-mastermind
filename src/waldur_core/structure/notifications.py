@@ -1132,6 +1132,10 @@ class ReviewRejectedContext(BaseModel):
     rejection_date: Any = Field(
         description="The timestamp when the review was rejected."
     )
+    decline_reason: str = Field(
+        description="Why the reviewer sent the review back, as they gave it. "
+        "Empty when they gave no reason."
+    )
     create_review_link: str = Field(
         description="A URL for the manager to assign a new review."
     )
