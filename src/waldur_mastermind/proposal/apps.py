@@ -224,6 +224,14 @@ class ProposalConfig(AppConfig):
         logging_utils.register_scope_event_guard(
             models.Review, activity.can_view_review_event_feed
         )
+        # A call's modifications are for its team (permissions.call_team_ids):
+        # anyone else who sees the call (its reviewers and panel members)
+        # reads only what is about them or done by them, not who else reviews
+        # or sits on its panel. Its events still reach the managing
+        # organisation's feed, which a call role does not open.
+        logging_utils.register_scope_event_filter(
+            models.Call, activity.call_event_rows, wider_feeds=True
+        )
         # That a held decision was reopened tells that one had been made: only
         # those who may see held decisions learn it before the round publishes.
         logging_utils.register_event_type_guard(

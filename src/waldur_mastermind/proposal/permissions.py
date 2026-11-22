@@ -20,6 +20,7 @@ from waldur_core.permissions.utils import (
     has_user,
     permission_factory,
 )
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_connected_customers_by_permission
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import (
@@ -61,7 +62,6 @@ def configurable_call_ids(user):
     """Ids of the calls whose configuration ``user`` may change: UPDATE_CALL
     on the call itself, on its managing organisation, or on the customer
     running that organisation. Staff and support are not special-cased here."""
-    from waldur_core.structure import models as structure_models
 
     def scope(model):
         return get_scope_ids(
@@ -150,8 +150,6 @@ def can_read_organisation_reports(
 
 def _call_creating_organisations(user):
     """The call managing organisations ``user`` may create calls in."""
-    from waldur_core.structure import models as structure_models
-
     organisations = get_scope_ids(
         user,
         ContentType.objects.get_for_model(proposal_models.CallManagingOrganisation),
@@ -1165,35 +1163,73 @@ def proposals_with_held_decisions_hidden_from(user):
     )
 
 
+def call_team_ids(user):
+    """Ids of the calls whose team ``user`` is on, in a way that lets them
+    read the whole of the call's feed: its settings and documents, who was
+    given or lost which role on it, its invitations, its rounds' history.
+
+    The call's managers; whoever configures the call (``configurable_call_ids``:
+    CALL.UPDATE on the call, its managing organisation or the customer running
+    it -- a CUSTOMER.CALL_ORGANIZER, say); whoever decides its proposals on its
+    managing organisation (CALL.APPROVE_AND_REJECT_PROPOSALS there); and whoever
+    may change who holds which role on the call (CALL.UPDATE_PERMISSION on the
+    call or its customer -- the customer's owners). Staff and support are not
+    special-cased here.
+    """
+
+    def ids(model, **kwargs):
+        return get_scope_ids(user, ContentType.objects.get_for_model(model), **kwargs)
+
+    return proposal_models.Call.objects.filter(
+        Q(pk__in=configurable_call_ids(user))
+        | Q(pk__in=ids(proposal_models.Call, role=RoleEnum.CALL_MANAGER))
+        | Q(
+            manager_id__in=ids(
+                proposal_models.CallManagingOrganisation,
+                permission=PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
+            )
+        )
+        | Q(
+            pk__in=ids(
+                proposal_models.Call,
+                permission=PermissionEnum.UPDATE_CALL_PERMISSION,
+            )
+        )
+        | Q(
+            manager__customer_id__in=ids(
+                structure_models.Customer,
+                permission=PermissionEnum.UPDATE_CALL_PERMISSION,
+            )
+        )
+    ).values_list("pk", flat=True)
+
+
+def is_on_call_team(user, call) -> bool:
+    """Whether ``user`` reads the whole of ``call``'s feed: staff, support, or
+    on its team (``call_team_ids``)."""
+    if user.is_anonymous or not user.is_active:
+        return False
+    if user.is_staff or user.is_support:
+        return True
+    return call_team_ids(user).filter(pk=call.pk).exists()
+
+
 def calls_hiding_round_events_from(user):
     """Calls whose round events ``user`` may not read on the call's feed.
 
     A round's history -- who opened a step for it, wrote its report, decided
-    it in bulk -- is the call team's: staff and support, the call's
-    managers, and whoever configures the call or drives its workflow on its
-    managing organisation. Anyone else who sees the call reads none of it.
-    ``None`` when nothing is hidden.
+    it in bulk -- is the call team's (``call_team_ids``), as is the rest of
+    the call's feed: staff and support, the call's managers, whoever
+    configures the call or decides its proposals on its managing
+    organisation, and whoever may change who holds which role on it. Anyone
+    else who sees the call reads none of it. ``None`` when nothing is hidden.
     """
     if user.is_active and (user.is_staff or user.is_support):
         return None
     calls = proposal_models.Call.objects.all()
     if not user.is_active:
         return calls
-    call_ct = ContentType.objects.get_for_model(proposal_models.Call)
-    organisation_ct = ContentType.objects.get_for_model(
-        proposal_models.CallManagingOrganisation
-    )
-    return calls.exclude(
-        Q(pk__in=configurable_call_ids(user))
-        | Q(pk__in=get_scope_ids(user, call_ct, RoleEnum.CALL_MANAGER))
-        | Q(
-            manager_id__in=get_scope_ids(
-                user,
-                organisation_ct,
-                permission=PermissionEnum.APPROVE_AND_REJECT_PROPOSALS,
-            )
-        )
-    )
+    return calls.exclude(pk__in=call_team_ids(user))
 
 
 def can_reopen_held_decision(request, view, obj=None):

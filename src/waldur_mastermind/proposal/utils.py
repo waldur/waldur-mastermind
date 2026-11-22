@@ -1203,8 +1203,9 @@ def emit_round_event(
     ``message`` is a template formatted with the context (``round_name``,
     ``call_name``, ``lifecycle_state``, and whatever ``context`` adds), never
     an f-string of names. Filed on the call alone, whose round events only
-    those overseeing it read (``permissions.calls_hiding_round_events_from``),
-    never on its organisation's feed.
+    its team reads (``permissions.call_team_ids``, which both the round
+    events' guard and the call feed's row filter apply), never on its
+    organisation's feed.
     """
     event_logger.emit(
         message,

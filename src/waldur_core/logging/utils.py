@@ -481,12 +481,31 @@ def get_reverse_scope_types_mapping():
 # their AppConfig.ready(). Being able to read an object does not always mean
 # being able to read the audit trail about it.
 _scope_event_guards: dict[type, Callable[[Any, Any], bool]] = {}
+# Models whose guard, or row filter, still lets their events be filed on wider
+# feeds (see has_scope_event_guard).
+_guards_on_wider_feeds: set[type] = set()
+_filters_on_wider_feeds: set[type] = set()
 
 
-def register_scope_event_guard(model: type, guard: Callable[[Any, Any], bool]):
+def _allow_wider_feeds(registry: set[type], model: type, wider_feeds: bool):
+    if wider_feeds:
+        registry.add(model)
+    else:
+        registry.discard(model)
+
+
+def register_scope_event_guard(
+    model: type, guard: Callable[[Any, Any], bool], wider_feeds: bool = False
+):
     """Register ``guard(user, scope) -> bool``; returning ``False`` hides the
-    events logged against ``scope`` from ``user``."""
+    events logged against ``scope`` from ``user``.
+
+    ``wider_feeds``: the scope's events may still be filed on wider feeds (its
+    organization's, say). Pass it only when those the guard keeps out do not
+    read those feeds anyway.
+    """
     _scope_event_guards[model] = guard
+    _allow_wider_feeds(_guards_on_wider_feeds, model, wider_feeds)
 
 
 def can_view_scope_events(user, scope) -> bool:
@@ -501,11 +520,19 @@ def can_view_scope_events(user, scope) -> bool:
 _scope_event_filters: dict[type, Callable[[Any, Any], Q | None]] = {}
 
 
-def register_scope_event_filter(model: type, rows: Callable[[Any, Any], Q | None]):
+def register_scope_event_filter(
+    model: type, rows: Callable[[Any, Any], Q | None], wider_feeds: bool = False
+):
     """Register ``rows(user, scope) -> Q | None``: of the events logged against
     ``scope``, ``user`` reads only those matching the returned ``Q`` (over
-    ``Event``); ``None`` leaves them all."""
+    ``Event``); ``None`` leaves them all.
+
+    ``wider_feeds``: the scope's events may still be filed on wider feeds (its
+    organization's, say). Pass it only when those the filter narrows the feed
+    for do not read those feeds anyway.
+    """
     _scope_event_filters[model] = rows
+    _allow_wider_feeds(_filters_on_wider_feeds, model, wider_feeds)
 
 
 def scope_event_filter(user, scope) -> Q | None:
@@ -542,17 +569,24 @@ def filter_events_for_scope(user, scope, queryset: QuerySet) -> QuerySet | None:
         feed__content_type=ContentType.objects.get_for_model(scope),
         feed__object_id=scope.id,
     )
-    # Include scope if it exists, unless its feed is closed to the user:
+    # Include scope if it exists, unless its feed is closed to the user, and
+    # then only those of its events its row filter leaves the user:
     if (
         isinstance(scope, ScopeMixin)
         and scope.content_type
         and scope.object_id
         and (scope.scope is None or can_view_scope_events(user, scope.scope))
     ):
-        query |= Q(
+        parent_query = Q(
             feed__content_type=scope.content_type,
             feed__object_id=scope.object_id,
         )
+        parent_rows = (
+            None if scope.scope is None else scope_event_filter(user, scope.scope)
+        )
+        if parent_rows is not None:
+            parent_query &= parent_rows
+        query |= parent_query
     queryset = queryset.filter(query)
     # ...and only the events of it this user is entitled to.
     rows = scope_event_filter(user, scope)
@@ -562,8 +596,12 @@ def filter_events_for_scope(user, scope, queryset: QuerySet) -> QuerySet | None:
 def has_scope_event_guard(scope) -> bool:
     """Whether ``scope`` restricts who reads its events. Such a scope's events
     must not also be filed on a wider feed (its organization's, say), whose
-    readers the guard would never be asked about."""
-    return type(scope) in _scope_event_guards or type(scope) in _scope_event_filters
+    readers its guard or row filter would never be asked about -- unless each
+    was registered with ``wider_feeds``."""
+    model = type(scope)
+    guarded = model in _scope_event_guards and model not in _guards_on_wider_feeds
+    filtered = model in _scope_event_filters and model not in _filters_on_wider_feeds
+    return guarded or filtered
 
 
 # Per-event-type guards, registered by apps from their AppConfig.ready().
@@ -597,6 +635,31 @@ def _hidden_feeds(user, event_type: str):
 def can_view_event(user, event) -> bool:
     feeds = _hidden_feeds(user, event.event_type)
     return feeds is None or not feeds.filter(event=event).exists()
+
+
+def invitation_events_addressed_to(user) -> Q:
+    """The events about an invitation addressed to ``user``'s email.
+
+    An invitation names its invitee by address, not by account, and its
+    events record no account either: anyone who may manage invitations on a
+    scope may invite any address, and its events would tell them whether an
+    account has that address, and which. The invitee is matched as they
+    read them instead, by the address an event names in
+    ``context.invitee_email``, ignoring case as their own list of
+    invitations matches it (``users.filters.InvitationFilterBackend``). An
+    event that moves an invitation to another address names both and carries
+    none. A user with no email is addressed by no invitation.
+    """
+    email = getattr(user, "email", "") or ""
+    if not email:
+        return Q(pk__in=[])
+    return Q(
+        event_type__in=[
+            EventType.USER_INVITATION_UPDATED,
+            EventType.USER_INVITATION_DELETED,
+        ],
+        context__invitee_email__iexact=email,
+    )
 
 
 def exclude_hidden_events(user, queryset: QuerySet) -> QuerySet:

@@ -204,7 +204,8 @@ class EventFilterBackend(filters.BaseFilterBackend):
     def _filter_related_user(self, request, queryset, related_user_uuid):
         """
         List of events linked to the user via Feed, user_uuid, or
-        affected_user_uuid.
+        affected_user_uuid, and the events about invitations addressed to
+        their email.
         """
         if not core_utils.is_uuid_like(related_user_uuid):
             return queryset.none()
@@ -228,6 +229,7 @@ class EventFilterBackend(filters.BaseFilterBackend):
             Q(feed__content_type=content_type, feed__object_id=related_user.id)
             | Q(context__user_uuid=uuid_hex)
             | Q(context__affected_user_uuid=uuid_hex)
+            | utils.invitation_events_addressed_to(related_user)
         ).distinct()
 
     def get_schema_operation_parameters(self, view):
@@ -261,7 +263,8 @@ class EventFilterBackend(filters.BaseFilterBackend):
                 description=(
                     "Filter events related to a user: Feed scope, actor "
                     "(context.user_uuid), or affected user "
-                    "(context.affected_user_uuid). Combined with OR. "
+                    "(context.affected_user_uuid), or an invitation addressed "
+                    "to their email. Combined with OR. "
                     "Staff/support may target any user; others only themselves."
                 ),
                 extensions={"x-waldur-operation-id": "users_retrieve"},
