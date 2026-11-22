@@ -339,6 +339,36 @@ def validate_agent_configuration_scope(
     )
 
 
+def validate_agent_configuration_trust(request, offering, customer, old, new):
+    """Refuse a change to where the site agent connects or what it runs without
+    OFFERING.UPDATE_AGENT_CONFIGURATION.
+
+    That is a change of role backend, custom backends or an event setting, of a
+    backend setting or component field the plugin catalogue marks sensitive, or
+    of a backend setting the schemas of the backends in use do not declare
+    (see trust_sensitive_changes); the rest of the configuration needs only the
+    permission of the path writing it. Checked on the offering, or on its
+    organization when the offering is being created.
+    """
+    changed = site_agent_configuration.trust_sensitive_changes(old, new)
+    if not changed:
+        return
+    if offering is not None:
+        allowed = permissions.can_update_agent_configuration(request, offering)
+    else:
+        allowed = has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION, customer
+        )
+    if not allowed:
+        raise rf_exceptions.PermissionDenied(
+            _(
+                "You do not have permission to change where the site agent "
+                "connects or what it runs: %(settings)s."
+            )
+            % {"settings": ", ".join(changed)}
+        )
+
+
 def validate_expiration_reminders_is_staff_only(request, instance, plugin_options):
     """Reject a request not acting as staff setting or changing
     resource_expiration_reminders. The schedule decides how often the offering's
@@ -6267,6 +6297,14 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
                 attrs["agent_configuration"],
                 [component["type"] for component in attrs.get("components") or []],
             )
+            if not self.instance:
+                validate_agent_configuration_trust(
+                    self.context["request"],
+                    None,
+                    attrs["customer"],
+                    {},
+                    attrs["agent_configuration"],
+                )
 
         attrs.setdefault("options", {"options": {}, "order": []})
         attrs.setdefault("resource_options", {"options": {}, "order": []})
@@ -6733,7 +6771,9 @@ def update_or_create_service_settings_for_offering(
             type=service_type,
             shared=offering.shared,
         )
-        offering.save()
+        # The scope only: a whole-row save would put back the caller's copy of
+        # every other column.
+        offering.save(update_fields=["content_type", "object_id", "modified"])
 
     # None leaves the certificate alone: the integration form edits one field
     # at a time, and an edit of any other field used to clear it.
@@ -6941,13 +6981,15 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                 lambda: ServiceSettingsCreateExecutor.execute(instance.scope)
             )
 
-    def _update_secret_options(self, instance, validated_data):
+    def _update_secret_options(self, instance, validated_data) -> set[str]:
+        """Merge the sent secret options; returns the columns to save."""
         secret_options = validated_data.pop("secret_options", {})
         for key, value in secret_options.items():
             instance.secret_options[key] = value
-        instance.save()
+        return {"secret_options"} if secret_options else set()
 
-    def _update_plugin_options(self, instance, validated_data):
+    def _update_plugin_options(self, instance, validated_data) -> set[str]:
+        """Merge the sent plugin options; returns the columns to save."""
         plugin_options = validated_data.pop("plugin_options", {})
         for key, value in plugin_options.items():
             if value == "" and key in models.Offering.ACCOUNT_SETTING_DEFAULTS:
@@ -6959,29 +7001,50 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             if isinstance(value, datetime.date | datetime.datetime):
                 value = value.isoformat()
             instance.plugin_options[key] = value
-        instance.save()
+        return {"plugin_options"} if plugin_options else set()
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        self._update_service_attributes(instance, validated_data)
-        self._update_secret_options(instance, validated_data)
+        # The row is locked and its options columns re-read, so that what is
+        # merged into and checked against is what is stored now, not the copy
+        # get_object() read before validation; a component renamed or removed
+        # meanwhile rewrites backend_components under the same lock. Only the
+        # columns this request changes are written: a whole-row save would put
+        # back the copy of the rest, undoing a concurrent change to it.
+        models.Offering.objects.select_for_update().only("pk").get(pk=instance.pk)
+        # Refreshed rather than assigned, so the field tracker takes the stored
+        # values as its baseline too: a plugin_options change committed meanwhile
+        # is not this save's change, and its handlers must not run again.
+        instance.refresh_from_db(
+            fields=["plugin_options", "secret_options", "agent_configuration"]
+        )
+        update_fields = {"modified"}
         agent_configuration_changed = False
         if "agent_configuration" in validated_data:
             agent_configuration = validated_data.pop("agent_configuration")
-            agent_configuration_changed = (
-                agent_configuration != instance.agent_configuration
+            stored = instance.agent_configuration
+            validate_agent_configuration_trust(
+                self.context["request"],
+                instance,
+                None,
+                stored,
+                agent_configuration,
             )
-            # Locked so that a component renamed or removed meanwhile, which
-            # rewrites backend_components under the same lock, is seen here.
-            models.Offering.objects.select_for_update().only("pk").get(pk=instance.pk)
+            agent_configuration_changed = agent_configuration != stored
             site_agent_configuration.validate_component_types(
                 agent_configuration,
                 instance.components.values_list("type", flat=True),
             )
-            # Stored by the save in super().update(), not one of its own.
             instance.agent_configuration = agent_configuration
-        self._update_plugin_options(instance, validated_data)
-        offering = super().update(instance, validated_data)
+            update_fields.add("agent_configuration")
+        self._update_service_attributes(instance, validated_data)
+        update_fields |= self._update_secret_options(instance, validated_data)
+        update_fields |= self._update_plugin_options(instance, validated_data)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+            update_fields.add(attr)
+        instance.save(update_fields=sorted(update_fields))
+        offering = instance
         if agent_configuration_changed:
             site_agent_configuration.record_change(
                 offering, self.context["request"].user

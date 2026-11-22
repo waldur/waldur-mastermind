@@ -7176,9 +7176,14 @@ class ProviderOfferingViewSet(
 
         # Check if offering exists
         offering_name = offering_values["name"]
-        existing_offering = models.Offering.objects.filter(
-            name=offering_name, customer=customer
-        ).first()
+        # Locked for the rest of the import, which runs in one transaction and
+        # saves the whole row: what it keeps of the offering must be what is
+        # stored now, or it would undo a change made meanwhile.
+        existing_offering = (
+            models.Offering.objects.select_for_update(of=("self",))
+            .filter(name=offering_name, customer=customer)
+            .first()
+        )
 
         if existing_offering:
             if not params.get("overwrite_existing", False):
@@ -7247,12 +7252,21 @@ class ProviderOfferingViewSet(
         if import_data.get("resource_options") is not None:
             offering.resource_options = import_data["resource_options"]
 
+        # The row is locked since it was read above, so this is what is stored
+        # now; the import's own changes are on the instance.
         stored = (
             models.Offering.objects.filter(pk=offering.pk)
             .values_list("agent_configuration", flat=True)
             .first()
             if offering.pk
             else None
+        )
+        serializers.validate_agent_configuration_trust(
+            self.request,
+            offering if offering.pk else None,
+            offering.customer,
+            stored or {},
+            offering.agent_configuration,
         )
         offering.save()
         if (offering.agent_configuration or {}) != (stored or {}):
