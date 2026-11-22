@@ -141,6 +141,10 @@ class PermissionEnum(StrEnum):
     UPDATE_OFFERING_DESCRIPTION = "OFFERING.UPDATE_DESCRIPTION"
     UPDATE_OFFERING_OPTIONS = "OFFERING.UPDATE_OPTIONS"
     UPDATE_OFFERING_INTEGRATION = "OFFERING.UPDATE_INTEGRATION"
+    # Changing where a site agent connects or what it runs on its host: its role
+    # backends, custom backends, event settings and the backend settings the
+    # plugin catalogue marks sensitive. Held as well as UPDATE_INTEGRATION.
+    UPDATE_OFFERING_AGENT_CONFIGURATION = "OFFERING.UPDATE_AGENT_CONFIGURATION"
     ADD_OFFERING_ENDPOINT = "OFFERING.ADD_ENDPOINT"
     UPDATE_OFFERING_ENDPOINT = "OFFERING.UPDATE_ENDPOINT"
     DELETE_OFFERING_ENDPOINT = "OFFERING.DELETE_ENDPOINT"
@@ -554,6 +558,9 @@ def get_permission_scope_types(permission: str) -> tuple[str, ...] | None:
 # provider side, and the generated "Manage consumer api key for resource" does
 # not tell an admin which side it is.
 PERMISSION_LABELS = {
+    PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION.value: (
+        "Change where a site agent connects, what it runs and what access it grants"
+    ),
     PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY.value: (
         "Manage API keys of resources used by the project or organization"
     ),

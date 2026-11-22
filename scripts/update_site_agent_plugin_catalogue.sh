@@ -86,7 +86,7 @@ for name in sorted(old.keys() - new.keys()):
     lines.append(f"{name}: removed")
 for name in sorted(old.keys() & new.keys()):
     before, after = old[name], new[name]
-    for field in ("roles", "secret_settings"):
+    for field in ("roles", "secret_settings", "sensitive_settings"):
         if before.get(field) != after.get(field):
             lines.append(f"{name}: {field} {before.get(field)} -> {after.get(field)}")
     for field in ("settings_schema", "component_schema"):

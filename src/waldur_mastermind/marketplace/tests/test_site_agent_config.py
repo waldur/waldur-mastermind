@@ -562,7 +562,13 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
     def test_offering_without_agent_configuration_is_unchanged(self):
         content, offering_config = self._generate()
 
-        self.assertNotIn("BACKEND SECRETS", content)
+        # The only backend secret is that of SLURM's optional ldap block, which
+        # is listed but not created.
+        self.assertIn(
+            "backend_settings.ldap.bind_password (slurm, required if its block is set)",
+            content,
+        )
+        self.assertNotIn("ldap", offering_config["backend_settings"])
         self.assertEqual(
             list(offering_config["backend_settings"]),
             [
@@ -647,9 +653,11 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
 
         ldap = offering_config["backend_settings"]["ldap"]
         self.assertEqual(ldap["bind_password"], "")
-        self.assertIn("bind_password: ''  # SECRET: ldap", content)
-        self.assertIn("backend_settings.ldap.bind_password (ldap", content)
-        self.assertNotIn("ldap.bind_password (ldap, optional)", content)
+        # Listed under the first backend that declares it: SLURM declares its
+        # ldap block too.
+        self.assertIn("bind_password: ''  # SECRET: slurm", content)
+        self.assertIn("backend_settings.ldap.bind_password (slurm)", content)
+        self.assertNotIn("ldap.bind_password (slurm, optional)", content)
 
     def test_env_format_names_a_variable_for_each_secret(self):
         self._use_dwdi_reporting()
@@ -809,7 +817,12 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
         by_field = {secret["field"]: secret for secret in response.data}
         self.assertEqual(
             set(by_field),
-            {"waldur_api_token", "backend_settings.cscs_dwdi_client_secret"},
+            {
+                "waldur_api_token",
+                "backend_settings.cscs_dwdi_client_secret",
+                # SLURM's optional ldap block, listed though not configured.
+                "backend_settings.ldap.bind_password",
+            },
         )
         dwdi = by_field["backend_settings.cscs_dwdi_client_secret"]
         self.assertEqual(dwdi["backend"], "cscs-dwdi-compute")

@@ -820,3 +820,254 @@ def record_change(offering, user) -> None:
         reversion.add_to_revision(offering)
         reversion.set_user(user)
         reversion.set_comment(CHANGE_REVISION_COMMENT)
+
+
+# Parts of the configuration that decide which code the agent runs and where
+# its events come from. Changing them, a setting the catalogue marks sensitive,
+# or a backend setting the backends in use do not declare, needs
+# OFFERING.UPDATE_AGENT_CONFIGURATION.
+BACKEND_FIELDS = (*ROLE_FIELDS, "custom_backends")
+TRUST_SENSITIVE_FIELDS = (*BACKEND_FIELDS, "event_settings")
+
+# Stands for a key that is not there, so that a value of "" or null is a change
+# from it: the agent reads an absent setting as its default, an empty one as is.
+_ABSENT = object()
+
+
+@functools.cache
+def sensitive_setting_paths() -> tuple[str, ...]:
+    """The backend_settings paths any catalogue plugin marks sensitive.
+
+    Every plugin's, not only those a configuration names: backend_settings are
+    read by every backend an offering uses, and a change of backend is guarded
+    anyway.
+    """
+    paths: set[str] = set()
+    for plugin in load_catalogue()["plugins"]:
+        paths.update(plugin.get("sensitive_settings") or [])
+    return tuple(sorted(paths))
+
+
+@functools.cache
+def sensitive_component_paths() -> tuple[str, ...]:
+    """The backend_components field paths any catalogue plugin marks sensitive."""
+    paths: set[str] = set()
+    for plugin in load_catalogue()["plugins"]:
+        paths.update(plugin.get("sensitive_component_settings") or [])
+    return tuple(sorted(paths))
+
+
+def _values_at(data: Any, segments: list[str], prefix: str) -> dict[str, Any]:
+    """The values at a catalogue path in data, by concrete dotted path.
+
+    ``*`` stands for every key of a mapping and a ``[]`` suffix for every item
+    of a list, as in the catalogue's paths. A path that is not there is left
+    out.
+    """
+    if not segments:
+        return {prefix: data}
+    if not isinstance(data, dict):
+        return {}
+    segment, rest = segments[0], segments[1:]
+    if segment == "*":
+        found: dict[str, Any] = {}
+        for key, value in data.items():
+            found.update(_values_at(value, rest, f"{prefix}.{key}"))
+        return found
+    is_list = segment.endswith("[]")
+    name = segment[:-2] if is_list else segment
+    if name not in data:
+        return {}
+    value = data[name]
+    path = f"{prefix}.{name}"
+    if not is_list:
+        return _values_at(value, rest, path)
+    if not isinstance(value, list):
+        # Not the shape the schema allows; compare the value as a whole.
+        return {path: value}
+    found = {}
+    for index, item in enumerate(value):
+        found.update(_values_at(item, rest, f"{path}[{index}]"))
+    return found
+
+
+def _changed_at(old: Any, new: Any, paths: Iterable[str], prefix: str) -> set[str]:
+    """Concrete paths, of the given catalogue paths, whose value differs.
+
+    Exact: a key that appears, disappears or turns empty is a change.
+    """
+    changed: set[str] = set()
+    for path in paths:
+        segments = path.split(".")
+        before = _values_at(old, segments, prefix)
+        after = _values_at(new, segments, prefix)
+        for concrete in before.keys() | after.keys():
+            if before.get(concrete, _ABSENT) != after.get(concrete, _ABSENT):
+                changed.add(concrete)
+    return changed
+
+
+def _plugins_in_use(*configurations: dict[str, Any]) -> list[dict[str, Any]]:
+    """The catalogue plugins the configurations name for a role.
+
+    With no backend named the generator writes SLURM for every role, so it is
+    SLURM's settings that are read. A custom backend has no catalogue entry.
+    """
+    names = {
+        configuration.get(field)
+        for configuration in configurations
+        for field in ROLE_FIELDS
+    } - {None, ""}
+    if not names:
+        names = {SLURM_BACKEND}
+    return [plugin for name in sorted(names) if (plugin := get_plugin(name))]
+
+
+def _undeclared_keys(
+    old: dict[str, Any],
+    new: dict[str, Any],
+    models: list[tuple[dict[str, Any], dict[str, Any]]],
+    prefix: str,
+) -> list[str]:
+    """Changed keys of a mapping that none of the object schemas declares.
+
+    ``models`` are (root schema, resolved object schema) pairs, one per
+    plugin that declares this mapping; a declared key is followed into its
+    value.
+    """
+    found: list[str] = []
+    for key in old.keys() | new.keys():
+        children = []
+        for root, node in models:
+            properties = node.get("properties") or {}
+            additional = node.get("additionalProperties")
+            if key in properties:
+                children.append((root, properties[key]))
+            elif isinstance(additional, dict):
+                children.append((root, additional))
+        before, after = old.get(key, _ABSENT), new.get(key, _ABSENT)
+        path = f"{prefix}.{key}"
+        if not children:
+            if before != after:
+                found.append(path)
+        else:
+            found.extend(_undeclared_changes(before, after, children, path))
+    return found
+
+
+def _undeclared_changes(
+    old: Any,
+    new: Any,
+    entries: list[tuple[dict[str, Any], Any]],
+    prefix: str,
+) -> list[str]:
+    """Changes in a declared value under keys its schemas do not declare.
+
+    A value declared as a model, or as a mapping or list of them, is followed;
+    any other value (a string, a free-form mapping) is a declared leaf.
+    """
+    nodes = [(root, _resolve(root, node)) for root, node in entries]
+    models = [
+        (root, node)
+        for root, node in nodes
+        if isinstance(node.get("properties"), dict)
+        or isinstance(node.get("additionalProperties"), dict)
+    ]
+    if models and (isinstance(old, dict) or isinstance(new, dict)):
+        return _undeclared_keys(
+            old if isinstance(old, dict) else {},
+            new if isinstance(new, dict) else {},
+            models,
+            prefix,
+        )
+    items = [
+        (root, node["items"])
+        for root, node in nodes
+        if isinstance(node.get("items"), dict)
+    ]
+    if items and (isinstance(old, list) or isinstance(new, list)):
+        old_items = old if isinstance(old, list) else []
+        new_items = new if isinstance(new, list) else []
+        found: list[str] = []
+        for index in range(max(len(old_items), len(new_items))):
+            found.extend(
+                _undeclared_changes(
+                    old_items[index] if index < len(old_items) else _ABSENT,
+                    new_items[index] if index < len(new_items) else _ABSENT,
+                    items,
+                    f"{prefix}[{index}]",
+                )
+            )
+        return found
+    return []
+
+
+def _unset(value: Any) -> Any:
+    # A role left blank names no backend, as one left out does.
+    return None if value in (None, "", [], {}) else value
+
+
+def _event_settings(value: Any) -> dict[str, Any]:
+    # Rendered with null for a field that was never set, so null is unset.
+    if not isinstance(value, dict):
+        return {}
+    return {key: item for key, item in value.items() if item is not None}
+
+
+def trust_sensitive_changes(
+    old: dict[str, Any] | None, new: dict[str, Any] | None
+) -> list[str]:
+    """The trust-sensitive parts that differ between two agent configurations.
+
+    As paths from the top of the configuration:
+
+    - role backends and custom backends;
+    - each event setting;
+    - each backend setting or component field at a path the plugin catalogue
+      marks sensitive;
+    - each backend setting that the plugins in use do not declare, at any
+      depth: an open schema or a custom backend lets it through validation,
+      and the agent may read it. Fail closed rather than guess.
+    """
+    old, new = old or {}, new or {}
+    changed = {
+        field
+        for field in BACKEND_FIELDS
+        if _unset(old.get(field)) != _unset(new.get(field))
+    }
+
+    old_events = _event_settings(old.get("event_settings"))
+    new_events = _event_settings(new.get("event_settings"))
+    changed.update(
+        f"event_settings.{key}"
+        for key in old_events.keys() | new_events.keys()
+        if old_events.get(key, _ABSENT) != new_events.get(key, _ABSENT)
+    )
+
+    old_settings = old.get("backend_settings") or {}
+    new_settings = new.get("backend_settings") or {}
+    changed |= _changed_at(
+        old_settings, new_settings, sensitive_setting_paths(), "backend_settings"
+    )
+    schemas = [
+        (plugin["settings_schema"], plugin["settings_schema"])
+        for plugin in _plugins_in_use(old, new)
+        if plugin.get("settings_schema")
+    ]
+    if isinstance(old_settings, dict) and isinstance(new_settings, dict):
+        changed.update(
+            _undeclared_keys(old_settings, new_settings, schemas, "backend_settings")
+        )
+
+    old_components = old.get("backend_components") or {}
+    new_components = new.get("backend_components") or {}
+    component_paths = sensitive_component_paths()
+    if component_paths:
+        for component_type in old_components.keys() | new_components.keys():
+            changed |= _changed_at(
+                old_components.get(component_type) or {},
+                new_components.get(component_type) or {},
+                component_paths,
+                f"backend_components.{component_type}",
+            )
+    return sorted(changed)

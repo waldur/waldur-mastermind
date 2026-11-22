@@ -634,6 +634,14 @@ def can_see_secret_options(request, instance) -> bool:
     )
 
 
+def can_update_agent_configuration(request, instance) -> bool:
+    """Whether the user may change where an offering's site agent connects or
+    what it runs: the trust-sensitive part of its agent configuration."""
+    return _has_offering_admin_permission(
+        request, PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION, instance
+    )
+
+
 def can_update_offering_options(request, instance) -> bool:
     """Whether the user may change an offering's option settings.
 

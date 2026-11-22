@@ -1,5 +1,5 @@
 {
-  "agent_version": "1.0.8rc13",
+  "agent_version": "1.0.8rc15",
   "catalogue_version": 1,
   "offering_secret_fields": [
     "oidc_client_secret",
@@ -38,10 +38,30 @@
       "secret_settings": [
         "client_secret"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "allowed_ssh_ranges",
+        "default_resource_group",
+        "subscription_id",
+        "tenant_id"
+      ],
       "settings_schema": {
         "additionalProperties": true,
         "description": "Azure-specific backend settings validation.\n\nThe four credential fields carry the same names as the ``options`` keys of\nmastermind's Azure service settings, so an offering taken over from\nmastermind gets its credentials copied across without re-mapping.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
           "allowed_ssh_ranges": {
             "anyOf": [
               {
@@ -56,7 +76,48 @@
             ],
             "default": null,
             "description": "Address ranges allowed to reach machines over SSH, as CIDR prefixes. Without any, a machine accepts no SSH connections.",
+            "sensitive": true,
             "title": "Allowed Ssh Ranges"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
           },
           "client_id": {
             "description": "Service principal client ID",
@@ -68,6 +129,32 @@
             "secret": true,
             "title": "Client Secret",
             "type": "string"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
           },
           "default_image": {
             "anyOf": [
@@ -106,6 +193,7 @@
             ],
             "default": null,
             "description": "Resource group to place resources in; created on demand when unset",
+            "sensitive": true,
             "title": "Default Resource Group"
           },
           "default_size": {
@@ -134,6 +222,46 @@
             "description": "Address space of the virtual network (default 10.0.0.0/16)",
             "title": "Network Cidr"
           },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
+          },
           "subnet_cidr": {
             "anyOf": [
               {
@@ -149,11 +277,13 @@
           },
           "subscription_id": {
             "description": "Azure subscription ID",
+            "sensitive": true,
             "title": "Subscription Id",
             "type": "string"
           },
           "tenant_id": {
             "description": "Azure AD tenant ID",
+            "sensitive": true,
             "title": "Tenant Id",
             "type": "string"
           }
@@ -167,7 +297,7 @@
         "title": "AzureBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -177,8 +307,10 @@
         "username_management"
       ],
       "secret_settings": [],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [],
       "settings_schema": null,
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -192,10 +324,123 @@
       "secret_settings": [
         "admin_access_key",
         "admin_secret_key",
+        "croit_reporting.password",
+        "croit_reporting.token",
         "password",
         "token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "admin_path",
+        "api_url",
+        "croit_reporting.api_url",
+        "croit_reporting.bucket_state_file",
+        "croit_reporting.verify_ssl",
+        "s3_endpoint",
+        "tenant_template",
+        "verify_ssl"
+      ],
       "settings_schema": {
+        "$defs": {
+          "CroitReportingSettings": {
+            "description": "croit's address and credentials, for reading its statistics only.",
+            "properties": {
+              "api_url": {
+                "description": "croit API URL",
+                "sensitive": true,
+                "title": "Api Url",
+                "type": "string"
+              },
+              "bucket_state_file": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "File remembering the buckets each account resource held this billing period, so buckets deleted before an agent restart stay billed",
+                "sensitive": true,
+                "title": "Bucket State File"
+              },
+              "password": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit password",
+                "secret": true,
+                "title": "Password"
+              },
+              "timeout": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "HTTP timeout in seconds",
+                "title": "Timeout"
+              },
+              "token": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit API token",
+                "secret": true,
+                "title": "Token"
+              },
+              "username": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit username",
+                "title": "Username"
+              },
+              "verify_ssl": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Verify TLS (default true)",
+                "sensitive": true,
+                "title": "Verify Ssl"
+              }
+            },
+            "required": [
+              "api_url"
+            ],
+            "title": "CroitReportingSettings",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "description": "Settings for the ``ceph_s3`` (management) and ``croit_usage`` (reporting) backends.",
         "properties": {
@@ -224,6 +469,7 @@
             ],
             "default": null,
             "description": "RGW admin API path (default 'admin')",
+            "sensitive": true,
             "title": "Admin Path"
           },
           "admin_secret_key": {
@@ -264,6 +510,7 @@
             ],
             "default": null,
             "description": "croit API URL (croit flavour)",
+            "sensitive": true,
             "title": "Api Url"
           },
           "backend_id_max_retries": {
@@ -305,6 +552,18 @@
             "default": null,
             "description": "Check a new backend id against the offering's history",
             "title": "Check Backend Id Uniqueness"
+          },
+          "croit_reporting": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CroitReportingSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit connection for croit_usage reporting when management uses the radosgw flavour on a croit cluster"
           },
           "customer_prefix": {
             "anyOf": [
@@ -368,7 +627,7 @@
               }
             ],
             "default": null,
-            "description": "RGW tenant for new users",
+            "description": "Fixed RGW tenant for new users; older form of tenant_template",
             "title": "Default Tenant"
           },
           "flavour": {
@@ -431,6 +690,19 @@
             "description": "Prefix for project-level backend ids",
             "title": "Project Prefix"
           },
+          "rgw_accounts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (radosgw flavour, Ceph 20.2.2 or later)",
+            "title": "Rgw Accounts"
+          },
           "s3_endpoint": {
             "anyOf": [
               {
@@ -442,6 +714,7 @@
             ],
             "default": null,
             "description": "S3 endpoint users connect to (required)",
+            "sensitive": true,
             "title": "S3 Endpoint"
           },
           "s3_region": {
@@ -469,6 +742,20 @@
             "default": null,
             "description": "On termination, keep the backend resource and only remove its users",
             "title": "Soft Delete"
+          },
+          "tenant_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "RGW tenant for new users, rendered per resource (croit flavour), e.g. '{customer_slug}_{customer_uuid:.8}'. Fields: resource_slug, resource_uuid, customer_slug, customer_uuid, project_slug, project_uuid, offering_slug, offering_uuid",
+            "sensitive": true,
+            "title": "Tenant Template"
           },
           "timeout": {
             "anyOf": [
@@ -521,13 +808,14 @@
             ],
             "default": null,
             "description": "Verify TLS (default true)",
+            "sensitive": true,
             "title": "Verify Ssl"
           }
         },
         "title": "CephS3BackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -541,10 +829,123 @@
       "secret_settings": [
         "admin_access_key",
         "admin_secret_key",
+        "croit_reporting.password",
+        "croit_reporting.token",
         "password",
         "token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "admin_path",
+        "api_url",
+        "croit_reporting.api_url",
+        "croit_reporting.bucket_state_file",
+        "croit_reporting.verify_ssl",
+        "s3_endpoint",
+        "tenant_template",
+        "verify_ssl"
+      ],
       "settings_schema": {
+        "$defs": {
+          "CroitReportingSettings": {
+            "description": "croit's address and credentials, for reading its statistics only.",
+            "properties": {
+              "api_url": {
+                "description": "croit API URL",
+                "sensitive": true,
+                "title": "Api Url",
+                "type": "string"
+              },
+              "bucket_state_file": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "File remembering the buckets each account resource held this billing period, so buckets deleted before an agent restart stay billed",
+                "sensitive": true,
+                "title": "Bucket State File"
+              },
+              "password": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit password",
+                "secret": true,
+                "title": "Password"
+              },
+              "timeout": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "HTTP timeout in seconds",
+                "title": "Timeout"
+              },
+              "token": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit API token",
+                "secret": true,
+                "title": "Token"
+              },
+              "username": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit username",
+                "title": "Username"
+              },
+              "verify_ssl": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Verify TLS (default true)",
+                "sensitive": true,
+                "title": "Verify Ssl"
+              }
+            },
+            "required": [
+              "api_url"
+            ],
+            "title": "CroitReportingSettings",
+            "type": "object"
+          }
+        },
         "additionalProperties": false,
         "description": "Settings for the ``ceph_s3`` (management) and ``croit_usage`` (reporting) backends.",
         "properties": {
@@ -573,6 +974,7 @@
             ],
             "default": null,
             "description": "RGW admin API path (default 'admin')",
+            "sensitive": true,
             "title": "Admin Path"
           },
           "admin_secret_key": {
@@ -613,6 +1015,7 @@
             ],
             "default": null,
             "description": "croit API URL (croit flavour)",
+            "sensitive": true,
             "title": "Api Url"
           },
           "backend_id_max_retries": {
@@ -654,6 +1057,18 @@
             "default": null,
             "description": "Check a new backend id against the offering's history",
             "title": "Check Backend Id Uniqueness"
+          },
+          "croit_reporting": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CroitReportingSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit connection for croit_usage reporting when management uses the radosgw flavour on a croit cluster"
           },
           "customer_prefix": {
             "anyOf": [
@@ -717,7 +1132,7 @@
               }
             ],
             "default": null,
-            "description": "RGW tenant for new users",
+            "description": "Fixed RGW tenant for new users; older form of tenant_template",
             "title": "Default Tenant"
           },
           "flavour": {
@@ -780,6 +1195,19 @@
             "description": "Prefix for project-level backend ids",
             "title": "Project Prefix"
           },
+          "rgw_accounts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (radosgw flavour, Ceph 20.2.2 or later)",
+            "title": "Rgw Accounts"
+          },
           "s3_endpoint": {
             "anyOf": [
               {
@@ -791,6 +1219,7 @@
             ],
             "default": null,
             "description": "S3 endpoint users connect to (required)",
+            "sensitive": true,
             "title": "S3 Endpoint"
           },
           "s3_region": {
@@ -818,6 +1247,20 @@
             "default": null,
             "description": "On termination, keep the backend resource and only remove its users",
             "title": "Soft Delete"
+          },
+          "tenant_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "RGW tenant for new users, rendered per resource (croit flavour), e.g. '{customer_slug}_{customer_uuid:.8}'. Fields: resource_slug, resource_uuid, customer_slug, customer_uuid, project_slug, project_uuid, offering_slug, offering_uuid",
+            "sensitive": true,
+            "title": "Tenant Template"
           },
           "timeout": {
             "anyOf": [
@@ -870,13 +1313,14 @@
             ],
             "default": null,
             "description": "Verify TLS (default true)",
+            "sensitive": true,
             "title": "Verify Ssl"
           }
         },
         "title": "CephS3BackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -888,6 +1332,13 @@
       "secret_settings": [
         "cscs_dwdi_client_secret"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "cscs_dwdi_api_url",
+        "cscs_dwdi_oidc_token_url",
+        "socks_proxy",
+        "storage_path_mapping"
+      ],
       "settings_schema": {
         "additionalProperties": false,
         "description": "Settings for the compute and inference reporting backends.",
@@ -947,6 +1398,7 @@
           },
           "cscs_dwdi_api_url": {
             "description": "CSCS-DWDI API base URL",
+            "sensitive": true,
             "title": "Cscs Dwdi Api Url",
             "type": "string"
           },
@@ -989,6 +1441,7 @@
           },
           "cscs_dwdi_oidc_token_url": {
             "description": "OIDC token endpoint",
+            "sensitive": true,
             "title": "Cscs Dwdi Oidc Token Url",
             "type": "string"
           },
@@ -1056,6 +1509,7 @@
             ],
             "default": null,
             "description": "Proxy for the API, e.g. socks5://localhost:12345",
+            "sensitive": true,
             "title": "Socks Proxy"
           },
           "soft_delete": {
@@ -1111,6 +1565,7 @@
             ],
             "default": null,
             "description": "Map of resource backend id to storage path",
+            "sensitive": true,
             "title": "Storage Path Mapping"
           },
           "storage_tenant": {
@@ -1136,7 +1591,7 @@
         "title": "CSCSDWDIBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -1148,6 +1603,13 @@
       "secret_settings": [
         "cscs_dwdi_client_secret"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "cscs_dwdi_api_url",
+        "cscs_dwdi_oidc_token_url",
+        "socks_proxy",
+        "storage_path_mapping"
+      ],
       "settings_schema": {
         "additionalProperties": false,
         "description": "Settings for the compute and inference reporting backends.",
@@ -1207,6 +1669,7 @@
           },
           "cscs_dwdi_api_url": {
             "description": "CSCS-DWDI API base URL",
+            "sensitive": true,
             "title": "Cscs Dwdi Api Url",
             "type": "string"
           },
@@ -1249,6 +1712,7 @@
           },
           "cscs_dwdi_oidc_token_url": {
             "description": "OIDC token endpoint",
+            "sensitive": true,
             "title": "Cscs Dwdi Oidc Token Url",
             "type": "string"
           },
@@ -1316,6 +1780,7 @@
             ],
             "default": null,
             "description": "Proxy for the API, e.g. socks5://localhost:12345",
+            "sensitive": true,
             "title": "Socks Proxy"
           },
           "soft_delete": {
@@ -1371,6 +1836,7 @@
             ],
             "default": null,
             "description": "Map of resource backend id to storage path",
+            "sensitive": true,
             "title": "Storage Path Mapping"
           },
           "storage_tenant": {
@@ -1396,7 +1862,7 @@
         "title": "CSCSDWDIBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -1407,6 +1873,13 @@
       ],
       "secret_settings": [
         "cscs_dwdi_client_secret"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "cscs_dwdi_api_url",
+        "cscs_dwdi_oidc_token_url",
+        "socks_proxy",
+        "storage_path_mapping"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -1467,6 +1940,7 @@
           },
           "cscs_dwdi_api_url": {
             "description": "CSCS-DWDI API base URL",
+            "sensitive": true,
             "title": "Cscs Dwdi Api Url",
             "type": "string"
           },
@@ -1509,6 +1983,7 @@
           },
           "cscs_dwdi_oidc_token_url": {
             "description": "OIDC token endpoint",
+            "sensitive": true,
             "title": "Cscs Dwdi Oidc Token Url",
             "type": "string"
           },
@@ -1576,6 +2051,7 @@
             ],
             "default": null,
             "description": "Proxy for the API, e.g. socks5://localhost:12345",
+            "sensitive": true,
             "title": "Socks Proxy"
           },
           "soft_delete": {
@@ -1615,6 +2091,7 @@
             ],
             "default": null,
             "description": "Map of resource backend id to storage path",
+            "sensitive": true,
             "title": "Storage Path Mapping"
           },
           "storage_tenant": {
@@ -1642,7 +2119,7 @@
         "title": "CSCSDWDIStorageBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -1676,10 +2153,97 @@
       "secret_settings": [
         "token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "default_ssh_key_fingerprint",
+        "default_ssh_key_id",
+        "default_ssh_key_name",
+        "default_ssh_public_key",
+        "default_user_data"
+      ],
       "settings_schema": {
         "additionalProperties": true,
         "description": "DigitalOcean-specific backend settings validation.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
           "default_image": {
             "anyOf": [
               {
@@ -1730,6 +2294,7 @@
             ],
             "default": null,
             "description": "Default SSH key fingerprint",
+            "sensitive": true,
             "title": "Default Ssh Key Fingerprint"
           },
           "default_ssh_key_id": {
@@ -1743,6 +2308,7 @@
             ],
             "default": null,
             "description": "Default SSH key ID",
+            "sensitive": true,
             "title": "Default Ssh Key Id"
           },
           "default_ssh_key_name": {
@@ -1756,6 +2322,7 @@
             ],
             "default": null,
             "description": "Default SSH key name",
+            "sensitive": true,
             "title": "Default Ssh Key Name"
           },
           "default_ssh_public_key": {
@@ -1769,6 +2336,7 @@
             ],
             "default": null,
             "description": "Default SSH public key (for create)",
+            "sensitive": true,
             "title": "Default Ssh Public Key"
           },
           "default_tags": {
@@ -1798,7 +2366,35 @@
             ],
             "default": null,
             "description": "Default cloud-init user data",
+            "sensitive": true,
             "title": "Default User Data"
+          },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
           },
           "size_mapping": {
             "anyOf": [
@@ -1819,6 +2415,19 @@
             "description": "Size slug mapping to component limits",
             "title": "Size Mapping"
           },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
+          },
           "token": {
             "description": "DigitalOcean API token",
             "secret": true,
@@ -1832,7 +2441,7 @@
         "title": "DigitalOceanBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -1850,15 +2459,52 @@
         "reporting"
       ],
       "secret_settings": [],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "apikey_secret",
+        "blocked_secret",
+        "gateway_url",
+        "kube_context",
+        "kubeconfig_path",
+        "namespace"
+      ],
       "settings_schema": {
         "additionalProperties": true,
         "description": "Envoy AI Gateway backend settings validation.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
           "apikey_secret": {
             "default": "envoy-ai-gateway-apikeys",
             "description": "Secret the SecurityPolicy reads keys from (clientID: key)",
+            "sensitive": true,
             "title": "Apikey Secret",
             "type": "string"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
           },
           "blocked_secret": {
             "anyOf": [
@@ -1871,10 +2517,64 @@
             ],
             "default": null,
             "description": "Secret holding blocked keys; defaults to <apikey_secret>-blocked",
+            "sensitive": true,
             "title": "Blocked Secret"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
           },
           "gateway_url": {
             "description": "Public base URL of the gateway, e.g. https://llm-ng.hpc.ut.ee",
+            "sensitive": true,
             "title": "Gateway Url",
             "type": "string"
           },
@@ -1889,6 +2589,7 @@
             ],
             "default": null,
             "description": "kubeconfig context to target (e.g. docker-desktop); omit for in-cluster",
+            "sensitive": true,
             "title": "Kube Context"
           },
           "kubeconfig_path": {
@@ -1902,12 +2603,54 @@
             ],
             "default": null,
             "description": "Path to kubeconfig; omit to use in-cluster config",
+            "sensitive": true,
             "title": "Kubeconfig Path"
           },
           "namespace": {
             "description": "Namespace holding the Envoy AI Gateway api-key Secrets",
+            "sensitive": true,
             "title": "Namespace",
             "type": "string"
+          },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
           }
         },
         "required": [
@@ -1917,7 +2660,7 @@
         "title": "EnvoyAIGatewayBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -1935,10 +2678,27 @@
       "secret_settings": [
         "api_token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "api_url"
+      ],
       "settings_schema": {
         "additionalProperties": true,
         "description": "usage reporting backend settings validation (usage warehouse the envoy keys report from).",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
           "api_token": {
             "anyOf": [
               {
@@ -1955,8 +2715,115 @@
           },
           "api_url": {
             "description": "usage warehouse base URL, e.g. http://usage-warehouse:9000",
+            "sensitive": true,
             "title": "Api Url",
             "type": "string"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
           }
         },
         "required": [
@@ -1965,7 +2832,7 @@
         "title": "EnvoyUsageBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -1978,6 +2845,12 @@
       ],
       "secret_settings": [
         "robot_password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "harbor_url",
+        "oidc_group_prefix",
+        "project_role_id"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -2078,6 +2951,7 @@
           },
           "harbor_url": {
             "description": "Harbor base URL",
+            "sensitive": true,
             "title": "Harbor Url",
             "type": "string"
           },
@@ -2092,6 +2966,7 @@
             ],
             "default": null,
             "description": "Prefix of the OIDC group per Waldur project (default 'waldur-')",
+            "sensitive": true,
             "title": "Oidc Group Prefix"
           },
           "periodic_limits": {
@@ -2132,6 +3007,7 @@
             ],
             "default": null,
             "description": "Harbor role for the group: 1 admin, 2 developer (default), 3 guest, 4 maintainer",
+            "sensitive": true,
             "title": "Project Role Id"
           },
           "robot_password": {
@@ -2167,7 +3043,7 @@
         "title": "HarborBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -2183,6 +3059,26 @@
         "prometheus.bearer_token",
         "prometheus.password"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "allowed_security_levels",
+        "cr_namespace",
+        "cr_user_identity_field",
+        "default_role",
+        "default_security_level",
+        "keycloak.keycloak_realm",
+        "keycloak.keycloak_ssl_verify",
+        "keycloak.keycloak_url",
+        "keycloak.keycloak_user_realm",
+        "keycloak_use_user_id",
+        "kubeconfig_path",
+        "namespace_annotations",
+        "namespace_labels",
+        "namespace_prefix",
+        "prometheus.ssl_verify",
+        "prometheus.url",
+        "role_mapping"
+      ],
       "settings_schema": {
         "$defs": {
           "KeycloakSettingsSchema": {
@@ -2227,6 +3123,7 @@
                 ],
                 "default": null,
                 "description": "Realm groups are managed in (default 'waldur')",
+                "sensitive": true,
                 "title": "Keycloak Realm"
               },
               "keycloak_ssl_verify": {
@@ -2235,6 +3132,7 @@
                     "type": "boolean"
                   },
                   {
+                    "minLength": 1,
                     "type": "string"
                   },
                   {
@@ -2243,6 +3141,7 @@
                 ],
                 "default": null,
                 "description": "Verify Keycloak's TLS: true/false, or a CA bundle path (default true)",
+                "sensitive": true,
                 "title": "Keycloak Ssl Verify"
               },
               "keycloak_url": {
@@ -2256,6 +3155,7 @@
                 ],
                 "default": null,
                 "description": "Keycloak base URL (default https://localhost/auth/)",
+                "sensitive": true,
                 "title": "Keycloak Url"
               },
               "keycloak_user_realm": {
@@ -2269,6 +3169,7 @@
                 ],
                 "default": null,
                 "description": "Realm the admin user authenticates against (default 'master')",
+                "sensitive": true,
                 "title": "Keycloak User Realm"
               },
               "keycloak_username": {
@@ -2387,6 +3288,7 @@
                     "type": "boolean"
                   },
                   {
+                    "minLength": 1,
                     "type": "string"
                   },
                   {
@@ -2395,6 +3297,7 @@
                 ],
                 "default": null,
                 "description": "Verify Prometheus's TLS: true/false, or a CA bundle path (default true)",
+                "sensitive": true,
                 "title": "Ssl Verify"
               },
               "step": {
@@ -2437,6 +3340,7 @@
                 ],
                 "default": null,
                 "description": "Prometheus base URL, e.g. https://prometheus.example.org; no credentials",
+                "sensitive": true,
                 "title": "Url"
               },
               "username": {
@@ -2505,6 +3409,7 @@
             ],
             "default": null,
             "description": "Levels the order's 'security_level' attribute may choose besides 'default_security_level' (default: none)",
+            "sensitive": true,
             "title": "Allowed Security Levels"
           },
           "backend_id_max_retries": {
@@ -2574,6 +3479,7 @@
             ],
             "default": null,
             "description": "Namespace of the ManagedNamespace CRs (default 'waldur-system')",
+            "sensitive": true,
             "title": "Cr Namespace"
           },
           "cr_user_identity_field": {
@@ -2587,6 +3493,7 @@
             ],
             "default": null,
             "description": "User field written to the CR (default 'email')",
+            "sensitive": true,
             "title": "Cr User Identity Field"
           },
           "cr_user_identity_lowercase": {
@@ -2639,6 +3546,7 @@
             ],
             "default": null,
             "description": "Role for members without a mapping (default 'readwrite')",
+            "sensitive": true,
             "title": "Default Role"
           },
           "default_security_level": {
@@ -2657,6 +3565,7 @@
             ],
             "default": null,
             "description": "Pod Security level of new namespaces (default: the operator's own default)",
+            "sensitive": true,
             "title": "Default Security Level"
           },
           "keycloak": {
@@ -2695,6 +3604,7 @@
             ],
             "default": null,
             "description": "Look Keycloak users up by id rather than username (default true)",
+            "sensitive": true,
             "title": "Keycloak Use User Id"
           },
           "kubeconfig_path": {
@@ -2708,6 +3618,7 @@
             ],
             "default": null,
             "description": "Kubeconfig file; in-cluster config when unset",
+            "sensitive": true,
             "title": "Kubeconfig Path"
           },
           "namespace_annotations": {
@@ -2724,6 +3635,7 @@
             ],
             "default": null,
             "description": "Annotations set on managed namespaces",
+            "sensitive": true,
             "title": "Namespace Annotations"
           },
           "namespace_labels": {
@@ -2740,6 +3652,7 @@
             ],
             "default": null,
             "description": "Labels set on managed namespaces",
+            "sensitive": true,
             "title": "Namespace Labels"
           },
           "namespace_prefix": {
@@ -2753,6 +3666,7 @@
             ],
             "default": null,
             "description": "Prefix of managed namespaces (default 'waldur-')",
+            "sensitive": true,
             "title": "Namespace Prefix"
           },
           "periodic_limits": {
@@ -2821,6 +3735,7 @@
             ],
             "default": null,
             "description": "Waldur role to namespace role, merged over the defaults",
+            "sensitive": true,
             "title": "Role Mapping"
           },
           "soft_delete": {
@@ -2853,7 +3768,7 @@
         "title": "K8sUtNamespaceBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -2869,6 +3784,26 @@
         "prometheus.bearer_token",
         "prometheus.password"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "allowed_security_levels",
+        "cr_namespace",
+        "cr_user_identity_field",
+        "default_role",
+        "default_security_level",
+        "keycloak.keycloak_realm",
+        "keycloak.keycloak_ssl_verify",
+        "keycloak.keycloak_url",
+        "keycloak.keycloak_user_realm",
+        "keycloak_use_user_id",
+        "kubeconfig_path",
+        "namespace_annotations",
+        "namespace_labels",
+        "namespace_prefix",
+        "prometheus.ssl_verify",
+        "prometheus.url",
+        "role_mapping"
+      ],
       "settings_schema": {
         "$defs": {
           "KeycloakSettingsSchema": {
@@ -2913,6 +3848,7 @@
                 ],
                 "default": null,
                 "description": "Realm groups are managed in (default 'waldur')",
+                "sensitive": true,
                 "title": "Keycloak Realm"
               },
               "keycloak_ssl_verify": {
@@ -2921,6 +3857,7 @@
                     "type": "boolean"
                   },
                   {
+                    "minLength": 1,
                     "type": "string"
                   },
                   {
@@ -2929,6 +3866,7 @@
                 ],
                 "default": null,
                 "description": "Verify Keycloak's TLS: true/false, or a CA bundle path (default true)",
+                "sensitive": true,
                 "title": "Keycloak Ssl Verify"
               },
               "keycloak_url": {
@@ -2942,6 +3880,7 @@
                 ],
                 "default": null,
                 "description": "Keycloak base URL (default https://localhost/auth/)",
+                "sensitive": true,
                 "title": "Keycloak Url"
               },
               "keycloak_user_realm": {
@@ -2955,6 +3894,7 @@
                 ],
                 "default": null,
                 "description": "Realm the admin user authenticates against (default 'master')",
+                "sensitive": true,
                 "title": "Keycloak User Realm"
               },
               "keycloak_username": {
@@ -3073,6 +4013,7 @@
                     "type": "boolean"
                   },
                   {
+                    "minLength": 1,
                     "type": "string"
                   },
                   {
@@ -3081,6 +4022,7 @@
                 ],
                 "default": null,
                 "description": "Verify Prometheus's TLS: true/false, or a CA bundle path (default true)",
+                "sensitive": true,
                 "title": "Ssl Verify"
               },
               "step": {
@@ -3123,6 +4065,7 @@
                 ],
                 "default": null,
                 "description": "Prometheus base URL, e.g. https://prometheus.example.org; no credentials",
+                "sensitive": true,
                 "title": "Url"
               },
               "username": {
@@ -3191,6 +4134,7 @@
             ],
             "default": null,
             "description": "Levels the order's 'security_level' attribute may choose besides 'default_security_level' (default: none)",
+            "sensitive": true,
             "title": "Allowed Security Levels"
           },
           "backend_id_max_retries": {
@@ -3260,6 +4204,7 @@
             ],
             "default": null,
             "description": "Namespace of the ManagedNamespace CRs (default 'waldur-system')",
+            "sensitive": true,
             "title": "Cr Namespace"
           },
           "cr_user_identity_field": {
@@ -3273,6 +4218,7 @@
             ],
             "default": null,
             "description": "User field written to the CR (default 'email')",
+            "sensitive": true,
             "title": "Cr User Identity Field"
           },
           "cr_user_identity_lowercase": {
@@ -3325,6 +4271,7 @@
             ],
             "default": null,
             "description": "Role for members without a mapping (default 'readwrite')",
+            "sensitive": true,
             "title": "Default Role"
           },
           "default_security_level": {
@@ -3343,6 +4290,7 @@
             ],
             "default": null,
             "description": "Pod Security level of new namespaces (default: the operator's own default)",
+            "sensitive": true,
             "title": "Default Security Level"
           },
           "keycloak": {
@@ -3381,6 +4329,7 @@
             ],
             "default": null,
             "description": "Look Keycloak users up by id rather than username (default true)",
+            "sensitive": true,
             "title": "Keycloak Use User Id"
           },
           "kubeconfig_path": {
@@ -3394,6 +4343,7 @@
             ],
             "default": null,
             "description": "Kubeconfig file; in-cluster config when unset",
+            "sensitive": true,
             "title": "Kubeconfig Path"
           },
           "namespace_annotations": {
@@ -3410,6 +4360,7 @@
             ],
             "default": null,
             "description": "Annotations set on managed namespaces",
+            "sensitive": true,
             "title": "Namespace Annotations"
           },
           "namespace_labels": {
@@ -3426,6 +4377,7 @@
             ],
             "default": null,
             "description": "Labels set on managed namespaces",
+            "sensitive": true,
             "title": "Namespace Labels"
           },
           "namespace_prefix": {
@@ -3439,6 +4391,7 @@
             ],
             "default": null,
             "description": "Prefix of managed namespaces (default 'waldur-')",
+            "sensitive": true,
             "title": "Namespace Prefix"
           },
           "periodic_limits": {
@@ -3507,6 +4460,7 @@
             ],
             "default": null,
             "description": "Waldur role to namespace role, merged over the defaults",
+            "sensitive": true,
             "title": "Role Mapping"
           },
           "soft_delete": {
@@ -3539,7 +4493,7 @@
         "title": "K8sUtNamespaceBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -3551,6 +4505,37 @@
       "secret_settings": [
         "ldap.bind_password",
         "ldap.welcome_email.smtp_password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "ldap.access_groups[].name",
+        "ldap.account_source",
+        "ldap.base_dn",
+        "ldap.bind_dn",
+        "ldap.default_home_base",
+        "ldap.default_login_shell",
+        "ldap.gid_range_end",
+        "ldap.gid_range_start",
+        "ldap.groups_ou",
+        "ldap.on_departure",
+        "ldap.on_posix_mismatch",
+        "ldap.people_ou",
+        "ldap.project_groups.membership",
+        "ldap.project_groups.on_gid_mismatch",
+        "ldap.project_groups.ou",
+        "ldap.project_groups.parents[].dn",
+        "ldap.project_groups.parents[].offering_uuids",
+        "ldap.remove_user_on_deactivate",
+        "ldap.uid_range_end",
+        "ldap.uid_range_start",
+        "ldap.uri",
+        "ldap.use_starttls",
+        "ldap.welcome_email.smtp_host",
+        "ldap.welcome_email.smtp_port",
+        "ldap.welcome_email.subject",
+        "ldap.welcome_email.template_path",
+        "ldap.welcome_email.use_ssl",
+        "ldap.welcome_email.use_tls"
       ],
       "settings_schema": {
         "$defs": {
@@ -3566,6 +4551,7 @@
               },
               "name": {
                 "description": "LDAP group name (e.g., 'vpnusrgroup', 'plus')",
+                "sensitive": true,
                 "title": "Name",
                 "type": "string"
               }
@@ -3626,15 +4612,18 @@
               "account_source": {
                 "$ref": "#/$defs/AccountSource",
                 "default": "ldap",
-                "description": "Which side owns username/uidNumber/gidNumber/homeDirectory/loginShell. 'ldap' (default) keeps the historical behaviour: the agent derives usernames and allocates ids from the ranges below. 'waldur' takes all five from the offering user and writes them into the directory."
+                "description": "Which side owns username/uidNumber/gidNumber/homeDirectory/loginShell. 'ldap' (default) keeps the historical behaviour: the agent derives usernames and allocates ids from the ranges below. 'waldur' takes all five from the offering user and writes them into the directory.",
+                "sensitive": true
               },
               "base_dn": {
                 "description": "Base DN for the directory (e.g., 'dc=example,dc=com')",
+                "sensitive": true,
                 "title": "Base Dn",
                 "type": "string"
               },
               "bind_dn": {
                 "description": "DN to bind as (e.g., 'cn=admin,dc=example,dc=com')",
+                "sensitive": true,
                 "title": "Bind Dn",
                 "type": "string"
               },
@@ -3647,12 +4636,14 @@
               "default_home_base": {
                 "default": "/home",
                 "description": "Base path for home directories",
+                "sensitive": true,
                 "title": "Default Home Base",
                 "type": "string"
               },
               "default_login_shell": {
                 "default": "/bin/bash",
                 "description": "Default login shell for users",
+                "sensitive": true,
                 "title": "Default Login Shell",
                 "type": "string"
               },
@@ -3672,18 +4663,21 @@
               "gid_range_end": {
                 "default": 65000,
                 "description": "End of GID allocation range",
+                "sensitive": true,
                 "title": "Gid Range End",
                 "type": "integer"
               },
               "gid_range_start": {
                 "default": 10000,
                 "description": "Start of GID allocation range",
+                "sensitive": true,
                 "title": "Gid Range Start",
                 "type": "integer"
               },
               "groups_ou": {
                 "default": "ou=Groups",
                 "description": "OU for group entries",
+                "sensitive": true,
                 "title": "Groups Ou",
                 "type": "string"
               },
@@ -3697,7 +4691,8 @@
                   }
                 ],
                 "default": null,
-                "description": "What to do with the entry once it is released: 'disable' parks it (no-login shell, shadowExpire=1, groups dropped, marker set; same DN and uid come back on return) or 'delete' removes it. Unset, this follows account_source: 'disable' under 'waldur', 'delete' under 'ldap' (the historical meaning of remove_user_on_deactivate there)."
+                "description": "What to do with the entry once it is released: 'disable' parks it (no-login shell, shadowExpire=1, groups dropped, marker set; same DN and uid come back on return) or 'delete' removes it. Unset, this follows account_source: 'disable' under 'waldur', 'delete' under 'ldap' (the historical meaning of remove_user_on_deactivate there).",
+                "sensitive": true
               },
               "on_missing_posix_ids": {
                 "$ref": "#/$defs/MissingPosixIdsPolicy",
@@ -3707,11 +4702,13 @@
               "on_posix_mismatch": {
                 "$ref": "#/$defs/PosixMismatchPolicy",
                 "default": "report",
-                "description": "What to do when an existing entry's uidNumber/gidNumber disagree with Waldur's. Only consulted when account_source is 'waldur'."
+                "description": "What to do when an existing entry's uidNumber/gidNumber disagree with Waldur's. Only consulted when account_source is 'waldur'.",
+                "sensitive": true
               },
               "people_ou": {
                 "default": "ou=People",
                 "description": "OU for user entries",
+                "sensitive": true,
                 "title": "People Ou",
                 "type": "string"
               },
@@ -3760,22 +4757,26 @@
                 ],
                 "default": null,
                 "description": "Delete the directory entry once the person holds no live account on any of the provider's offerings that share it. Unset, this follows account_source: off under 'ldap' (the entry is kept, as it always was), on under 'waldur' (Waldur owns the identity and keeps the ids, so the entry is reproducible and a departed user must not keep a resolvable login).",
+                "sensitive": true,
                 "title": "Remove User On Deactivate"
               },
               "uid_range_end": {
                 "default": 65000,
                 "description": "End of UID allocation range",
+                "sensitive": true,
                 "title": "Uid Range End",
                 "type": "integer"
               },
               "uid_range_start": {
                 "default": 10000,
                 "description": "Start of UID allocation range",
+                "sensitive": true,
                 "title": "Uid Range Start",
                 "type": "integer"
               },
               "uri": {
                 "description": "LDAP server URI (e.g., 'ldap://ldap.example.com')",
+                "sensitive": true,
                 "title": "Uri",
                 "type": "string"
               },
@@ -3790,6 +4791,7 @@
                 ],
                 "default": false,
                 "description": "Use STARTTLS for connection",
+                "sensitive": true,
                 "title": "Use Starttls"
               },
               "user_group_object_classes": {
@@ -3892,6 +4894,7 @@
               },
               "dn": {
                 "description": "Full DN of the entry, e.g. 'cn=alps,ou=clusters,dc=...'",
+                "sensitive": true,
                 "title": "Dn",
                 "type": "string"
               },
@@ -3909,6 +4912,7 @@
                 ],
                 "default": null,
                 "description": "Offerings whose projects this entry lists. Unset, only this agent's offering. Set it when several offerings share one entry, or each agent would remove the groups the others add.",
+                "sensitive": true,
                 "title": "Offering Uuids"
               }
             },
@@ -3977,7 +4981,8 @@
               "membership": {
                 "$ref": "#/$defs/ProjectGroupMembership",
                 "default": "sync",
-                "description": "'sync' adds and removes members to match Waldur; 'add_only' never removes one"
+                "description": "'sync' adds and removes members to match Waldur; 'add_only' never removes one",
+                "sensitive": true
               },
               "object_classes": {
                 "description": "Object classes of a newly created project group",
@@ -3990,7 +4995,8 @@
               "on_gid_mismatch": {
                 "$ref": "#/$defs/GidMismatchPolicy",
                 "default": "report",
-                "description": "An existing group of the same name with another gidNumber: 'report' leaves it alone, 'adopt' renumbers it to Waldur's GID unless another entry holds that GID"
+                "description": "An existing group of the same name with another gidNumber: 'report' leaves it alone, 'adopt' renumbers it to Waldur's GID unless another entry holds that GID",
+                "sensitive": true
               },
               "organization_description": {
                 "anyOf": [
@@ -4008,6 +5014,7 @@
               "ou": {
                 "default": "ou=projects",
                 "description": "OU, relative to base_dn, the project groups are written under",
+                "sensitive": true,
                 "title": "Ou",
                 "type": "string"
               },
@@ -4059,6 +5066,7 @@
               },
               "smtp_host": {
                 "description": "SMTP server hostname",
+                "sensitive": true,
                 "title": "Smtp Host",
                 "type": "string"
               },
@@ -4079,6 +5087,7 @@
               "smtp_port": {
                 "default": 587,
                 "description": "SMTP server port",
+                "sensitive": true,
                 "title": "Smtp Port",
                 "type": "integer"
               },
@@ -4098,11 +5107,13 @@
               "subject": {
                 "default": "Your new account has been created",
                 "description": "Email subject line (supports Jinja2 template variables)",
+                "sensitive": true,
                 "title": "Subject",
                 "type": "string"
               },
               "template_path": {
                 "description": "Path to Jinja2 email body template file (absolute or relative to CWD)",
+                "sensitive": true,
                 "title": "Template Path",
                 "type": "string"
               },
@@ -4115,12 +5126,14 @@
               "use_ssl": {
                 "default": false,
                 "description": "Use implicit SSL (port 465)",
+                "sensitive": true,
                 "title": "Use Ssl",
                 "type": "boolean"
               },
               "use_tls": {
                 "default": true,
                 "description": "Use STARTTLS (port 587)",
+                "sensitive": true,
                 "title": "Use Tls",
                 "type": "boolean"
               }
@@ -4148,7 +5161,7 @@
         "title": "LdapBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -4162,6 +5175,23 @@
         "ldap.bind_password",
         "waldur_api_token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "ldap.base_dn",
+        "ldap.bind_dn",
+        "ldap.empty_group_member_dn",
+        "ldap.groups_ou",
+        "ldap.people_ou",
+        "ldap.uri",
+        "ldap.use_starttls",
+        "lookup_by_user_uuid",
+        "resource_group_template",
+        "resource_project_group_template",
+        "resource_project_role_map",
+        "resource_role_map",
+        "waldur_api_url",
+        "waldur_verify_ssl"
+      ],
       "settings_schema": {
         "$defs": {
           "LdapConnectionSchema": {
@@ -4170,11 +5200,13 @@
             "properties": {
               "base_dn": {
                 "description": "Base DN for the directory",
+                "sensitive": true,
                 "title": "Base Dn",
                 "type": "string"
               },
               "bind_dn": {
                 "description": "DN to bind as",
+                "sensitive": true,
                 "title": "Bind Dn",
                 "type": "string"
               },
@@ -4195,17 +5227,20 @@
                 ],
                 "default": null,
                 "description": "Stand-in member that keeps a groupOfNames valid when no user holds its role (default cn=nobody,<base_dn>); must not be a uid= DN",
+                "sensitive": true,
                 "title": "Empty Group Member Dn"
               },
               "groups_ou": {
                 "default": "ou=Groups",
                 "description": "OU for group entries",
+                "sensitive": true,
                 "title": "Groups Ou",
                 "type": "string"
               },
               "people_ou": {
                 "default": "ou=People",
                 "description": "OU for user entries",
+                "sensitive": true,
                 "title": "People Ou",
                 "type": "string"
               },
@@ -4227,6 +5262,7 @@
               },
               "uri": {
                 "description": "LDAP server URI (e.g. ldaps://ldap.example.com)",
+                "sensitive": true,
                 "title": "Uri",
                 "type": "string"
               },
@@ -4241,6 +5277,7 @@
                 ],
                 "default": false,
                 "description": "Use STARTTLS",
+                "sensitive": true,
                 "title": "Use Starttls"
               }
             },
@@ -4257,6 +5294,85 @@
         "additionalProperties": true,
         "description": "Top-level backend_settings schema for the ldap-roles backend.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
           "ldap": {
             "$ref": "#/$defs/LdapConnectionSchema",
             "description": "LDAP connection settings"
@@ -4272,6 +5388,7 @@
             ],
             "default": false,
             "description": "Look up LDAP users by Waldur UUID instead of username",
+            "sensitive": true,
             "title": "Lookup By User Uuid"
           },
           "managed_by_tag": {
@@ -4286,15 +5403,44 @@
             "title": "Membership Type",
             "type": "string"
           },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
           "resource_group_template": {
             "default": "${resource_slug}_${role_name}",
             "description": "Group name template for Resource-scope roles",
+            "sensitive": true,
             "title": "Resource Group Template",
             "type": "string"
           },
           "resource_project_group_template": {
             "default": "${resource_slug}_${rp_uuid_short}_${role_name}",
             "description": "Group name template for ResourceProject-scope roles",
+            "sensitive": true,
             "title": "Resource Project Group Template",
             "type": "string"
           },
@@ -4303,6 +5449,7 @@
               "type": "string"
             },
             "description": "Map of Waldur role name -> output role token for ResourceProject-scope roles",
+            "sensitive": true,
             "title": "Resource Project Role Map",
             "type": "object"
           },
@@ -4311,8 +5458,22 @@
               "type": "string"
             },
             "description": "Map of Waldur role name -> output role token for Resource-scope roles",
+            "sensitive": true,
             "title": "Resource Role Map",
             "type": "object"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
           },
           "waldur_api_token": {
             "description": "Waldur API token",
@@ -4322,6 +5483,7 @@
           },
           "waldur_api_url": {
             "description": "Waldur API base URL (e.g. https://waldur.example.com/api/)",
+            "sensitive": true,
             "title": "Waldur Api Url",
             "type": "string"
           },
@@ -4336,6 +5498,7 @@
             ],
             "default": true,
             "description": "Verify TLS for Waldur API",
+            "sensitive": true,
             "title": "Waldur Verify Ssl"
           }
         },
@@ -4347,7 +5510,7 @@
         "title": "LdapRolesBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -4369,6 +5532,17 @@
         "openwebui.api_token",
         "openwebui.initial_password"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "api_url",
+        "models",
+        "openwebui.account_provisioning",
+        "openwebui.api_url",
+        "openwebui.delete_accounts_on_removal",
+        "openwebui.url",
+        "openwebui.verify_ssl",
+        "verify_ssl"
+      ],
       "settings_schema": {
         "$defs": {
           "OpenWebUISettingsSchema": {
@@ -4386,6 +5560,7 @@
                 ],
                 "default": "sso",
                 "description": "'sso' (default): accounts appear on first login through the identity provider and the agent only ever revokes. 'managed_password': the agent creates the account with 'initial_password'",
+                "sensitive": true,
                 "title": "Account Provisioning"
               },
               "api_token": {
@@ -4396,6 +5571,7 @@
               },
               "api_url": {
                 "description": "Open WebUI base URL for the admin API, e.g. https://chat.example.com",
+                "sensitive": true,
                 "title": "Api Url",
                 "type": "string"
               },
@@ -4410,6 +5586,7 @@
                 ],
                 "default": false,
                 "description": "Delete the Open WebUI account when access is revoked instead of demoting it to 'pending'. Demotion is the default: it ends access just as completely and keeps the person's chat history",
+                "sensitive": true,
                 "title": "Delete Accounts On Removal"
               },
               "initial_password": {
@@ -4450,6 +5627,7 @@
                 ],
                 "default": null,
                 "description": "User-facing chat URL surfaced on the resource in the portal; defaults to not advertising a chat surface at all",
+                "sensitive": true,
                 "title": "Url"
               },
               "verify_ssl": {
@@ -4463,6 +5641,7 @@
                 ],
                 "default": null,
                 "description": "Verify Open WebUI's TLS certificate (default true)",
+                "sensitive": true,
                 "title": "Verify Ssl"
               }
             },
@@ -4477,6 +5656,19 @@
         "additionalProperties": true,
         "description": "LiteLLM management backend settings validation.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
           "api_token": {
             "description": "LiteLLM master or admin key used for the management API",
             "secret": true,
@@ -4485,8 +5677,23 @@
           },
           "api_url": {
             "description": "LiteLLM proxy base URL, e.g. https://litellm.example.com",
+            "sensitive": true,
             "title": "Api Url",
             "type": "string"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
           },
           "budget_duration": {
             "anyOf": [
@@ -4501,6 +5708,58 @@
             "description": "Ignored: the max_budget backstop always resets on the 1st of the month ('1mo'), the month Waldur counts limits in. Any other value is logged",
             "title": "Budget Duration"
           },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
           "models": {
             "anyOf": [
               {
@@ -4513,6 +5772,7 @@
             ],
             "default": null,
             "description": "Model allowlist pushed onto every key; omit to allow every model",
+            "sensitive": true,
             "title": "Models"
           },
           "openwebui": {
@@ -4541,6 +5801,33 @@
             "description": "Calendar months, counting the current one, that a removed member's LiteLLM user record is kept so the chat usage they had keeps billing to the resource. Default 12; keep it at least the agent's reporting_periods, and the same on every agent sharing the proxy",
             "title": "Ownership Retention Months"
           },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
           "resource_backend_id_source": {
             "default": "slug",
             "description": "What a new resource's backend id, and so its key aliases '<backend_id>-<n>', derive from. 'slug' (default): allocation_prefix plus the user-chosen resource slug, which can collide with hand-made keys on a shared proxy. 'uuid': the resource UUID hex, which cannot. Existing resources keep the backend id they were provisioned with",
@@ -4563,6 +5850,19 @@
             "default": null,
             "description": "Default requests-per-minute cap applied to each key",
             "title": "Rpm Limit"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
           },
           "timeout": {
             "anyOf": [
@@ -4601,6 +5901,7 @@
             ],
             "default": null,
             "description": "Verify the proxy's TLS certificate (default true)",
+            "sensitive": true,
             "title": "Verify Ssl"
           }
         },
@@ -4611,7 +5912,7 @@
         "title": "LiteLLMBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -4629,10 +5930,28 @@
       "secret_settings": [
         "api_token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "api_url",
+        "verify_ssl"
+      ],
       "settings_schema": {
         "additionalProperties": true,
         "description": "LiteLLM usage reporting backend settings validation.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
           "api_token": {
             "description": "LiteLLM master or admin key used for the spend API",
             "secret": true,
@@ -4641,8 +5960,49 @@
           },
           "api_url": {
             "description": "LiteLLM proxy base URL",
+            "sensitive": true,
             "title": "Api Url",
             "type": "string"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
           },
           "component_metrics": {
             "anyOf": [
@@ -4657,6 +6017,72 @@
             "default": null,
             "description": "Extra Waldur component -> usage metric pairs, for components not named after the metric they read. Components called input_tokens, output_tokens, uncached_input_tokens, cache_read_tokens, cache_write_tokens or token_cost are metered without being listed here. The metric must be one of those six; token_cost is LiteLLM's own per-model USD spend, and uncached_input_tokens plus the two cache metrics split input_tokens. Two components may read the same metric, which is how an offering caps cost on a LIMIT component and bills it on a USAGE one: {inference_cost: token_cost}",
             "title": "Component Metrics"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
           },
           "timeout": {
             "anyOf": [
@@ -4695,6 +6121,7 @@
             ],
             "default": null,
             "description": "Verify the proxy's TLS certificate (default true)",
+            "sensitive": true,
             "title": "Verify Ssl"
           }
         },
@@ -4705,7 +6132,7 @@
         "title": "LiteLLMUsageBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -4717,6 +6144,8 @@
         "reporting"
       ],
       "secret_settings": [],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [],
       "settings_schema": {
         "additionalProperties": false,
         "description": "Settings for the ``moab`` backend.\n\nThe plugin itself reads no settings; prefixes and the default account are\nread by the agent core.",
@@ -4844,7 +6273,7 @@
         "title": "MoabBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -4857,6 +6286,10 @@
       ],
       "secret_settings": [
         "password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "api_url"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -4877,6 +6310,7 @@
           },
           "api_url": {
             "description": "MUP API URL",
+            "sensitive": true,
             "title": "Api Url",
             "type": "string"
           },
@@ -5149,7 +6583,7 @@
         "title": "MUPBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -5162,6 +6596,12 @@
       ],
       "secret_settings": [
         "admin_password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "allow_resharing",
+        "group_prefix",
+        "nextcloud_url"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -5202,6 +6642,7 @@
             ],
             "default": null,
             "description": "Allow members to re-share the group folder (default false)",
+            "sensitive": true,
             "title": "Allow Resharing"
           },
           "backend_id_max_retries": {
@@ -5295,10 +6736,12 @@
             ],
             "default": null,
             "description": "Prefix of the group per resource (default 'waldur-')",
+            "sensitive": true,
             "title": "Group Prefix"
           },
           "nextcloud_url": {
             "description": "Nextcloud base URL",
+            "sensitive": true,
             "title": "Nextcloud Url",
             "type": "string"
           },
@@ -5351,7 +6794,7 @@
         "title": "NextcloudBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -5365,6 +6808,13 @@
       "secret_settings": [
         "token",
         "token_config"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "api_url",
+        "default_role",
+        "namespace_prefix",
+        "verify_cert"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -5394,6 +6844,7 @@
             ],
             "default": null,
             "description": "OpenShift/OKD API URL (default https://localhost:8443)",
+            "sensitive": true,
             "title": "Api Url"
           },
           "backend_id_max_retries": {
@@ -5473,6 +6924,7 @@
             ],
             "default": null,
             "description": "Role bound to project members (default 'edit')",
+            "sensitive": true,
             "title": "Default Role"
           },
           "namespace_prefix": {
@@ -5486,6 +6938,7 @@
             ],
             "default": null,
             "description": "Prefix of created namespaces (default 'waldur-')",
+            "sensitive": true,
             "title": "Namespace Prefix"
           },
           "periodic_limits": {
@@ -5563,6 +7016,7 @@
                 "type": "boolean"
               },
               {
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -5571,13 +7025,14 @@
             ],
             "default": null,
             "description": "Verify TLS: true/false, or a CA bundle path (default true)",
+            "sensitive": true,
             "title": "Verify Cert"
           }
         },
         "title": "OkdBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -5591,6 +7046,23 @@
       "secret_settings": [
         "credentials",
         "keycloak.keycloak_password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "api_url",
+        "default_dns",
+        "default_user_role",
+        "external_network_id",
+        "keycloak.keycloak_realm",
+        "keycloak.keycloak_ssl_verify",
+        "keycloak.keycloak_url",
+        "keycloak.keycloak_user_realm",
+        "parent_vdc_backend_id",
+        "saml_mapping_file",
+        "security_group_defaults",
+        "template_id",
+        "vdc_roles",
+        "virtual_router_template_id"
       ],
       "settings_schema": {
         "$defs": {
@@ -5636,6 +7108,7 @@
                 ],
                 "default": null,
                 "description": "Realm groups are managed in (default 'waldur')",
+                "sensitive": true,
                 "title": "Keycloak Realm"
               },
               "keycloak_ssl_verify": {
@@ -5644,6 +7117,7 @@
                     "type": "boolean"
                   },
                   {
+                    "minLength": 1,
                     "type": "string"
                   },
                   {
@@ -5652,6 +7126,7 @@
                 ],
                 "default": null,
                 "description": "Verify Keycloak's TLS: true/false, or a CA bundle path (default true)",
+                "sensitive": true,
                 "title": "Keycloak Ssl Verify"
               },
               "keycloak_url": {
@@ -5665,6 +7140,7 @@
                 ],
                 "default": null,
                 "description": "Keycloak base URL (default https://localhost/auth/)",
+                "sensitive": true,
                 "title": "Keycloak Url"
               },
               "keycloak_user_realm": {
@@ -5678,6 +7154,7 @@
                 ],
                 "default": null,
                 "description": "Realm the admin user authenticates against (default 'master')",
+                "sensitive": true,
                 "title": "Keycloak User Realm"
               },
               "keycloak_username": {
@@ -5716,6 +7193,7 @@
           },
           "api_url": {
             "description": "OpenNebula XML-RPC endpoint",
+            "sensitive": true,
             "title": "Api Url",
             "type": "string"
           },
@@ -5831,6 +7309,7 @@
             ],
             "default": null,
             "description": "DNS server for new networks",
+            "sensitive": true,
             "title": "Default Dns"
           },
           "default_user_role": {
@@ -5844,6 +7323,7 @@
             ],
             "default": null,
             "description": "VDC role for members without a mapping (default 'user')",
+            "sensitive": true,
             "title": "Default User Role"
           },
           "external_network_id": {
@@ -5857,6 +7337,7 @@
             ],
             "default": null,
             "description": "External network id",
+            "sensitive": true,
             "title": "External Network Id"
           },
           "internal_network_base": {
@@ -5921,6 +7402,7 @@
             ],
             "default": null,
             "description": "VDC a VM is created in",
+            "sensitive": true,
             "title": "Parent Vdc Backend Id"
           },
           "periodic_limits": {
@@ -5978,6 +7460,7 @@
             ],
             "default": null,
             "description": "SAML group mapping file (default /var/lib/one/keycloak_groups.yaml)",
+            "sensitive": true,
             "title": "Saml Mapping File"
           },
           "sched_requirements": {
@@ -6008,6 +7491,7 @@
             ],
             "default": null,
             "description": "Default inbound rules for new VDCs",
+            "sensitive": true,
             "title": "Security Group Defaults"
           },
           "soft_delete": {
@@ -6050,6 +7534,7 @@
             ],
             "default": null,
             "description": "VM template id",
+            "sensitive": true,
             "title": "Template Id"
           },
           "vdc_roles": {
@@ -6067,6 +7552,7 @@
             ],
             "default": null,
             "description": "VDC role definitions; see the plugin README for the default",
+            "sensitive": true,
             "title": "Vdc Roles"
           },
           "virtual_router_template_id": {
@@ -6080,6 +7566,7 @@
             ],
             "default": null,
             "description": "Virtual router template id",
+            "sensitive": true,
             "title": "Virtual Router Template Id"
           },
           "vn_mad": {
@@ -6129,7 +7616,7 @@
         "title": "OpenNebulaBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -6143,6 +7630,19 @@
       "secret_settings": [
         "keycloak.keycloak_password",
         "password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "backend_url",
+        "cluster_id",
+        "default_role",
+        "keycloak.keycloak_realm",
+        "keycloak.keycloak_ssl_verify",
+        "keycloak.keycloak_url",
+        "keycloak.keycloak_user_realm",
+        "keycloak_use_user_id",
+        "namespace_labels",
+        "verify_cert"
       ],
       "settings_schema": {
         "$defs": {
@@ -6188,6 +7688,7 @@
                 ],
                 "default": null,
                 "description": "Realm groups are managed in (default 'waldur')",
+                "sensitive": true,
                 "title": "Keycloak Realm"
               },
               "keycloak_ssl_verify": {
@@ -6196,6 +7697,7 @@
                     "type": "boolean"
                   },
                   {
+                    "minLength": 1,
                     "type": "string"
                   },
                   {
@@ -6204,6 +7706,7 @@
                 ],
                 "default": null,
                 "description": "Verify Keycloak's TLS: true/false, or a CA bundle path (default true)",
+                "sensitive": true,
                 "title": "Keycloak Ssl Verify"
               },
               "keycloak_url": {
@@ -6217,6 +7720,7 @@
                 ],
                 "default": null,
                 "description": "Keycloak base URL (default https://localhost/auth/)",
+                "sensitive": true,
                 "title": "Keycloak Url"
               },
               "keycloak_user_realm": {
@@ -6230,6 +7734,7 @@
                 ],
                 "default": null,
                 "description": "Realm the admin user authenticates against (default 'master')",
+                "sensitive": true,
                 "title": "Keycloak User Realm"
               },
               "keycloak_username": {
@@ -6291,6 +7796,7 @@
             ],
             "default": null,
             "description": "Rancher URL (API is <url>/v3)",
+            "sensitive": true,
             "title": "Backend Url"
           },
           "check_all_offerings": {
@@ -6330,6 +7836,7 @@
             ],
             "default": null,
             "description": "Cluster projects are created in",
+            "sensitive": true,
             "title": "Cluster Id"
           },
           "customer_prefix": {
@@ -6369,6 +7876,7 @@
             ],
             "default": null,
             "description": "Project role for members (default 'workloads-manage')",
+            "sensitive": true,
             "title": "Default Role"
           },
           "keycloak": {
@@ -6407,6 +7915,7 @@
             ],
             "default": null,
             "description": "Look Keycloak users up by id rather than username (default true)",
+            "sensitive": true,
             "title": "Keycloak Use User Id"
           },
           "namespace_labels": {
@@ -6423,6 +7932,7 @@
             ],
             "default": null,
             "description": "Labels set on created namespaces",
+            "sensitive": true,
             "title": "Namespace Labels"
           },
           "password": {
@@ -6498,6 +8008,7 @@
                 "type": "boolean"
               },
               {
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -6506,13 +8017,14 @@
             ],
             "default": null,
             "description": "Verify TLS: true/false, or a CA bundle path (default true)",
+            "sensitive": true,
             "title": "Verify Cert"
           }
         },
         "title": "RancherBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -6523,6 +8035,24 @@
       ],
       "secret_settings": [
         "waldur_api_token"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "cluster_group_name_template",
+        "cluster_role_map",
+        "context",
+        "group_name_template",
+        "keycloak_lookup_attribute",
+        "keycloak_use_user_id",
+        "keycloak_user_identity_source",
+        "keycloak_user_identity_template",
+        "keycloak_user_lookup",
+        "kubeconfig_path",
+        "namespace",
+        "parent_group_name",
+        "role_map",
+        "waldur_api_url",
+        "waldur_verify_ssl"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -6592,6 +8122,7 @@
             ],
             "default": null,
             "description": "Cluster group template (default 'c_${cluster_id}_cluster_${role_name}')",
+            "sensitive": true,
             "title": "Cluster Group Name Template"
           },
           "cluster_role_map": {
@@ -6608,6 +8139,7 @@
             ],
             "default": null,
             "description": "Waldur role to Rancher cluster role; no cluster bindings when unset",
+            "sensitive": true,
             "title": "Cluster Role Map"
           },
           "context": {
@@ -6621,6 +8153,7 @@
             ],
             "default": null,
             "description": "Kubeconfig context",
+            "sensitive": true,
             "title": "Context"
           },
           "customer_prefix": {
@@ -6660,6 +8193,7 @@
             ],
             "default": null,
             "description": "Project group template (default 'c_${cluster_id}_${rp_uuid}_${role_name}')",
+            "sensitive": true,
             "title": "Group Name Template"
           },
           "keycloak_lookup_attribute": {
@@ -6673,6 +8207,7 @@
             ],
             "default": null,
             "description": "Keycloak user attribute to match (keycloak_user_lookup=attribute)",
+            "sensitive": true,
             "title": "Keycloak Lookup Attribute"
           },
           "keycloak_use_user_id": {
@@ -6686,6 +8221,7 @@
             ],
             "default": null,
             "description": "Deprecated: same as keycloak_user_identity_source=uuid + keycloak_user_lookup=id",
+            "sensitive": true,
             "title": "Keycloak Use User Id"
           },
           "keycloak_user_identity_lowercase": {
@@ -6717,6 +8253,7 @@
             ],
             "default": null,
             "description": "Waldur user field that supplies the member identifier (default 'username')",
+            "sensitive": true,
             "title": "Keycloak User Identity Source"
           },
           "keycloak_user_identity_template": {
@@ -6730,6 +8267,7 @@
             ],
             "default": null,
             "description": "Template for the member identifier, e.g. 'EE${value}' (default '${value}')",
+            "sensitive": true,
             "title": "Keycloak User Identity Template"
           },
           "keycloak_user_lookup": {
@@ -6748,6 +8286,7 @@
             ],
             "default": null,
             "description": "How the operator finds the member in the Rancher Keycloak: by username (default), user ID, or the user attribute named by keycloak_lookup_attribute",
+            "sensitive": true,
             "title": "Keycloak User Lookup"
           },
           "kubeconfig_path": {
@@ -6761,6 +8300,7 @@
             ],
             "default": null,
             "description": "Kubeconfig file; in-cluster config when unset",
+            "sensitive": true,
             "title": "Kubeconfig Path"
           },
           "namespace": {
@@ -6774,6 +8314,7 @@
             ],
             "default": null,
             "description": "Namespace the custom resources are written to (default 'waldur-system')",
+            "sensitive": true,
             "title": "Namespace"
           },
           "parent_group_name": {
@@ -6787,6 +8328,7 @@
             ],
             "default": null,
             "description": "Keycloak parent group template (default 'c_${cluster_id}')",
+            "sensitive": true,
             "title": "Parent Group Name"
           },
           "periodic_limits": {
@@ -6830,6 +8372,7 @@
             ],
             "default": null,
             "description": "Waldur project role to Rancher project role",
+            "sensitive": true,
             "title": "Role Map"
           },
           "soft_delete": {
@@ -6870,6 +8413,7 @@
             ],
             "default": null,
             "description": "Waldur API the backend reads resource projects from; pull_resource does nothing without it",
+            "sensitive": true,
             "title": "Waldur Api Url"
           },
           "waldur_verify_ssl": {
@@ -6883,13 +8427,14 @@
             ],
             "default": null,
             "description": "Verify TLS for waldur_api_url (default true)",
+            "sensitive": true,
             "title": "Waldur Verify Ssl"
           }
         },
         "title": "RancherKcCrdBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -6906,7 +8451,51 @@
         "membership_sync",
         "reporting"
       ],
-      "secret_settings": [],
+      "secret_settings": [
+        "ldap.bind_password"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "default_homedir_umask",
+        "default_partition",
+        "enable_user_homedir_account_creation",
+        "execution_mode",
+        "homedir_base_path",
+        "homedir_quota.mount_point",
+        "homedir_quota.provider",
+        "ldap.base_dn",
+        "ldap.bind_dn",
+        "ldap.default_home_base",
+        "ldap.default_login_shell",
+        "ldap.empty_group_member_dn",
+        "ldap.gid_range_end",
+        "ldap.gid_range_start",
+        "ldap.groups_ou",
+        "ldap.people_ou",
+        "ldap.uid_range_end",
+        "ldap.uid_range_start",
+        "ldap.uri",
+        "ldap.use_starttls",
+        "periodic_limits.emulator_base_url",
+        "periodic_limits.emulator_mode",
+        "project_directory.base_path",
+        "project_directory.enabled",
+        "project_directory.group_name",
+        "project_directory.group_owner_source",
+        "project_directory.lustre_quota.mount_point",
+        "project_directory.owner",
+        "project_directory.permissions",
+        "project_directory.set_acl",
+        "project_directory.set_gid",
+        "qos_default",
+        "qos_management.additional_qos",
+        "rest_api.token_env",
+        "rest_api.token_file",
+        "rest_api.url",
+        "rest_api.username",
+        "rest_api.verify_ssl",
+        "slurm_bin_path"
+      ],
       "settings_schema": {
         "$defs": {
           "ExecutionMode": {
@@ -7011,10 +8600,12 @@
                 ],
                 "default": null,
                 "description": "Filesystem mount point (required for xfs and lustre providers)",
+                "sensitive": true,
                 "title": "Mount Point"
               },
               "provider": {
                 "description": "Quota provider type: ceph_xattr, xfs, or lustre",
+                "sensitive": true,
                 "title": "Provider",
                 "type": "string"
               }
@@ -7084,6 +8675,7 @@
               "mount_point": {
                 "default": "/valhalla",
                 "description": "Lustre mount point",
+                "sensitive": true,
                 "title": "Mount Point",
                 "type": "string"
               },
@@ -7114,6 +8706,7 @@
                 ],
                 "default": null,
                 "description": "SLURM emulator API URL",
+                "sensitive": true,
                 "title": "Emulator Base Url"
               },
               "emulator_mode": {
@@ -7127,6 +8720,7 @@
                 ],
                 "default": false,
                 "description": "Use SLURM emulator for testing",
+                "sensitive": true,
                 "title": "Emulator Mode"
               },
               "enabled": {
@@ -7152,20 +8746,43 @@
             "type": "object"
           },
           "ProjectDirectoryConfig": {
-            "additionalProperties": true,
-            "description": "Project directory creation and quota configuration.",
+            "additionalProperties": false,
+            "description": "Project directory creation and quota configuration.\n\nStrict: every key the backend reads is declared, and they decide what the\nagent creates, chowns and chmods as root.",
             "properties": {
               "base_path": {
                 "default": "/valhalla/projects",
                 "description": "Base path for project directories",
+                "sensitive": true,
                 "title": "Base Path",
                 "type": "string"
               },
               "enabled": {
                 "default": false,
                 "description": "Enable project directory creation",
+                "sensitive": true,
                 "title": "Enabled",
                 "type": "boolean"
+              },
+              "group_name": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Group the directory is given to when group_owner_source is not 'project_id' (default: the resource's backend id)",
+                "sensitive": true,
+                "title": "Group Name"
+              },
+              "group_owner_source": {
+                "default": "project_id",
+                "description": "Group the directory is given to: 'project_id' (the resource's backend id) or anything else to use group_name",
+                "sensitive": true,
+                "title": "Group Owner Source",
+                "type": "string"
               },
               "lustre_quota": {
                 "anyOf": [
@@ -7182,24 +8799,28 @@
               "owner": {
                 "default": "nobody",
                 "description": "Owner of the project directory",
+                "sensitive": true,
                 "title": "Owner",
                 "type": "string"
               },
               "permissions": {
                 "default": "770",
                 "description": "Directory permissions (octal)",
+                "sensitive": true,
                 "title": "Permissions",
                 "type": "string"
               },
               "set_acl": {
                 "default": true,
                 "description": "Set POSIX ACLs for the project group",
+                "sensitive": true,
                 "title": "Set Acl",
                 "type": "boolean"
               },
               "set_gid": {
                 "default": true,
                 "description": "Set the setgid bit on the directory",
+                "sensitive": true,
                 "title": "Set Gid",
                 "type": "boolean"
               }
@@ -7225,6 +8846,7 @@
                 ],
                 "default": null,
                 "description": "Additional QoS names to attach to accounts (e.g., ['2cpu-single-host'])",
+                "sensitive": true,
                 "title": "Additional Qos"
               },
               "apply_limits_to_qos": {
@@ -7327,6 +8949,202 @@
             "title": "QosManagementConfig",
             "type": "object"
           },
+          "SlurmLdapSettings": {
+            "additionalProperties": true,
+            "description": "The ``ldap`` block the SLURM backend hands to ``LdapClient``.\n\nDeclared so the catalogue marks its endpoint and secret; the keys are those\n``waldur_site_agent_ldap_client.LdapClient`` reads. Open, as the client is\nshared with the ldap plugins, which take further keys.",
+            "properties": {
+              "base_dn": {
+                "description": "Base DN of the directory",
+                "sensitive": true,
+                "title": "Base Dn",
+                "type": "string"
+              },
+              "bind_dn": {
+                "description": "DN to bind as",
+                "sensitive": true,
+                "title": "Bind Dn",
+                "type": "string"
+              },
+              "bind_password": {
+                "description": "Password for bind_dn",
+                "secret": true,
+                "title": "Bind Password",
+                "type": "string"
+              },
+              "default_home_base": {
+                "default": "/home",
+                "description": "Base of new users' home directories",
+                "sensitive": true,
+                "title": "Default Home Base",
+                "type": "string"
+              },
+              "default_login_shell": {
+                "default": "/bin/bash",
+                "description": "Login shell of new users",
+                "sensitive": true,
+                "title": "Default Login Shell",
+                "type": "string"
+              },
+              "empty_group_member_dn": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Placeholder member of empty groups (default cn=nobody,<base_dn>)",
+                "sensitive": true,
+                "title": "Empty Group Member Dn"
+              },
+              "gid_range_end": {
+                "default": 65000,
+                "description": "Last GID to allocate",
+                "sensitive": true,
+                "title": "Gid Range End",
+                "type": "integer"
+              },
+              "gid_range_start": {
+                "default": 10000,
+                "description": "First GID to allocate",
+                "sensitive": true,
+                "title": "Gid Range Start",
+                "type": "integer"
+              },
+              "groups_ou": {
+                "default": "ou=Groups",
+                "description": "OU of group entries",
+                "sensitive": true,
+                "title": "Groups Ou",
+                "type": "string"
+              },
+              "people_ou": {
+                "default": "ou=People",
+                "description": "OU of user entries",
+                "sensitive": true,
+                "title": "People Ou",
+                "type": "string"
+              },
+              "personal_groups": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": true,
+                "description": "Create a personal group per user",
+                "title": "Personal Groups"
+              },
+              "project_group_object_classes": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Object classes of project group entries",
+                "title": "Project Group Object Classes"
+              },
+              "uid_range_end": {
+                "default": 65000,
+                "description": "Last UID to allocate",
+                "sensitive": true,
+                "title": "Uid Range End",
+                "type": "integer"
+              },
+              "uid_range_start": {
+                "default": 10000,
+                "description": "First UID to allocate",
+                "sensitive": true,
+                "title": "Uid Range Start",
+                "type": "integer"
+              },
+              "uri": {
+                "description": "LDAP server URI (e.g. 'ldap://ldap.example.com')",
+                "sensitive": true,
+                "title": "Uri",
+                "type": "string"
+              },
+              "use_starttls": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": false,
+                "description": "Use STARTTLS",
+                "sensitive": true,
+                "title": "Use Starttls"
+              },
+              "user_group_object_classes": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Object classes of personal group entries",
+                "title": "User Group Object Classes"
+              },
+              "user_object_classes": {
+                "anyOf": [
+                  {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Object classes of user entries",
+                "title": "User Object Classes"
+              },
+              "waldur_username_attribute": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Attribute holding the Waldur username",
+                "title": "Waldur Username Attribute"
+              }
+            },
+            "required": [
+              "uri",
+              "bind_dn",
+              "bind_password",
+              "base_dn"
+            ],
+            "title": "SlurmLdapSettings",
+            "type": "object"
+          },
           "SlurmLimitType": {
             "description": "Enumeration of SLURM limit types for periodic limits.",
             "enum": [
@@ -7338,8 +9156,8 @@
             "type": "string"
           },
           "SlurmRestApiConfig": {
-            "additionalProperties": true,
-            "description": "slurmrestd connection settings (used when ``execution_mode`` is ``rest``).",
+            "additionalProperties": false,
+            "description": "slurmrestd connection settings (used when ``execution_mode`` is ``rest``).\n\nStrict: every key the REST client reads is declared.",
             "properties": {
               "api_version": {
                 "default": "v0.0.43",
@@ -7364,6 +9182,7 @@
                 ],
                 "default": null,
                 "description": "Name of an environment variable holding the JWT token",
+                "sensitive": true,
                 "title": "Token Env"
               },
               "token_file": {
@@ -7377,21 +9196,25 @@
                 ],
                 "default": null,
                 "description": "Path to a file with the JWT token. Re-read on HTTP 401, so an external rotator (e.g. cron running 'scontrol token') keeps the agent working without restarts.",
+                "sensitive": true,
                 "title": "Token File"
               },
               "url": {
                 "description": "slurmrestd endpoint: 'http(s)://host:port' or 'unix:///path/to/socket'. slurmrestd speaks plain HTTP \u2014 use https only via a TLS-terminating proxy.",
+                "sensitive": true,
                 "title": "Url",
                 "type": "string"
               },
               "username": {
                 "description": "User the agent authenticates as (sent in X-SLURM-USER-NAME)",
+                "sensitive": true,
                 "title": "Username",
                 "type": "string"
               },
               "verify_ssl": {
                 "default": true,
                 "description": "Verify TLS certificates (for https endpoints behind a proxy)",
+                "sensitive": true,
                 "title": "Verify Ssl",
                 "type": "boolean"
               }
@@ -7420,6 +9243,46 @@
             "description": "Prefix for allocation account names",
             "title": "Allocation Prefix",
             "type": "string"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
           },
           "cluster_name": {
             "anyOf": [
@@ -7466,6 +9329,7 @@
             ],
             "default": "0077",
             "description": "Umask for created home directories",
+            "sensitive": true,
             "title": "Default Homedir Umask"
           },
           "default_partition": {
@@ -7479,6 +9343,7 @@
             ],
             "default": null,
             "description": "Partition to assign to user-account associations (e.g., 'cn', 'common')",
+            "sensitive": true,
             "title": "Default Partition"
           },
           "enable_user_homedir_account_creation": {
@@ -7492,7 +9357,14 @@
             ],
             "default": true,
             "description": "Create home directories for users",
+            "sensitive": true,
             "title": "Enable User Homedir Account Creation"
+          },
+          "enforce_offering_partitions": {
+            "default": false,
+            "description": "Thread the offering's partitions into user associations; when false they are informational only",
+            "title": "Enforce Offering Partitions",
+            "type": "boolean"
           },
           "enforce_offering_qos": {
             "anyOf": [
@@ -7510,7 +9382,8 @@
           "execution_mode": {
             "$ref": "#/$defs/ExecutionMode",
             "default": "cli",
-            "description": "How to talk to SLURM: 'cli' (sacctmgr/sacct binaries, default) or 'rest' (slurmrestd REST API, including usage reporting; only RawUsage resets still run sacctmgr \u2014 see docs/slurm-rest-api-design.md)"
+            "description": "How to talk to SLURM: 'cli' (sacctmgr/sacct binaries, default) or 'rest' (slurmrestd REST API, including usage reporting; only RawUsage resets still run sacctmgr \u2014 see docs/slurm-rest-api-design.md)",
+            "sensitive": true
           },
           "homedir_base_path": {
             "anyOf": [
@@ -7523,6 +9396,7 @@
             ],
             "default": null,
             "description": "Base path for user home directories (e.g. '/cephfs/home'). When set, quota is applied to {homedir_base_path}/{username}. When unset, the path is looked up from the system passwd database.",
+            "sensitive": true,
             "title": "Homedir Base Path"
           },
           "homedir_quota": {
@@ -7536,6 +9410,31 @@
             ],
             "default": null,
             "description": "Filesystem quota settings for user home directories"
+          },
+          "hostname": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Deprecated and ignored: the agent never reads it. Accepted so that configurations moved from an offering's plugin options validate",
+            "title": "Hostname"
+          },
+          "ldap": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/SlurmLdapSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "LDAP directory for project groups and their GIDs (needs the waldur-site-agent-slurm[ldap] extra)"
           },
           "parent_account": {
             "anyOf": [
@@ -7590,6 +9489,7 @@
             ],
             "default": "normal",
             "description": "Default QoS for accounts",
+            "sensitive": true,
             "title": "Qos Default"
           },
           "qos_downscaled": {
@@ -7648,6 +9548,47 @@
             "default": null,
             "description": "slurmrestd connection settings, required when execution_mode is 'rest'"
           },
+          "root_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account the top tier of the default hierarchy is created under (default: default_account, then 'root')",
+            "title": "Root Account"
+          },
+          "slurm_bin_path": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "/usr/bin",
+            "description": "Directory the SLURM binaries (sacctmgr, sacct, scontrol, ...) are run from; in 'rest' mode, the RawUsage resets that still run sacctmgr. null runs them from $PATH",
+            "sensitive": true,
+            "title": "Slurm Bin Path"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
+          },
           "usage_tres_source": {
             "$ref": "#/$defs/UsageTresSource",
             "default": "requested",
@@ -7655,15 +9596,15 @@
           }
         },
         "required": [
-          "default_account",
           "customer_prefix",
           "project_prefix",
-          "allocation_prefix"
+          "allocation_prefix",
+          "default_account"
         ],
         "title": "SlurmBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": {
@@ -7709,6 +9650,15 @@
       "secret_settings": [
         "target_api_token"
       ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "role_mapping",
+        "target_api_url",
+        "target_customer_uuid",
+        "target_offering_uuid",
+        "user_match_field",
+        "user_resolve_method"
+      ],
       "settings_schema": {
         "$defs": {
           "EndDateSyncDirection": {
@@ -7735,6 +9685,85 @@
         "additionalProperties": false,
         "description": "Schema for Waldur federation plugin backend settings.",
         "properties": {
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
           "end_date_sync_direction": {
             "$ref": "#/$defs/EndDateSyncDirection",
             "default": "bidirectional",
@@ -7779,13 +9808,54 @@
             "title": "Passthrough Attributes",
             "type": "array"
           },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
           "role_mapping": {
             "additionalProperties": {
               "type": "string"
             },
             "description": "Map source role names to target role names (e.g. PROJECT.ADMIN: PROJECT.MANAGER). Empty = passthrough (roles forwarded unchanged).",
+            "sensitive": true,
             "title": "Role Mapping",
             "type": "object"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
           },
           "target_api_token": {
             "description": "Authentication token for Waldur B API",
@@ -7795,16 +9865,19 @@
           },
           "target_api_url": {
             "description": "Base URL for the target Waldur B API endpoint",
+            "sensitive": true,
             "title": "Target Api Url",
             "type": "string"
           },
           "target_customer_uuid": {
             "description": "UUID of the customer/organization on Waldur B",
+            "sensitive": true,
             "title": "Target Customer Uuid",
             "type": "string"
           },
           "target_offering_uuid": {
             "description": "UUID of the offering on Waldur B",
+            "sensitive": true,
             "title": "Target Offering Uuid",
             "type": "string"
           },
@@ -7822,6 +9895,7 @@
               "email",
               "username"
             ],
+            "sensitive": true,
             "title": "User Match Field",
             "type": "string"
           },
@@ -7843,6 +9917,7 @@
               "identity_bridge",
               "user_field"
             ],
+            "sensitive": true,
             "title": "User Resolve Method",
             "type": "string"
           }
@@ -7856,7 +9931,7 @@
         "title": "WaldurBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     },
     {
       "component_schema": null,
@@ -7867,6 +9942,10 @@
       ],
       "secret_settings": [
         "target_api_token"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "target_api_url"
       ],
       "settings_schema": {
         "additionalProperties": false,
@@ -7885,6 +9964,7 @@
           },
           "target_api_url": {
             "description": "Base URL of Waldur B's API",
+            "sensitive": true,
             "title": "Target Api Url",
             "type": "string"
           }
@@ -7897,7 +9977,7 @@
         "title": "WaldurIdentityBridgeSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc13"
+      "version": "1.0.8rc15"
     }
   ]
 }

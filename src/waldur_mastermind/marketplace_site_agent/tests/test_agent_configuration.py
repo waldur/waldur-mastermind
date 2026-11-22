@@ -56,6 +56,9 @@ class AgentConfigurationTestMixin:
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION
+        )
         self.offering = factories.OfferingFactory(
             customer=self.fixture.customer, type=SITE_AGENT_OFFERING
         )
@@ -250,6 +253,9 @@ class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase
     def test_offering_manager_sets_configuration(self):
         # As docker/rootfs/etc/waldur/permissions.yaml grants it.
         OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        OfferingRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION
+        )
         manager = structure_factories.UserFactory()
         self.offering.add_user(manager, OfferingRole.MANAGER)
 
@@ -714,6 +720,9 @@ class AgentConfigurationCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION
+        )
         factories.ServiceProviderFactory(customer=self.fixture.customer)
         self.category = factories.CategoryFactory()
 
@@ -874,6 +883,9 @@ class ImportValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION
+        )
         self.category = factories.CategoryFactory(title="HPC")
 
     def import_offering(self, document, import_components=True):
