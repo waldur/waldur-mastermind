@@ -2736,7 +2736,7 @@ Enable logging of user profile data access events for GDPR compliance.
 
 **Default value:** 90
 
-Number of days to retain user data access logs before automatic cleanup.
+Number of days to retain user data access logs before automatic cleanup. 0 keeps them forever.
 
 #### USER_DATA_ACCESS_LOG_SELF_ACCESS
 
