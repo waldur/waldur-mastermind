@@ -154,6 +154,29 @@ if user_management_api_timeout:
         )
     WALDUR_CORE["USER_MANAGEMENT_API_TIMEOUT"] = parsed_timeout
 
+# Days; unset or empty keeps the default from WaldurCore (0, keep events
+# forever). Not a runtime setting: the retention period of the audit trail is
+# the deployment's decision, not one staff can change from the UI. Capped at a
+# century: 0 already means "forever", and a period long enough to reach past
+# year 1 would make the daily cleanup fail on the date arithmetic instead.
+EVENT_RETENTION_DAYS_MAX = 36500
+event_retention_days = env.get("WALDUR_EVENT_RETENTION_DAYS", "").strip()
+if event_retention_days:
+    try:
+        parsed_retention_days = int(event_retention_days)
+    except ValueError:
+        parsed_retention_days = None
+    if (
+        parsed_retention_days is None
+        or parsed_retention_days > EVENT_RETENTION_DAYS_MAX
+    ):
+        raise ImproperlyConfigured(
+            "WALDUR_EVENT_RETENTION_DAYS must be a whole number of days, at "
+            f"most {EVENT_RETENTION_DAYS_MAX} (0 keeps events forever), got "
+            f"{event_retention_days!r}"
+        )
+    WALDUR_CORE["EVENT_RETENTION_DAYS"] = parsed_retention_days
+
 # Sentry integration
 # See also: https://docs.sentry.io/platforms/python/guides/django/
 sentry_dsn = env.get("SENTRY_DSN")

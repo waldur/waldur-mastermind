@@ -358,6 +358,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=0),
         "args": (),
     },
+    # Delete events older than EVENT_RETENTION_DAYS daily at 4:30 AM, clear of
+    # the 3 AM revision pruning and the 4 AM software catalog cleanup
+    "delete-expired-events": {
+        "task": "waldur_core.logging.delete_expired_events",
+        "schedule": crontab(hour=4, minute=30),
+        "args": (),
+    },
     # Cleanup expired personal access tokens every 6 hours
     "cleanup-expired-pats": {
         "task": "waldur_core.core.cleanup_expired_personal_access_tokens",
