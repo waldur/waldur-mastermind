@@ -6,7 +6,8 @@ Assignment details:
 - Reviewer: {{ reviewer_name }}
 - Assigned date: {{ assign_date }}
 - Rejected date: {{ rejection_date }}
-
+{% if decline_reason %}- Reason: {{ decline_reason }}
+{% endif %}
 ACTION REQUIRED: Please assign a new reviewer to maintain the minimum required number of reviews for this proposal.
 
 Review Progress:

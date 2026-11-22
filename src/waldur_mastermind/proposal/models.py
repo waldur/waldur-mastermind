@@ -5462,6 +5462,14 @@ class Review(
             "Empty on reviews rejected before this was recorded."
         ),
     )
+    decline_reason = models.TextField(
+        blank=True,
+        help_text=(
+            "Why the reviewer sent the review back, as they gave it. For the "
+            "call team only; empty when no reason was given, and on reviews "
+            "that expired or were withdrawn."
+        ),
+    )
     summary_public_comment = models.TextField(blank=True)
     summary_private_comment = models.TextField(blank=True)
     comment_project_title = models.CharField(max_length=255, null=True, blank=True)

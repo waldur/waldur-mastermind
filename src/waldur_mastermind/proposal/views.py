@@ -10661,16 +10661,34 @@ class ReviewViewSet(FacetsMixin, ActionsViewSet):
         raise exceptions.PermissionDenied()
 
     @extend_schema(
-        description="Reject a review, changing its state to REJECTED.",
-        request=None,
+        description=(
+            "Reject a review, changing its state to REJECTED: the reviewer "
+            "sends back a review they accepted. They may say why; the reason "
+            "is kept on the review as decline_reason and sent to the call's "
+            "managers."
+        ),
+        request=serializers.ReviewRejectSerializer,
         responses={status.HTTP_200_OK: None},
     )
     @decorators.action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         review: models.Review = self.get_object()
-        review.state = models.Review.States.REJECTED
-        review.rejection_cause = proposal_enums.ReviewRejectionCauses.DECLINED
-        review.save()
+        input_serializer = serializers.ReviewRejectSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        with transaction.atomic():
+            # The state validator ran before the lock: re-check under it, so
+            # two concurrent rejects neither both log nor both notify.
+            review = models.Review.objects.select_for_update().get(pk=review.pk)
+            if review.state != models.Review.States.IN_REVIEW:
+                raise IncorrectStateException(
+                    _("Only a review in review can be rejected.")
+                )
+            review.state = models.Review.States.REJECTED
+            review.rejection_cause = proposal_enums.ReviewRejectionCauses.DECLINED
+            review.decline_reason = input_serializer.validated_data.get("reason", "")
+            review.save()
+        # The reason stays out of the event: it is logged on the proposal's
+        # feed too, and the review itself is the record of it.
         activity.log_review_event(review, EventType.REVIEW_REJECTED)
         tasks.notify_call_managers_about_rejected_review.delay(review.uuid)
         return response.Response(
