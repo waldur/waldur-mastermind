@@ -1,4 +1,4 @@
-"""CSV exports of a call's proposals and reviews.
+"""CSV and Excel exports of a call's proposals and reviews.
 
 Panel meetings, funding-body reporting and archiving all work from a
 spreadsheet of proposals. The table export in the frontend can only write the
@@ -10,15 +10,25 @@ them is slow besides, so the call writes the file itself.
 The column set is derived from the *call*, not from the proposals that happen
 to match the filters, so every row of one call's export has the same shape and
 two exports of the same call are comparable.
+
+The Excel workbook is the same rows in another format: one row builder feeds
+both writers, so the columns and what is left out cannot drift apart. openpyxl
+is imported inside :func:`xlsx_response` only, so processes that never write a
+workbook never load it — see "Lazy imports for heavy optional dependencies" in
+CLAUDE.md.
 """
 
 import csv
+import itertools
+import math
+import re
+import tempfile
 from collections import Counter
 from collections.abc import Iterator
 from decimal import Decimal, InvalidOperation
 
 from django.db.models import Prefetch
-from django.http import StreamingHttpResponse
+from django.http import FileResponse, StreamingHttpResponse
 
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.proposal import contributions, models, utils
@@ -422,11 +432,15 @@ def _average(values) -> float | str:
     return round(sum(present) / len(present), 2) if present else ""
 
 
-def _format_amount(amount: Decimal | None) -> str:
-    """Whole numbers without a trailing ``.0``; limits are usually integers."""
+def _format_amount(amount: Decimal | None) -> Decimal | str:
+    """Whole numbers without a trailing ``.0``; limits are usually integers.
+
+    Kept a number rather than text so the workbook writes it as one; the CSV
+    writer turns it into the same text either way.
+    """
     if amount is None:
         return ""
-    return str(
+    return (
         amount.to_integral_value() if amount == amount.to_integral_value() else amount
     )
 
@@ -480,3 +494,133 @@ def csv_response(rows: Iterator[list[str]], filename: str) -> StreamingHttpRespo
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
+
+
+XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+# Rows read to size the columns before the first one is written: a write-only
+# sheet takes its column widths up front.
+XLSX_WIDTH_SAMPLE = 100
+XLSX_MIN_WIDTH = 8
+XLSX_MAX_WIDTH = 60
+
+# The most characters a cell holds; Excel cuts anything longer when it opens
+# the file, without saying so.
+XLSX_MAX_CELL_LENGTH = 32767
+XLSX_TRUNCATION_MARKER = "\u2026"
+
+# Everything that is not an XML 1.0 character: the C0 controls but tab,
+# newline and carriage return, the surrogates, U+FFFE and U+FFFF. openpyxl's
+# own ILLEGAL_CHARACTERS_RE covers only the controls, and lxml refuses to
+# write the rest, which fails the whole export.
+XLSX_ILLEGAL_CHARACTERS_RE = re.compile(
+    "[\x00-\x08\x0b\x0c\x0e-\x1f\ud800-\udfff\ufffe\uffff]"
+)
+
+
+def _xlsx_number(value):
+    """``value`` if a workbook should hold it as a number, else ``None``.
+
+    Only what the row builders produce as a number counts — counts, scores,
+    averages and amounts. Text that merely reads as one (a proposal called
+    ``0042`` or ``1e3``) stays text, as typed.
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    if isinstance(value, Decimal) and value.is_finite():
+        return value
+    return None
+
+
+def _xlsx_text(value) -> str:
+    """``value`` as text a cell can hold: no character XML refuses, and cut
+    to the cell limit with a visible marker rather than silently by Excel."""
+    text = XLSX_ILLEGAL_CHARACTERS_RE.sub("", _text(value))
+    if len(text) > XLSX_MAX_CELL_LENGTH:
+        text = (
+            text[: XLSX_MAX_CELL_LENGTH - len(XLSX_TRUNCATION_MARKER)]
+            + XLSX_TRUNCATION_MARKER
+        )
+    return text
+
+
+def _xlsx_width(value) -> int:
+    return max((len(line) for line in _text(value).splitlines()), default=0)
+
+
+def xlsx_response(
+    rows: Iterator[list], filename: str, sheet_title: str
+) -> FileResponse:
+    """The rows as a one-sheet Excel attachment, header bold and frozen.
+
+    Numbers are written as numbers, so they sum and sort, whatever the
+    reader's locale. Every other cell is a string cell with its type set
+    explicitly: openpyxl would otherwise store text starting with ``=`` as a
+    formula and text such as ``#N/A`` as an error, and the text is written by
+    applicants and reviewers. That is also why the CSV's protecting apostrophe
+    is not needed here, and would show. Characters XML cannot hold are
+    dropped, so a control character pasted into a summary cannot make the
+    file unreadable, and text past the cell limit is cut with a marker.
+
+    Write-only mode writes the rows to a temporary file instead of building
+    the sheet in memory, and the finished workbook is written to another
+    temporary file and sent from there. The rows arrive in chunks, so what
+    the process holds does not grow with the size of the call. Unlike the
+    CSV, nothing is sent until the workbook is complete.
+    """
+    from openpyxl import Workbook
+    from openpyxl.cell import WriteOnlyCell
+    from openpyxl.cell.cell import TYPE_STRING
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet(sheet_title)
+
+    def cell(value, font=None):
+        number = _xlsx_number(value)
+        if number is not None:
+            result = WriteOnlyCell(sheet, value=number)
+        else:
+            text = _xlsx_text(value)
+            if not text:
+                return None
+            result = WriteOnlyCell(sheet, value=text)
+            result.data_type = TYPE_STRING
+        if font:
+            result.font = font
+        return result
+
+    rows = iter(rows)
+    header = next(rows, [])
+    sample = list(itertools.islice(rows, XLSX_WIDTH_SAMPLE))
+    for index in range(len(header)):
+        width = max(_xlsx_width(row[index]) for row in [header, *sample])
+        sheet.column_dimensions[get_column_letter(index + 1)].width = min(
+            max(width + 2, XLSX_MIN_WIDTH), XLSX_MAX_WIDTH
+        )
+    sheet.freeze_panes = "A2"
+
+    bold = Font(bold=True)
+    sheet.append([cell(title, bold) for title in header])
+    for row in itertools.chain(sample, rows):
+        sheet.append([cell(value) for value in row])
+
+    # Closed, and so deleted, by the response once it has been sent.
+    output = tempfile.TemporaryFile()  # noqa: SIM115
+    try:
+        workbook.save(output)
+        output.seek(0)
+    except BaseException:
+        output.close()
+        raise
+    return FileResponse(
+        output,
+        as_attachment=True,
+        filename=filename,
+        content_type=XLSX_CONTENT_TYPE,
+    )

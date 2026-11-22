@@ -1453,6 +1453,48 @@ _EXPORT_ROUND_PARAMETER = OpenApiParameter(
 )
 
 
+_EXPORT_FILE_FORMATS = ("csv", "xlsx")
+
+_EXPORT_FILE_FORMAT_PARAMETER = OpenApiParameter(
+    "file_format",
+    OpenApiTypes.STR,
+    OpenApiParameter.QUERY,
+    enum=list(_EXPORT_FILE_FORMATS),
+    description=(
+        "csv (the default) or xlsx, an Excel workbook of the same header and "
+        "rows. Named file_format because a bare `format` is read by the API "
+        "itself."
+    ),
+)
+
+# Both media types an export answers with, for the schema.
+_EXPORT_RESPONSES = {
+    (200, "text/csv"): OpenApiTypes.BINARY,
+    (200, exports.XLSX_CONTENT_TYPE): OpenApiTypes.BINARY,
+}
+
+
+def _export_file_format(request) -> str:
+    """The requested file format, refused when unknown rather than defaulted:
+    a client asking for a format it does not get would save a file under the
+    wrong extension."""
+    file_format = request.query_params.get("file_format") or "csv"
+    if file_format not in _EXPORT_FILE_FORMATS:
+        raise exceptions.ValidationError(
+            {
+                "file_format": _("Unknown file format: %(value)s. Use %(choices)s.")
+                % {"value": file_format, "choices": ", ".join(_EXPORT_FILE_FORMATS)}
+            }
+        )
+    return file_format
+
+
+def _export_response(file_format: str, rows, basename: str, sheet_title: str):
+    if file_format == "xlsx":
+        return exports.xlsx_response(rows, f"{basename}.xlsx", sheet_title)
+    return exports.csv_response(rows, f"{basename}.csv")
+
+
 def _export_uuid(request, parameter: str) -> str | None:
     """A UUID filter, rejected early when it is not a UUID.
 
@@ -1996,16 +2038,17 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         operation_id="proposal_protected_calls_export_proposals",
         description=(
-            "Download the call's proposals as CSV, one row per proposal, with "
-            "one column per requested offering component. The column set is "
-            "derived from the call, so it is the same for every row and "
-            "between exports of the same call."
+            "Download the call's proposals as CSV or as an Excel workbook, one "
+            "row per proposal, with one column per requested offering "
+            "component. The column set is derived from the call, so it is the "
+            "same for every row and between exports of the same call."
         ),
         parameters=[
             _EXPORT_ROUND_PARAMETER,
             _EXPORT_APPLICANT_PARAMETER,
             _EXPORT_PROPOSAL_PARAMETER,
             _EXPORT_NAME_PARAMETER,
+            _EXPORT_FILE_FORMAT_PARAMETER,
             OpenApiParameter(
                 "proposal_state",
                 OpenApiTypes.STR,
@@ -2015,12 +2058,13 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 description="Limit the export to proposals in these states.",
             ),
         ],
-        responses={(200, "text/csv"): OpenApiTypes.BINARY},
+        responses=_EXPORT_RESPONSES,
         filters=False,
     )
     @decorators.action(detail=True, methods=["get"], url_path="export-proposals")
     def export_proposals(self, request, uuid=None):
         call: models.Call = self.get_object()
+        file_format = _export_file_format(request)
         queryset = exports.proposal_queryset(
             call,
             round_uuid=_export_uuid(request, "round_uuid"),
@@ -2030,9 +2074,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             name=request.query_params.get("proposal_name"),
         )
         schema = exports.CallExportSchema(call)
-        return exports.csv_response(
+        return _export_response(
+            file_format,
             exports.proposal_rows(schema, queryset),
-            f"{call.slug}-proposals.csv",
+            f"{call.slug}-proposals",
+            "Proposals",
         )
 
     export_proposals_permissions = [
@@ -2044,15 +2090,17 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         operation_id="proposal_protected_calls_export_reviews",
         description=(
-            "Download the call's reviews as CSV, one row per review. The "
-            "reviewer's private comment is never included: the export is open "
-            "to call managers, and the review API keeps that field from them."
+            "Download the call's reviews as CSV or as an Excel workbook, one "
+            "row per review. The reviewer's private comment is never included: "
+            "the export is open to call managers, and the review API keeps "
+            "that field from them."
         ),
         parameters=[
             _EXPORT_ROUND_PARAMETER,
             _EXPORT_REVIEWER_PARAMETER,
             _EXPORT_PROPOSAL_PARAMETER,
             _EXPORT_NAME_PARAMETER,
+            _EXPORT_FILE_FORMAT_PARAMETER,
             OpenApiParameter(
                 "review_state",
                 OpenApiTypes.STR,
@@ -2062,12 +2110,13 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 description="Limit the export to reviews in these states.",
             ),
         ],
-        responses={(200, "text/csv"): OpenApiTypes.BINARY},
+        responses=_EXPORT_RESPONSES,
         filters=False,
     )
     @decorators.action(detail=True, methods=["get"], url_path="export-reviews")
     def export_reviews(self, request, uuid=None):
         call: models.Call = self.get_object()
+        file_format = _export_file_format(request)
         queryset = exports.review_queryset(
             call,
             round_uuid=_export_uuid(request, "round_uuid"),
@@ -2076,9 +2125,11 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             proposal_uuids=_export_uuids(request, "proposal_uuid"),
             proposal_name=request.query_params.get("proposal_name"),
         )
-        return exports.csv_response(
+        return _export_response(
+            file_format,
             exports.review_rows(exports.criterion_columns(call), queryset),
-            f"{call.slug}-reviews.csv",
+            f"{call.slug}-reviews",
+            "Reviews",
         )
 
     export_reviews_permissions = export_proposals_permissions
