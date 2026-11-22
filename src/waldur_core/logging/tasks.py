@@ -651,6 +651,9 @@ def cleanup_user_data_access_logs() -> dict:
         dict with count of deleted records
     """
     retention_days = config.USER_DATA_ACCESS_LOG_RETENTION_DAYS
+    if not retention_days or retention_days <= 0:
+        # 0 (or a negative value) keeps the logs; it never means "delete all".
+        return {"deleted_count": 0, "retention_days": retention_days}
     cutoff_date = timezone.now() - timedelta(days=retention_days)
 
     deleted_count, _ = UserDataAccessLog.objects.filter(

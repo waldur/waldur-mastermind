@@ -31,7 +31,11 @@ Content-Type: application/json
 |---------|---------|-------------|
 | `USER_DATA_ACCESS_LOGGING_ENABLED` | `False` | Enable logging of user data access events |
 | `USER_DATA_ACCESS_LOG_SELF_ACCESS` | `False` | Log when users access their own profile |
-| `USER_DATA_ACCESS_LOG_RETENTION_DAYS` | `90` | Days to retain logs before automatic cleanup |
+| `USER_DATA_ACCESS_LOG_RETENTION_DAYS` | `90` | Days to retain logs before automatic cleanup; 0 keeps them forever |
+
+The `cleanup-user-data-access-logs` beat task runs daily at 04:30 UTC and deletes
+the logs older than `USER_DATA_ACCESS_LOG_RETENTION_DAYS`. A value of 0 keeps
+the logs forever.
 
 ### Logged Fields
 

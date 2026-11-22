@@ -321,6 +321,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(minutes=15),
         "args": (),
     },
+    # Delete user data access logs older than USER_DATA_ACCESS_LOG_RETENTION_DAYS
+    "cleanup-user-data-access-logs": {
+        "task": "waldur_core.logging.cleanup_user_data_access_logs",
+        "schedule": crontab(hour=4, minute=30),
+        "args": (),
+    },
     # Delete browser event consumers whose queue has had no reader for
     # EVENT_CONSUMER_EPHEMERAL_IDLE_HOURS (tabs closed without logging out)
     "delete-idle-ephemeral-event-consumers": {
