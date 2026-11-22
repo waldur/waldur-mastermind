@@ -899,6 +899,15 @@ wheels = [
 ]
 
 [[package]]
+name = "et-xmlfile"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d3/38/af70d7ab1ae9d4da450eeec1fa3918940a5fafb9055e934af8d6eb0c2313/et_xmlfile-2.0.0.tar.gz", hash = "sha256:dab3f4764309081ce75662649be815c4c9081e88f0837825f90fd28317d4da54", size = 17234, upload-time = "2024-10-25T17:25:40.039Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/8b/5fe2cc11fee489817272089c4203e679c63b570a5aaeb18d852ae3cbba6a/et_xmlfile-2.0.0-py3-none-any.whl", hash = "sha256:7a91720bc756843502c3b7504c77b8fe44217c85c537d85037f0f536151b2caa", size = 18059, upload-time = "2024-10-25T17:25:39.051Z" },
+]
+
+[[package]]
 name = "factory-boy"
 version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1743,6 +1752,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/27/b5/86bb5c7b918e3e82276219ec39f8733ecf7d9bdbd226829a86c9b204b6c5/openportal-0.91.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e0da673ecd70c4ef09e6d1bce544664eaf6afd3eab1fd8124f2b9f21d55fbf7f", size = 3024569, upload-time = "2026-08-04T10:51:11.237Z" },
     { url = "https://files.pythonhosted.org/packages/f5/7b/fe0b15bf48e2eb67679fa9f904129e576939f5ca2f57ee2e60699a9fb176/openportal-0.91.0-cp310-abi3-musllinux_1_1_aarch64.whl", hash = "sha256:3bd5ea58df4d8dcb5c45566f1dd32f612ec73aabcf2a47fca758926db15ad503", size = 3126631, upload-time = "2026-08-04T10:51:09.878Z" },
     { url = "https://files.pythonhosted.org/packages/8e/9f/cfe0fb232bf179b5d5c62d8a99875ba10d1437d1a9963aa3db68e3f0f6e6/openportal-0.91.0-cp310-abi3-musllinux_1_1_x86_64.whl", hash = "sha256:04c0909b0860e51eac3efe033938d0ad8b8d2cb47c3507b34b614e860ea6673b", size = 3307872, upload-time = "2026-08-04T10:51:12.684Z" },
+]
+
+[[package]]
+name = "openpyxl"
+version = "3.1.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "et-xmlfile" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3d/f9/88d94a75de065ea32619465d2f77b29a0469500e99012523b91cc4141cd1/openpyxl-3.1.5.tar.gz", hash = "sha256:cf0e3cf56142039133628b5acffe8ef0c12bc902d2aadd3e0fe5878dc08d1050", size = 186464, upload-time = "2024-06-28T14:03:44.161Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c0/da/977ded879c29cbd04de313843e76868e6e13408a94ed6b987245dc7c8506/openpyxl-3.1.5-py2.py3-none-any.whl", hash = "sha256:5282c12b107bffeef825f4617dc029afaf41d0ea60823bbb665ef3079dc79de2", size = 250910, upload-time = "2024-06-28T14:03:41.161Z" },
 ]
 
 [[package]]
@@ -3384,6 +3405,7 @@ dependencies = [
     { name = "nh3" },
     { name = "openai" },
     { name = "openportal" },
+    { name = "openpyxl" },
     { name = "openstacksdk" },
     { name = "opentelemetry-proto" },
     { name = "pillow" },
@@ -3483,6 +3505,7 @@ requires-dist = [
     { name = "nh3", specifier = ">=0.2.18,<1.0.0" },
     { name = "openai", specifier = ">=2.26.0" },
     { name = "openportal", specifier = ">=0.91.0" },
+    { name = "openpyxl", specifier = ">=3.1.5,<4.0.0" },
     { name = "openstacksdk", specifier = ">=4.7.1" },
     { name = "opentelemetry-proto", specifier = ">=1.37,<2" },
     { name = "pillow", specifier = ">=13.0.0,<14.0.0" },
