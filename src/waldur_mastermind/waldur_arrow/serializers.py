@@ -1,10 +1,12 @@
+from datetime import date
+
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import models
+from . import models, tasks
 
 # -------------------- Arrow Settings Serializers --------------------
 
@@ -1207,3 +1209,100 @@ class AvailableArrowCustomersResponseSerializer(serializers.Serializer):
     arrow_customers = ArrowCustomerDiscoverySerializer(many=True)
     waldur_customers = WaldurCustomerBriefSerializer(many=True)
     suggestions = CustomerMappingSuggestionSerializer(many=True)
+
+
+# -------------------- Billing changes (preview and apply) --------------------
+
+
+class BillingChangesRequestSerializer(serializers.Serializer):
+    action = serializers.ChoiceField(
+        choices=(
+            ("sync_billing", "Sync billing lines"),
+            ("sync_consumption", "Sync consumption"),
+            ("settle_month", "Settle a past month"),
+        )
+    )
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+    month = serializers.IntegerField(min_value=1, max_value=12)
+    resource_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Limit billing or consumption sync to one resource.",
+    )
+    dry_run = serializers.BooleanField(
+        default=True,
+        help_text="Preview the changes and keep nothing; false applies them.",
+    )
+
+    def validate(self, attrs):
+        resource_uuid = attrs.get("resource_uuid")
+        if attrs["action"] == "settle_month":
+            month_start = date(attrs["year"], attrs["month"], 1)
+            if month_start >= date.today().replace(day=1):
+                raise serializers.ValidationError(
+                    {"month": "Only a month that has ended can be settled."}
+                )
+            if resource_uuid:
+                raise serializers.ValidationError(
+                    {"resource_uuid": "A month is settled for every resource."}
+                )
+        if resource_uuid:
+            resource = marketplace_models.Resource.objects.filter(
+                uuid=resource_uuid
+            ).first()
+            if resource is None or not tasks.arrow_license(resource):
+                # Without a license the task cannot narrow its run, and would
+                # process every customer instead.
+                raise serializers.ValidationError(
+                    {"resource_uuid": "The resource is not linked to an Arrow license."}
+                )
+        return attrs
+
+
+class BillingItemChangeSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    name = serializers.CharField()
+    resource_name = serializers.CharField(allow_blank=True)
+    change = serializers.ChoiceField(choices=("created", "updated", "deleted"))
+    amount_before = serializers.DecimalField(max_digits=22, decimal_places=2)
+    amount_after = serializers.DecimalField(max_digits=22, decimal_places=2)
+
+
+class BillingInvoiceChangeSerializer(serializers.Serializer):
+    invoice_uuid = serializers.CharField()
+    customer_uuid = serializers.CharField()
+    customer_name = serializers.CharField()
+    year = serializers.IntegerField()
+    month = serializers.IntegerField()
+    state = serializers.CharField()
+    total_before = serializers.DecimalField(max_digits=22, decimal_places=2)
+    total_after = serializers.DecimalField(max_digits=22, decimal_places=2)
+    items = BillingItemChangeSerializer(many=True)
+
+
+class BillingChangesResponseSerializer(serializers.Serializer):
+    action = serializers.CharField()
+    year = serializers.IntegerField()
+    month = serializers.IntegerField()
+    resource_uuid = serializers.CharField(allow_null=True)
+    dry_run = serializers.BooleanField()
+    taken_at = serializers.DateTimeField()
+    result = serializers.JSONField(
+        allow_null=True, help_text="What the underlying task reported."
+    )
+    invoices = BillingInvoiceChangeSerializer(many=True)
+    problems = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Warnings and errors the run logged, such as a failed Arrow call.",
+    )
+
+
+class BillingChangesJobSerializer(serializers.Serializer):
+    job_id = serializers.CharField()
+    state = serializers.ChoiceField(choices=("running", "done", "failed"))
+    report = BillingChangesResponseSerializer(allow_null=True)
+    error = serializers.CharField(allow_null=True)
+
+
+class BillingChangesJobQuerySerializer(serializers.Serializer):
+    job_id = serializers.CharField()

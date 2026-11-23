@@ -12,6 +12,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from celery import shared_task
+from celery.exceptions import SoftTimeLimitExceeded
 from dateutil.relativedelta import relativedelta
 from django.db import transaction
 from django.db.models import Q
@@ -22,7 +23,7 @@ from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import models
+from . import billing_changes, models
 from .backend import ArrowBackendError, ArrowClient, ArrowCredentials, get_arrow_client
 
 # How Arrow charges reach an invoice (one charge per license and month):
@@ -59,8 +60,19 @@ def arrow_license(resource) -> str:
 def arrow_licensed_resources_q() -> Q:
     """Filter for resources that arrow_license() gives a license for."""
     has_attribute = Q(attributes__has_key=LICENSE_ATTRIBUTE)
-    return (has_attribute & ~Q(**{f"attributes__{LICENSE_ATTRIBUTE}": ""})) | (
+    empty = Q(**{f"attributes__{LICENSE_ATTRIBUTE}": ""}) | Q(
+        **{f"attributes__{LICENSE_ATTRIBUTE}": None}
+    )
+    return (has_attribute & ~empty) | (
         ~has_attribute & Q(backend_id__istartswith="XSP")
+    )
+
+
+def license_q(license_reference: str) -> Q:
+    """Filter for the resources arrow_license() gives this license for."""
+    return Q(**{f"attributes__{LICENSE_ATTRIBUTE}": license_reference}) | (
+        ~Q(attributes__has_key=LICENSE_ATTRIBUTE)
+        & Q(backend_id__iexact=license_reference)
     )
 
 
@@ -294,7 +306,9 @@ def sync_arrow_consumption_scheduled():
 
 
 @shared_task(name="waldur_mastermind.waldur_arrow.sync_arrow_consumption")
-def sync_arrow_consumption(year: int, month: int, settings_uuid: str = ""):
+def sync_arrow_consumption(
+    year: int, month: int, settings_uuid: str = "", resource_uuid: str = ""
+):
     """
     Sync real-time consumption data from Arrow for a specific period.
 
@@ -331,9 +345,11 @@ def sync_arrow_consumption(year: int, month: int, settings_uuid: str = ""):
 
     # Find all resources with arrow_license_reference attribute
     resources = marketplace_models.Resource.objects.filter(
-        attributes__arrow_license_reference__isnull=False,
+        arrow_licensed_resources_q(),
         state=marketplace_models.Resource.States.OK,
-    ).exclude(attributes__arrow_license_reference="")
+    )
+    if resource_uuid:
+        resources = resources.filter(uuid=resource_uuid)
 
     results = {
         "synced": 0,
@@ -342,7 +358,7 @@ def sync_arrow_consumption(year: int, month: int, settings_uuid: str = ""):
     }
 
     for resource in resources:
-        license_ref = resource.attributes.get("arrow_license_reference")
+        license_ref = arrow_license(resource)
         if not license_ref:
             continue
 
@@ -371,6 +387,8 @@ def sync_arrow_consumption(year: int, month: int, settings_uuid: str = ""):
                 prefix=settings.invoice_item_prefix or "Arrow consumption",
             )
             results["synced"] += 1
+        except SoftTimeLimitExceeded:
+            raise
         except Exception as e:
             logger.warning(
                 f"Failed to sync consumption for {resource.name} ({license_ref}): {e}"
@@ -810,6 +828,8 @@ def check_and_reconcile_billing(
                 results["reconciled"] += 1
                 results["compensation_items_created"] += 1
 
+        except SoftTimeLimitExceeded:
+            raise
         except Exception as e:
             logger.warning(f"Failed to reconcile {record.uuid}: {e}")
             results["errors"].append(
@@ -1195,151 +1215,163 @@ def _process_customer_billing(
 
     with transaction.atomic():
         for line in lines:
+            totals_before_line = (total_buy, total_sell)
             try:
-                line_ref = line.get("Sequence") or line.get("Order Id", "")
-                if not line_ref:
-                    continue
+                # A savepoint per line: a failing line must not break the
+                # transaction the remaining lines are written in.
+                with transaction.atomic():
+                    line_ref = line.get("Sequence") or line.get("Order Id", "")
+                    if not line_ref:
+                        continue
 
-                # Check for existing sync item
-                sync_item = models.ArrowBillingSyncItem.objects.filter(
-                    billing_sync=billing_sync,
-                    arrow_line_reference=line_ref,
-                ).first()
-
-                # Parse amounts — field names vary by export type
-                sell_price = _parse_decimal(
-                    line.get("Sell Total Price")
-                    or line.get("Customer Total Price")
-                    or "0"
-                )
-                buy_price = _parse_decimal(
-                    line.get("Buy Total Price")
-                    or line.get("Total Wholesale Price")
-                    or "0"
-                )
-                quantity = _parse_decimal(
-                    line.get("Quantity") or line.get("Qty") or "1"
-                )
-                unit_price = (
-                    buy_price if price_source == models.PriceSources.BUY else sell_price
-                )
-
-                if unit_price == Decimal("0"):
-                    # Skip zero-amount items
-                    continue
-
-                total_buy += buy_price
-                total_sell += sell_price
-
-                # Build item description
-                vendor = line.get("Vendor Name", "") or line.get("Service Name", "")
-                product = (
-                    line.get("Product Name")
-                    or line.get("Friendly Name")
-                    or line.get("Description", "")
-                )
-                description = f"{vendor} - {product}" if vendor else product
-
-                # Look up linked resource by ARS subscription ID
-                license_ref_value = line.get("ARS Subscription ID", "")
-                resource = None
-                project = None
-                if license_ref_value:
-                    resource = (
-                        marketplace_models.Resource.objects.exclude(
-                            state=marketplace_models.Resource.States.TERMINATED
-                        )
-                        .order_by("-created")
-                        .filter(
-                            attributes__arrow_license_reference=license_ref_value,
-                            project__customer=customer,
-                        )
-                        .first()
-                    )
-                if resource:
-                    project = resource.project
-                else:
-                    # Fall back to offering from vendor mapping to find a default project
-                    offering = _match_vendor_offering(vendor_offering_map, vendor)
-                    if offering:
-                        # Try to find any project for this customer
-                        project = structure_models.Project.objects.filter(
-                            customer=customer,
-                        ).first()
-
-                if license_ref_value and license_ref_value in consumption_billed:
-                    continue
-
-                if sync_item:
-                    invoice_item = sync_item.invoice_item
-                    # Keep a pending invoice current; an issued one is settled
-                    # by reconciliation against what it charged.
-                    if _is_open_invoice(invoice_item.invoice):
-                        details = dict(invoice_item.details or {})
-                        update_fields = []
-                        # Follow Arrow's price only when Arrow changed it, so
-                        # a manual correction in Waldur is not undone.
-                        last_arrow_price = _parse_decimal(
-                            details.get("arrow_price", sync_item.original_price)
-                        )
-                        if unit_price != last_arrow_price:
-                            invoice_item.unit_price = unit_price
-                            details["arrow_price"] = str(unit_price)
-                            update_fields += ["unit_price", "details"]
-                        if invoice_item.quantity != Decimal("1"):
-                            # Items made before line totals were billed once.
-                            details["arrow_quantity"] = str(invoice_item.quantity)
-                            invoice_item.quantity = Decimal("1")
-                            update_fields += ["quantity", "details"]
-                        if update_fields:
-                            invoice_item.details = details
-                            invoice_item.save(update_fields=list(set(update_fields)))
-                else:
-                    if target_invoice is not invoice:
-                        description = f"{description} ({period})"
-                    invoice_item = invoices_models.InvoiceItem.objects.create(
-                        invoice=target_invoice,
-                        resource=resource,
-                        project=project,
-                        project_name=project.name if project else "",
-                        project_uuid=project.uuid.hex if project else "",
-                        name=description[:255],
-                        # unit_price is the line total (Customer/Sell Total
-                        # Price already includes Qty), so bill it once; the
-                        # Arrow quantity is kept in details for display.
-                        unit_price=unit_price,
-                        quantity=Decimal("1"),
-                        unit=invoices_models.InvoiceItem.Units.QUANTITY,
-                        details={
-                            "source": "arrow",
-                            "arrow_line_reference": line_ref,
-                            "license_reference": license_ref_value,
-                            "arrow_quantity": str(quantity),
-                            "arrow_price": str(unit_price),
-                            "vendor_name": vendor,
-                            "subscription_reference": line.get(
-                                "Vendor Subscription ID", ""
-                            ),
-                            "classification": line.get("Classification", ""),
-                        },
-                    )
-
-                    # Create sync item
-                    models.ArrowBillingSyncItem.objects.create(
+                    # Check for existing sync item
+                    sync_item = models.ArrowBillingSyncItem.objects.filter(
                         billing_sync=billing_sync,
                         arrow_line_reference=line_ref,
-                        invoice_item=invoice_item,
-                        original_price=unit_price,
-                        vendor_name=vendor[:255],
-                        subscription_reference=line.get("Vendor Subscription ID", "")[
-                            :255
-                        ],
-                        classification=line.get("Classification", "")[:50],
-                        description=description[:500],
-                        quantity=quantity,
+                    ).first()
+
+                    # Parse amounts — field names vary by export type
+                    sell_price = _parse_decimal(
+                        line.get("Sell Total Price")
+                        or line.get("Customer Total Price")
+                        or "0"
+                    )
+                    buy_price = _parse_decimal(
+                        line.get("Buy Total Price")
+                        or line.get("Total Wholesale Price")
+                        or "0"
+                    )
+                    quantity = _parse_decimal(
+                        line.get("Quantity") or line.get("Qty") or "1"
+                    )
+                    unit_price = (
+                        buy_price
+                        if price_source == models.PriceSources.BUY
+                        else sell_price
                     )
 
+                    if unit_price == Decimal("0"):
+                        # Skip zero-amount items
+                        continue
+
+                    total_buy += buy_price
+                    total_sell += sell_price
+
+                    # Build item description
+                    vendor = line.get("Vendor Name", "") or line.get("Service Name", "")
+                    product = (
+                        line.get("Product Name")
+                        or line.get("Friendly Name")
+                        or line.get("Description", "")
+                    )
+                    description = f"{vendor} - {product}" if vendor else product
+
+                    # Look up linked resource by ARS subscription ID
+                    license_ref_value = line.get("ARS Subscription ID", "")
+                    resource = None
+                    project = None
+                    if license_ref_value:
+                        resource = (
+                            marketplace_models.Resource.objects.exclude(
+                                state=marketplace_models.Resource.States.TERMINATED
+                            )
+                            .order_by("-created")
+                            .filter(
+                                license_q(license_ref_value),
+                                project__customer=customer,
+                            )
+                            .first()
+                        )
+                    if resource:
+                        project = resource.project
+                    else:
+                        # Fall back to offering from vendor mapping to find a default project
+                        offering = _match_vendor_offering(vendor_offering_map, vendor)
+                        if offering:
+                            # Try to find any project for this customer
+                            project = structure_models.Project.objects.filter(
+                                customer=customer,
+                            ).first()
+
+                    if license_ref_value and license_ref_value in consumption_billed:
+                        continue
+
+                    if sync_item:
+                        invoice_item = sync_item.invoice_item
+                        # Keep a pending invoice current; an issued one is settled
+                        # by reconciliation against what it charged.
+                        if _is_open_invoice(invoice_item.invoice):
+                            details = dict(invoice_item.details or {})
+                            update_fields = []
+                            # Follow Arrow's price only when Arrow changed it, so
+                            # a manual correction in Waldur is not undone.
+                            last_arrow_price = _parse_decimal(
+                                details.get("arrow_price", sync_item.original_price)
+                            )
+                            if unit_price != last_arrow_price:
+                                invoice_item.unit_price = unit_price
+                                details["arrow_price"] = str(unit_price)
+                                update_fields += ["unit_price", "details"]
+                            if invoice_item.quantity != Decimal("1"):
+                                # Items made before line totals were billed once.
+                                details["arrow_quantity"] = str(invoice_item.quantity)
+                                invoice_item.quantity = Decimal("1")
+                                update_fields += ["quantity", "details"]
+                            if update_fields:
+                                invoice_item.details = details
+                                invoice_item.save(
+                                    update_fields=list(set(update_fields))
+                                )
+                    else:
+                        if target_invoice is not invoice:
+                            description = f"{description} ({period})"
+                        invoice_item = invoices_models.InvoiceItem.objects.create(
+                            invoice=target_invoice,
+                            resource=resource,
+                            project=project,
+                            project_name=project.name if project else "",
+                            project_uuid=project.uuid.hex if project else "",
+                            name=description[:255],
+                            # unit_price is the line total (Customer/Sell Total
+                            # Price already includes Qty), so bill it once; the
+                            # Arrow quantity is kept in details for display.
+                            unit_price=unit_price,
+                            quantity=Decimal("1"),
+                            unit=invoices_models.InvoiceItem.Units.QUANTITY,
+                            details={
+                                "source": "arrow",
+                                "arrow_line_reference": line_ref,
+                                "license_reference": license_ref_value,
+                                "arrow_quantity": str(quantity),
+                                "arrow_price": str(unit_price),
+                                "vendor_name": vendor,
+                                "subscription_reference": line.get(
+                                    "Vendor Subscription ID", ""
+                                ),
+                                "classification": line.get("Classification", ""),
+                            },
+                        )
+
+                        # Create sync item
+                        models.ArrowBillingSyncItem.objects.create(
+                            billing_sync=billing_sync,
+                            arrow_line_reference=line_ref,
+                            invoice_item=invoice_item,
+                            original_price=unit_price,
+                            vendor_name=vendor[:255],
+                            subscription_reference=line.get(
+                                "Vendor Subscription ID", ""
+                            )[:255],
+                            classification=line.get("Classification", "")[:50],
+                            description=description[:500],
+                            quantity=quantity,
+                        )
+
+            except SoftTimeLimitExceeded:
+                raise
             except Exception as e:
+                # The line's rows were rolled back; so are its amounts.
+                total_buy, total_sell = totals_before_line
                 logger.warning(f"Failed to process billing line: {e}")
 
         # Update billing sync totals
@@ -1474,9 +1506,7 @@ def _sync_item_license(item: models.ArrowBillingSyncItem) -> str:
     if not invoice_item:
         return ""
     return (invoice_item.details or {}).get("license_reference") or (
-        (invoice_item.resource.attributes or {}).get("arrow_license_reference", "")
-        if invoice_item.resource
-        else ""
+        arrow_license(invoice_item.resource) if invoice_item.resource else ""
     )
 
 
@@ -2779,11 +2809,7 @@ def _create_invoices_for_customer(
                 )
                 .filter(
                     Q(backend_id=sub_data["subscription_id"])
-                    | (
-                        Q(attributes__arrow_license_reference=license_ref)
-                        if license_ref
-                        else Q(pk__in=[])
-                    )
+                    | (license_q(license_ref) if license_ref else Q(pk__in=[]))
                 )
                 .first()
             )
@@ -2851,3 +2877,32 @@ def _create_invoices_for_customer(
         invoice.update_cache()
 
     return results
+
+
+@shared_task(
+    name="waldur_mastermind.waldur_arrow.run_arrow_billing_changes",
+    # Runs as long as its Arrow calls take; keep it off the default queue.
+    is_background=True,
+)
+def run_arrow_billing_changes(
+    job_id: str,
+    action: str,
+    year: int,
+    month: int,
+    resource_uuid: str = "",
+    dry_run: bool = True,
+):
+    """Run a Billing changes job and store its report for the caller to poll."""
+    try:
+        report = billing_changes.run(
+            action=action,
+            year=year,
+            month=month,
+            resource_uuid=resource_uuid,
+            dry_run=dry_run,
+        )
+    except Exception as e:
+        logger.exception(f"Arrow billing changes job {job_id} failed")
+        billing_changes.finish_job(job_id, error=str(e) or e.__class__.__name__)
+        return
+    billing_changes.finish_job(job_id, report=report)

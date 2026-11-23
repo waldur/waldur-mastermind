@@ -17,7 +17,7 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import filters, models, serializers, tasks
+from . import billing_changes, filters, models, serializers, tasks
 from .backend import (
     ArrowBackendError,
     ArrowClient,
@@ -1601,11 +1601,16 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
         )
         serializer.is_valid(raise_exception=True)
 
-        tasks.sync_arrow_consumption.delay(
-            year=serializer.validated_data["year"],
-            month=serializer.validated_data["month"],
-            settings_uuid=str(serializer.validated_data.get("settings_uuid", "")),
-        )
+        resource_uuid = serializer.validated_data.get("resource_uuid")
+        kwargs = {
+            "year": serializer.validated_data["year"],
+            "month": serializer.validated_data["month"],
+            "settings_uuid": str(serializer.validated_data.get("settings_uuid", "")),
+        }
+        if resource_uuid:
+            # Only when set: a worker still on older code rejects the keyword.
+            kwargs["resource_uuid"] = resource_uuid.hex
+        tasks.sync_arrow_consumption.delay(**kwargs)
 
         return response.Response(
             {"message": "Consumption sync task scheduled"},
@@ -1784,6 +1789,62 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
         serializers.SyncResourceHistoricalConsumptionRequestSerializer
     )
     sync_resource_historical_consumption_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        request=serializers.BillingChangesRequestSerializer,
+        responses={202: serializers.BillingChangesJobSerializer, 409: None},
+        description=(
+            "Start an Arrow billing action as a background job that reports "
+            "the invoice items it creates, changes or deletes. With dry_run "
+            "(the default) nothing is kept, so the report is a preview of "
+            "applying the same action. Poll billing_changes_job for the report."
+        ),
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def billing_changes(self, request):
+        serializer = serializers.BillingChangesRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        resource_uuid = data.get("resource_uuid")
+        try:
+            job = billing_changes.start_job(
+                action=data["action"],
+                year=data["year"],
+                month=data["month"],
+                resource_uuid=resource_uuid.hex if resource_uuid else "",
+                dry_run=data["dry_run"],
+            )
+        except billing_changes.JobAlreadyRunning:
+            return response.Response(
+                {"error": "Another billing action is running. Try again when it ends."},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return response.Response(
+            serializers.BillingChangesJobSerializer(job).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    billing_changes_serializer_class = serializers.BillingChangesRequestSerializer
+    billing_changes_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        parameters=[serializers.BillingChangesJobQuerySerializer],
+        responses={200: serializers.BillingChangesJobSerializer},
+        description="State and report of a Billing changes job.",
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def billing_changes_job(self, request):
+        query = serializers.BillingChangesJobQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        job = billing_changes.get_job(query.validated_data["job_id"])
+        if job is None:
+            return response.Response(
+                {"error": "Job not found or expired"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return response.Response(serializers.BillingChangesJobSerializer(job).data)
+
+    billing_changes_job_permissions = [structure_permissions.is_staff]
 
     @extend_schema(
         request=serializers.ReconcileRequestSerializer,
