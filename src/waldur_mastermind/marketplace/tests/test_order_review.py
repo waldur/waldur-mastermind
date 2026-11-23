@@ -897,3 +897,54 @@ class ProviderOrderReviewOfferingScopeTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(self.order.state, OrderStates.EXECUTING)
+
+
+class OrderStartDateWithoutReviewTest(test.APITestCase):
+    """An order no one has to review still waits for its own start date."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.start_date = (timezone.now() + datetime.timedelta(days=10)).date()
+        provider_check = mock.patch(
+            "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider",
+            return_value=True,
+        )
+        processing = mock.patch(
+            "waldur_mastermind.marketplace.tasks.process_order_on_commit"
+        )
+        provider_check.start()
+        self.process_order = processing.start()
+        self.addCleanup(provider_check.stop)
+        self.addCleanup(processing.stop)
+
+    def place_order(self, **kwargs):
+        order = factories.OrderFactory(
+            project=self.fixture.project, created_by=self.fixture.staff, **kwargs
+        )
+        order.refresh_from_db()
+        return order
+
+    @override_config(ENABLE_ORDER_START_DATE=True)
+    def test_order_with_future_start_date_waits_for_it(self):
+        order = self.place_order(start_date=self.start_date)
+        self.assertEqual(order.state, OrderStates.PENDING_START_DATE)
+        self.process_order.assert_not_called()
+
+    @override_config(ENABLE_ORDER_START_DATE=True)
+    def test_order_waiting_for_start_date_is_processed_on_that_date(self):
+        order = self.place_order(start_date=self.start_date)
+        with freeze_time(self.start_date):
+            tasks.process_pending_start_date_orders()
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.EXECUTING)
+
+    @override_config(ENABLE_ORDER_START_DATE=False)
+    def test_order_start_date_is_ignored_when_disabled(self):
+        order = self.place_order(start_date=self.start_date)
+        self.assertEqual(order.state, OrderStates.EXECUTING)
+        self.process_order.assert_called_once()
+
+    @override_config(ENABLE_ORDER_START_DATE=True)
+    def test_order_without_start_date_is_processed_at_once(self):
+        order = self.place_order()
+        self.assertEqual(order.state, OrderStates.EXECUTING)

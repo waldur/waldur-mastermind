@@ -2,11 +2,9 @@ import logging
 from decimal import Decimal
 
 from django.db import transaction
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from waldur_core.configuration import config
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_mastermind.marketplace import (
@@ -129,12 +127,14 @@ def transition_order_from_consumer_approval(order: models.Order, reviewer) -> st
     # on. Every way out of consumer review passes through here.
     tasks.notify_about_new_order_on_commit(order)
 
-    if order.project.start_date and order.project.start_date > timezone.now().date():
+    next_state = utils.next_order_state(order)
+
+    if next_state == OrderStates.PENDING_PROJECT:
         order.state = OrderStates.PENDING_PROJECT
         order.save(update_fields=["state"])
         return "pending_project"
 
-    if not utils.order_should_not_be_reviewed_by_provider(order):
+    if next_state == OrderStates.PENDING_PROVIDER:
         order.state = OrderStates.PENDING_PROVIDER
         order.save(update_fields=["state"])
         transaction.on_commit(
@@ -142,11 +142,7 @@ def transition_order_from_consumer_approval(order: models.Order, reviewer) -> st
         )
         return "pending_provider"
 
-    if (
-        config.ENABLE_ORDER_START_DATE
-        and order.start_date
-        and order.start_date > timezone.now().date()
-    ):
+    if next_state == OrderStates.PENDING_START_DATE:
         order.state = OrderStates.PENDING_START_DATE
         order.save(update_fields=["state"])
         logger.info(

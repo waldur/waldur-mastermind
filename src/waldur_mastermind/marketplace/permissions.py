@@ -1,3 +1,5 @@
+import functools
+
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils.translation import gettext_lazy as _
@@ -24,7 +26,7 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 
-from . import models, utils
+from . import models, order_rules, utils
 
 # Scopes an offering's provider-side settings may be administered from: the
 # offering itself, its organization, or that organization's service provider.
@@ -227,59 +229,90 @@ def order_autoapprove_is_disabled(order: models.Order) -> bool:
     )
 
 
-def order_should_not_be_reviewed_by_consumer(order: models.Order):
-    if order_is_held_for_purchase_order(order):
-        return False
+class ConsumerReviewFacts:
+    """The facts of a real order that ``order_rules.CONSUMER_RULES`` read.
 
-    # An order placed automatically on someone's behalf carries the review
-    # that authorised it: proposal allocation records the call manager who
-    # accepted the proposal. Asking for the step again would be asking the
-    # same question twice.
-    if order.placed_automatically and order.consumer_reviewed_by_id:
-        return True
+    Each is computed on first use, so deciding asks only what the rules up to
+    the deciding one need.
+    """
 
-    user = order.created_by
-    if user.is_staff:
-        return True
+    def __init__(self, order: models.Order):
+        self.order = order
 
-    if order_autoapprove_is_disabled(order):
-        return False
+    @functools.cached_property
+    def user(self):
+        # Read only once a rule needs it, as before the rules were data.
+        return self.order.created_by
 
-    # Skip approval of private offering for project users
-    if order.offering.is_private:
+    @functools.cached_property
+    def held_for_purchase_order(self):
+        return order_is_held_for_purchase_order(self.order)
+
+    @functools.cached_property
+    def placed_automatically_with_review(self):
+        return bool(
+            self.order.placed_automatically and self.order.consumer_reviewed_by_id
+        )
+
+    @functools.cached_property
+    def creator_is_staff(self):
+        return self.user.is_staff
+
+    @functools.cached_property
+    def autoapprove_disabled(self):
+        return bool(order_autoapprove_is_disabled(self.order))
+
+    @functools.cached_property
+    def offering_is_private(self):
+        return self.order.offering.is_private
+
+    @functools.cached_property
+    def creator_can_approve_private_order(self):
         return has_project_permission(
-            user, PermissionEnum.APPROVE_PRIVATE_ORDER, order.project
+            self.user, PermissionEnum.APPROVE_PRIVATE_ORDER, self.order.project
         )
 
-    # Skip approval of public offering belonging to the same organization under which the request is done
-    if (
-        order.offering.shared
-        and order.offering.customer == order.project.customer
-        and order.offering.plugin_options.get(
-            "auto_approve_in_service_provider_projects"
+    @functools.cached_property
+    def service_provider_project_autoapprove(self):
+        offering = self.order.offering
+        return bool(
+            offering.shared
+            and offering.customer == self.order.project.customer
+            and offering.plugin_options.get("auto_approve_in_service_provider_projects")
+            is True
         )
-        is True
-    ):
-        return True
 
-    # Service provider is not required to approve termination order
-    if (
-        order.type == OrderTypes.TERMINATE
-        and order.offering.customer
-        and structure_permissions._has_owner_access(user, order.offering.customer)
-    ):
-        return True
+    @functools.cached_property
+    def termination_by_provider_owner(self):
+        offering = self.order.offering
+        return bool(
+            self.order.type == OrderTypes.TERMINATE
+            and offering.customer
+            and structure_permissions._has_owner_access(self.user, offering.customer)
+        )
 
-    # Skip consumer review when the offering designates the creator's role for
-    # auto-approval, held on the target project or its customer. Independent of
-    # the ORDER.APPROVE permission below and configurable per offering by staff.
-    auto_approve_roles = offering_auto_approve_roles(order.offering)
-    if auto_approve_roles and user_holds_role_in_project_scope(
-        user, order.project, auto_approve_roles
-    ):
-        return True
+    @functools.cached_property
+    def creator_holds_auto_approve_role(self):
+        roles = offering_auto_approve_roles(self.order.offering)
+        return bool(
+            roles
+            and user_holds_role_in_project_scope(self.user, self.order.project, roles)
+        )
 
-    return has_project_permission(user, PermissionEnum.APPROVE_ORDER, order.project)
+    @functools.cached_property
+    def creator_can_approve_order(self):
+        return has_project_permission(
+            self.user, PermissionEnum.APPROVE_ORDER, self.order.project
+        )
+
+
+def order_should_not_be_reviewed_by_consumer(order: models.Order):
+    """Whether the order goes on without consumer review: the first rule of
+    ``order_rules.CONSUMER_RULES`` that holds for it decides."""
+    skips, _ = order_rules.decide(
+        order_rules.CONSUMER_RULES, ConsumerReviewFacts(order)
+    )
+    return skips
 
 
 @access.describes(

@@ -244,6 +244,7 @@ from . import (
     offering_merge_coverage,
     offering_merge_rows,
     order_approval,
+    order_flow_description,
     permissions,
     plugins,
     posix_ids,
@@ -4148,6 +4149,43 @@ class ProviderOfferingViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_INTEGRATION,
             marketplace_permissions.OFFERING_ADMIN_SOURCES,
+        )
+    ]
+
+    @extend_schema(
+        summary="Describe how orders for the offering move from placement to done",
+        description="For one kind of order and one kind of orderer: the steps an "
+        "order goes through, who acts at each, the rules that decide whether a "
+        "review step runs and the settings each rule reads. Review steps are "
+        "decided by the same rules that route real orders. A fact that depends on "
+        "the order, such as an attached purchase order, is drawn as a branch. "
+        "With `with_stats`, how many of the offering's orders are in each state "
+        "and how long each step has taken.",
+        parameters=[serializers.OrderFlowQuerySerializer],
+        responses={200: serializers.OrderFlowDescriptionSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def order_flow_description(self, request, uuid=None):
+        offering = self.get_object()
+        query = serializers.OrderFlowQuerySerializer(
+            data=request.query_params, context={"offering": offering}
+        )
+        query.is_valid(raise_exception=True)
+        description = order_flow_description.describe(
+            offering,
+            order_kind=query.validated_data["order_kind"],
+            orderer_kind=query.validated_data["orderer"],
+            role=query.validated_data.get("role"),
+            with_stats=query.validated_data["with_stats"],
+        )
+        return Response(serializers.OrderFlowDescriptionSerializer(description).data)
+
+    order_flow_description_permissions = [
+        readable_by_support(
+            permission_factory(
+                PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+                marketplace_permissions.OFFERING_ADMIN_SOURCES,
+            )
         )
     ]
 
@@ -9115,9 +9153,8 @@ class OrderViewSet(
 
         # After provider approval, check for the order's own start_date
         if (
-            config.ENABLE_ORDER_START_DATE
-            and order.start_date
-            and order.start_date > timezone.now().date()
+            utils.next_order_state(order, provider_reviewed=True)
+            == OrderStates.PENDING_START_DATE
         ):
             order.state = OrderStates.PENDING_START_DATE
             order.save(update_fields=["state"])

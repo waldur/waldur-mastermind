@@ -2205,18 +2205,21 @@ def continue_order_processing(order: models.Order, system_robot=None):
     ``system_robot`` is an optional pre-resolved robot for callers sweeping a
     batch; see ``utils.get_order_processing_user``.
     """
-    if utils.order_should_not_be_reviewed_by_provider(order):
-        if order.start_date and order.start_date > timezone.now().date():
-            order.state = models.OrderStates.PENDING_START_DATE
-            order.save(update_fields=["state"])
-        else:
-            order.set_state_executing()
-            order.save(update_fields=["state"])
-            transaction.on_commit(
-                lambda: process_order_on_commit(
-                    order, utils.get_order_processing_user(order, system_robot)
-                )
+    next_state = utils.next_order_state(order)
+    if next_state == models.OrderStates.PENDING_PROJECT:
+        # The project start moved back into the future before the sweep ran.
+        return
+    if next_state == models.OrderStates.PENDING_START_DATE:
+        order.state = models.OrderStates.PENDING_START_DATE
+        order.save(update_fields=["state"])
+    elif next_state == models.OrderStates.EXECUTING:
+        order.set_state_executing()
+        order.save(update_fields=["state"])
+        transaction.on_commit(
+            lambda: process_order_on_commit(
+                order, utils.get_order_processing_user(order, system_robot)
             )
+        )
     else:
         order.state = models.OrderStates.PENDING_PROVIDER
         order.save(update_fields=["state"])

@@ -144,6 +144,7 @@ from waldur_mastermind.marketplace.enums import (
     OfferingUserRuntimeStates,
     OfferingUserStates,
     OfferingUserStatesType,
+    OrderFlowChoices,
     OrderStates,
     OrderStatesType,
     OrderTypes,
@@ -200,6 +201,7 @@ from . import (
     model_lists,
     models,
     order_callback,
+    order_flow_description,
     permissions,
     plugins,
     posix_ids,
@@ -21060,3 +21062,190 @@ class S3UploadRequestSerializer(serializers.Serializer):
         help_text="Replace a file of the same name. Without it, an existing "
         "file is refused with 409 ObjectExists.",
     )
+
+
+class OrderFlowQuerySerializer(serializers.Serializer):
+    order_kind = serializers.ChoiceField(
+        choices=[kind.key for kind in order_flow_description.ORDER_KINDS],
+        default="create",
+        help_text="The kind of order to describe.",
+    )
+    orderer = serializers.ChoiceField(
+        choices=list(order_flow_description.ORDERER_KINDS),
+        default=order_flow_description.ORDERER_ANY,
+        help_text="Who places the order. `any` draws every branch; `role` needs "
+        "`role`.",
+    )
+    role = serializers.CharField(
+        required=False,
+        help_text="Name of a project or organization role the orderer holds.",
+    )
+    with_stats = serializers.BooleanField(
+        default=False,
+        help_text="Add order counts per state and step durations.",
+    )
+
+    def validate(self, attrs):
+        offering = self.context["offering"]
+        orderer = attrs["orderer"]
+        if orderer not in order_flow_description.orderer_kinds():
+            raise serializers.ValidationError(
+                {"orderer": _("This orderer is not available on this deployment.")}
+            )
+        if orderer == order_flow_description.ORDERER_ROLE:
+            role = attrs.get("role")
+            if (
+                not role
+                or not order_flow_description.orderer_roles(offering)
+                .filter(name=role)
+                .exists()
+            ):
+                raise serializers.ValidationError(
+                    {
+                        "role": _(
+                            "Name a project or organization role that may "
+                            "order this offering."
+                        )
+                    }
+                )
+        return attrs
+
+
+class OrderFlowSourceSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(
+        choices=[
+            "plugin_option",
+            "offering",
+            "constance",
+            "project",
+            "orderer",
+            "order",
+            "role",
+            "engine",
+        ],
+        help_text="Where the input lives. Only plugin_option and offering "
+        "belong to the provider.",
+    )
+    field = serializers.CharField()
+    editable = serializers.BooleanField(
+        help_text="Whether the offering's provider can change it."
+    )
+    value = serializers.JSONField(
+        allow_null=True, help_text="Current value, for settings that have one."
+    )
+
+
+class OrderFlowRuleSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    text = serializers.CharField()
+    holds = serializers.BooleanField(
+        allow_null=True, help_text="Null: depends on the order."
+    )
+    skips = serializers.BooleanField(
+        allow_null=True,
+        help_text="When the rule holds, whether the step is skipped. Null when "
+        "the rule does not hold or the outcome depends on the order.",
+    )
+    reached = serializers.BooleanField(
+        help_text="False when an earlier rule always decides first."
+    )
+    sources = OrderFlowSourceSerializer(many=True)
+
+
+class OrderFlowStepSerializer(serializers.Serializer):
+    key = serializers.ChoiceField(choices=list(OrderFlowChoices.STEPS))
+    label = serializers.CharField()
+    actor = serializers.ChoiceField(choices=list(OrderFlowChoices.ACTORS))
+    status = serializers.ChoiceField(choices=["runs", "skipped", "conditional"])
+    summary = serializers.CharField()
+    rules = OrderFlowRuleSerializer(many=True)
+    sources = OrderFlowSourceSerializer(many=True)
+    notes = serializers.ListField(child=serializers.CharField())
+    can_reject = serializers.BooleanField()
+    mode = serializers.ChoiceField(
+        choices=["sync", "callback"],
+        allow_null=True,
+        help_text="Execution only: done when processing returns, or when "
+        "something outside Waldur reports back.",
+    )
+
+
+class OrderFlowCheckSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    text = serializers.CharField()
+    active = serializers.BooleanField(
+        help_text="Whether the check is configured for this offering."
+    )
+    sources = OrderFlowSourceSerializer(many=True)
+
+
+class OrderFlowTerminalSerializer(serializers.Serializer):
+    key = serializers.ChoiceField(choices=list(OrderFlowChoices.TERMINALS))
+    from_steps = serializers.ListField(child=serializers.CharField())
+    retry = serializers.BooleanField(
+        help_text="Whether an order ending here can be retried."
+    )
+
+
+class OrderFlowOrderKindSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    label = serializers.CharField()
+    supported = serializers.BooleanField()
+    reason = serializers.CharField(allow_blank=True)
+    sources = OrderFlowSourceSerializer(many=True)
+
+
+class OrderFlowOrdererSerializer(serializers.Serializer):
+    kind = serializers.ChoiceField(
+        choices=[
+            *order_flow_description.ORDERER_KINDS,
+            order_flow_description.ORDERER_SYSTEM,
+        ]
+    )
+    role = serializers.CharField(allow_null=True)
+    label = serializers.CharField(allow_blank=True)
+
+
+class OrderFlowActorSerializer(serializers.Serializer):
+    key = serializers.ChoiceField(choices=list(OrderFlowChoices.ACTORS))
+    label = serializers.CharField()
+
+
+class OrderFlowOfferingSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    type = serializers.CharField()
+
+
+class OrderFlowStateCountSerializer(serializers.Serializer):
+    state = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class OrderFlowStepStatSerializer(serializers.Serializer):
+    step = serializers.CharField()
+    samples = serializers.IntegerField()
+    median_seconds = serializers.FloatField(allow_null=True)
+
+
+class OrderFlowStatsSerializer(serializers.Serializer):
+    window_days = serializers.IntegerField()
+    states = OrderFlowStateCountSerializer(many=True)
+    steps = OrderFlowStepStatSerializer(many=True)
+
+
+class OrderFlowDescriptionSerializer(serializers.Serializer):
+    offering = OrderFlowOfferingSerializer()
+    order_kind = serializers.CharField()
+    supported = serializers.BooleanField(
+        help_text="Whether the offering processes this kind of order at all."
+    )
+    reason = serializers.CharField(allow_blank=True)
+    orderer = OrderFlowOrdererSerializer()
+    order_kinds = OrderFlowOrderKindSerializer(many=True)
+    orderers = OrderFlowOrdererSerializer(many=True)
+    actors = OrderFlowActorSerializer(many=True)
+    checks = OrderFlowCheckSerializer(many=True)
+    steps = OrderFlowStepSerializer(many=True)
+    terminals = OrderFlowTerminalSerializer(many=True)
+    stats = OrderFlowStatsSerializer(allow_null=True)

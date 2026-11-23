@@ -1,6 +1,7 @@
 import calendar
 import datetime
 import decimal
+import functools
 import hashlib
 import json
 import logging
@@ -107,16 +108,10 @@ from waldur_mastermind.marketplace.enums import (
     ServiceAccountState,
     UsageLimitAction,
 )
-from waldur_mastermind.marketplace.enums import REMOTE_OFFERING as REMOTE_PLUGIN_NAME
-from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN_NAME
-from waldur_mastermind.marketplace.enums import (
-    SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
-)
 from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
-from . import managers, model_lists, models, plugins, posix_ids
+from . import managers, model_lists, models, order_rules, plugins, posix_ids
 from . import project_groups as provider_project_groups
-from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
 
 logger = logging.getLogger(__name__)
@@ -5812,46 +5807,88 @@ def order_should_not_be_reviewed_by_provider(order: models.Order):
     )
 
 
+def order_waits_for_project_start(order: models.Order) -> bool:
+    """The order's project starts in the future, so nothing is done yet."""
+    start = order.project.start_date
+    return bool(start and start > timezone.now().date())
+
+
+def order_waits_for_start_date(order: models.Order) -> bool:
+    """The order asks to be processed later, and the deployment allows it."""
+    return bool(
+        config.ENABLE_ORDER_START_DATE
+        and order.start_date
+        and order.start_date > timezone.now().date()
+    )
+
+
+def next_order_state(order: models.Order, provider_reviewed: bool = False) -> int:
+    """Where an order goes once the reviews it has had are behind it.
+
+    Every path out of a review -- placement with no consumer review, consumer
+    approval, the project starting, provider approval -- asks this, so the
+    order's own start date and the deployment switch for it are honoured the
+    same way whichever path the order took. ``provider_reviewed`` is true only
+    on the way out of provider review: the project-start wait and provider
+    review come before it.
+    """
+    if not provider_reviewed:
+        if order_waits_for_project_start(order):
+            return OrderStates.PENDING_PROJECT
+        if not order_should_not_be_reviewed_by_provider(order):
+            return OrderStates.PENDING_PROVIDER
+    if order_waits_for_start_date(order):
+        return OrderStates.PENDING_START_DATE
+    return OrderStates.EXECUTING
+
+
+class ProviderReviewFacts:
+    """The facts ``order_rules.PROVIDER_RULES`` read, for an order on
+    ``offering`` approved on the consumer side by ``user``."""
+
+    def __init__(self, offering: models.Offering, user):
+        self.offering = offering
+        self.user = user
+        self.offering_type = offering.type
+
+    @functools.cached_property
+    def auto_approve_remote_orders(self):
+        return bool(self.offering.plugin_options.get("auto_approve_remote_orders"))
+
+    @functools.cached_property
+    def approver_owns_provider(self):
+        return bool(
+            self.offering.customer
+            and structure_permissions._has_owner_access(
+                self.user, self.offering.customer
+            )
+        )
+
+    @functools.cached_property
+    def approver_manages_offering(self):
+        return bool(
+            self.offering.customer
+            and structure_permissions._has_service_manager_access(
+                self.user, self.offering.customer
+            )
+            and self.offering.has_user(self.user)
+        )
+
+    @functools.cached_property
+    def auto_approve_marketplace_script(self):
+        # Off means every order is reviewed, by owners and staff too.
+        return self.offering.plugin_options.get("auto_approve_marketplace_script", True)
+
+
 def offering_skips_provider_review(offering: models.Offering, user):
     """Whether an order on ``offering`` approved on the consumer side by
     ``user`` goes on without the provider reviewing it: the routing of
-    ``order_should_not_be_reviewed_by_provider``."""
-    if offering.type == SITE_AGENT_PLUGIN_NAME:
-        return False
-
-    if offering.type == BASIC_PLUGIN_NAME:
-        return False
-
-    if offering.type == REMOTE_PLUGIN_NAME:
-        # If an offering has auto_approve_remote_orders flag set to True, an order can be processed without approval
-        auto_approve_remote_orders = offering.plugin_options.get(
-            "auto_approve_remote_orders", False
-        )
-        # A service provider owner or a service manager is not required to approve an order manually
-        user_is_service_provider_owner = (
-            offering.customer
-            and structure_permissions._has_owner_access(user, offering.customer)
-        )
-        user_is_service_provider_offering_manager = (
-            offering.customer
-            and structure_permissions._has_service_manager_access(
-                user, offering.customer
-            )
-            and offering.has_user(user)
-        )
-        # If any condition is not met, the order is requested for manual approval
-        return (
-            auto_approve_remote_orders
-            or user_is_service_provider_owner
-            or user_is_service_provider_offering_manager
-        )
-
-    if offering.type == SCRIPT_PLUGIN_NAME:
-        # If auto_approve_marketplace_script is False, always require manual provider approval
-        # This applies to all users including service provider owners and staff
-        return offering.plugin_options.get("auto_approve_marketplace_script", True)
-
-    return True
+    ``order_should_not_be_reviewed_by_provider``. The first rule of
+    ``order_rules.PROVIDER_RULES`` that holds decides."""
+    skips, _ = order_rules.decide(
+        order_rules.PROVIDER_RULES, ProviderReviewFacts(offering, user)
+    )
+    return skips
 
 
 def offering_orders_need_provider_action(offering: models.Offering, user) -> bool:

@@ -29,6 +29,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingModes,
     OfferingStates,
     OfferingUserStates,
+    OrderFlowChoices,
     OrderStates,
     OrderTypes,
     ResourceApiKeyActions,
@@ -112,6 +113,10 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        # The offering order-flow description: its steps, lanes and exits.
+        "OrderFlowStepKeyEnum": list(OrderFlowChoices.STEPS),
+        "OrderFlowActorEnum": list(OrderFlowChoices.ACTORS),
+        "OrderFlowTerminalKeyEnum": list(OrderFlowChoices.TERMINALS),
         # A bucket's versioning, on the bucket row and in its details.
         "S3VersioningStatusEnum": S3VersioningStatuses.CHOICES,
         # On the offering's plugin options and in the browser's capabilities.
