@@ -1,6 +1,6 @@
 from unittest import mock
 
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 from rest_framework import status, test
 
 from waldur_core.logging.enums import ObservableObjectType
@@ -399,6 +399,32 @@ class BackendResourceRequestTest(test.APITestCase):
         self.assertEqual(
             self.resource_request.error_traceback, payload["error_traceback"]
         )
+
+    @data(
+        ({"error_message": "test error"}, "test error", ""),
+        ({"error_traceback": "test traceback"}, "", "test traceback"),
+        ({}, "", ""),
+    )
+    @unpack
+    def test_omitted_error_field_is_stored_empty(
+        self, payload, error_message, error_traceback
+    ):
+        # Both fields are optional in the API schema; leaving one out used to
+        # raise KeyError in the view and answer 500.
+        self.client.force_login(self.fixture.staff)
+        url = factories.BackendResourceRequestFactory.get_url(
+            self.resource_request, "set_erred"
+        )
+
+        response = self.client.post(url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource_request.refresh_from_db()
+        self.assertEqual(
+            self.resource_request.state, models.BackendResourceRequest.States.ERRED
+        )
+        self.assertEqual(self.resource_request.error_message, error_message)
+        self.assertEqual(self.resource_request.error_traceback, error_traceback)
 
     @data("owner", "customer_support", "admin", "manager")
     def test_user_cannot_set_erred_backend_resource_request(self, role):
