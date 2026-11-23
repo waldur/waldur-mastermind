@@ -2906,7 +2906,20 @@ def release_project_grace_pauses(resources) -> list:
         ):
             if not resource.paused_by_grace_period:
                 continue
-            if is_held_by_project_grace(resource) or resource.project.is_expired:
+            # Opted-in offerings that disable grace are already blocked from
+            # the raw end date, even before the project's effective end date.
+            options = resource.offering.plugin_options or {}
+            expiry_hold = (
+                options.get("block_new_submissions_on_expiry")
+                and options.get("disable_grace_period")
+                and resource.project.end_date is not None
+                and resource.project.end_date <= timezone.localdate()
+            )
+            if (
+                is_held_by_project_grace(resource)
+                or resource.project.is_expired
+                or expiry_hold
+            ):
                 continue
             resource.paused_by_grace_period = False
             update_fields = ["paused_by_grace_period"]
