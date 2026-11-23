@@ -166,6 +166,8 @@ class OfferingMetricTest(test.APITestCase):
 
     def test_service_provider_manager_adopts_lists_and_pauses(self):
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        # As the role ships: reporting usage puts its holder on the provider side.
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
         provider = marketplace_factories.ServiceProviderFactory(
             customer=self.fixture.customer
         )

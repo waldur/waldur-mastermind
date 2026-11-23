@@ -457,7 +457,7 @@ class MetricGoalTest(Scenario):
             value=1,
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_one_goal_per_scope(self):
         payload = {
@@ -584,6 +584,8 @@ class ServiceProviderManagerTest(Scenario):
     def setUp(self):
         super().setUp()
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        # As the role ships: reporting usage puts its holder on the provider side.
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
         provider = marketplace_factories.ServiceProviderFactory(
             customer=self.provider.customer
         )

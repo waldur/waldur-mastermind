@@ -330,8 +330,7 @@ class InstanceMetricsViewSet(viewsets.GenericViewSet):
     SEES_METRICS = access.custom(
         "An instance or volume resource whose metrics the caller sees: staff, "
         "support, its consumer (a role in its project or organization) or its "
-        "provider (a role in the offering's organization or service provider, or "
-        "on the offering). Others get a 404."
+        f"provider ({metrics_query.PROVIDER_SIDE}). Others get a 404."
     )
     MANAGES_READER = access.custom(
         f"{PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE.value} on the project or "
