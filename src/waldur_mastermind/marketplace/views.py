@@ -9596,8 +9596,9 @@ class OrderViewSet(
 
         with transaction.atomic():
             order.set_state_erred()
-            order.error_message = serializer.validated_data["error_message"]
-            order.error_traceback = serializer.validated_data["error_traceback"]
+            # Both fields are optional; an omitted one is stored empty.
+            order.error_message = serializer.validated_data.get("error_message", "")
+            order.error_traceback = serializer.validated_data.get("error_traceback", "")
             order.save(update_fields=["state", "error_message", "error_traceback"])
 
             resource = order.resource
@@ -20048,8 +20049,9 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        error_message = serializer.validated_data["error_message"]
-        error_traceback = serializer.validated_data["error_traceback"]
+        # Both fields are optional; an omitted one is stored empty.
+        error_message = serializer.validated_data.get("error_message", "")
+        error_traceback = serializer.validated_data.get("error_traceback", "")
 
         resource_request.set_erred()
         resource_request.error_message = error_message

@@ -1,6 +1,6 @@
 import traceback
 
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 from rest_framework import status, test
 
 from waldur_core.logging.enums import EventType
@@ -349,6 +349,30 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
             user, "Resource creation has been failed", traceback.format_exc()
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(
+        ({"error_message": "Backend is unreachable"}, "Backend is unreachable", ""),
+        ({"error_traceback": "Traceback (...)"}, "", "Traceback (...)"),
+        ({}, "", ""),
+    )
+    @unpack
+    def test_omitted_error_field_is_stored_empty(
+        self, payload, error_message, error_traceback
+    ):
+        # Both fields are optional in the API schema; leaving one out used to
+        # raise KeyError in the view and answer 500.
+        self.order.state = OrderStates.EXECUTING
+        self.order.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OrderFactory.get_url(self.order, "set_state_erred")
+
+        response = self.client.post(url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.ERRED)
+        self.assertEqual(self.order.error_message, error_message)
+        self.assertEqual(self.order.error_traceback, error_traceback)
 
     def item_set_state_erred(self, user, error_message, error_traceback):
         user = getattr(self.fixture, user)
