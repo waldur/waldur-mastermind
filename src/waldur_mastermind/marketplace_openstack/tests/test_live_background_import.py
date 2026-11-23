@@ -294,6 +294,9 @@ class LiveBackgroundImportTest(TransactionTestCase):
                 self.resources_of(volume).get().offering.type,
                 OPENSTACK_VOLUME_OFFERING,
             )
+            # The attached volume's resource is made with the instance's, by
+            # another path than the standalone one; both must be usable.
+            self.assertEqual(self.resources_of(volume).get().state, ResourceStates.OK)
 
         self.background_pull()
 

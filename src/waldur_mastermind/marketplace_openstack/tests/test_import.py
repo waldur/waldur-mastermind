@@ -4,15 +4,18 @@ from unittest.mock import patch
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import signals as structure_signals
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     OPENSTACK_VOLUME_OFFERING,
+    ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests.factories import OfferingFactory
+from waldur_mastermind.marketplace_openstack import utils
 from waldur_mastermind.marketplace_openstack.tests.mocks import (
     MOCK_FLAVOR,
     MOCK_IMAGE,
@@ -471,3 +474,51 @@ class TenantImportTest(test.APITestCase):
         self.mocked_cinder.quotas.get.return_value = MOCK_LIMITS
 
         return self.client.post(url, payload)
+
+
+class ImportedInstanceVolumesTest(BaseOpenStackTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = OpenStackFixture()
+        for offering_type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
+            OfferingFactory(type=offering_type, scope=self.fixture.tenant)
+        self.instance = self.fixture.instance
+
+    def attach_volume(self, state):
+        return VolumeFactory(
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+            instance=self.instance,
+            state=state,
+            runtime_state="in-use",
+            backend_id=f"volume-{state}",
+        )
+
+    def resource_of(self, scope):
+        return marketplace_models.Resource.objects.get(scope=scope)
+
+    def test_attached_volume_takes_the_state_of_the_openstack_volume(self):
+        volume = self.attach_volume(CoreStates.OK)
+
+        utils.create_marketplace_resource_for_imported_resources(self.instance)
+
+        resource = self.resource_of(volume)
+        self.assertEqual(resource.state, ResourceStates.OK)
+        self.assertEqual(resource.backend_id, volume.backend_id)
+
+    def test_attached_volume_stays_ok_when_pulled_unchanged(self):
+        volume = self.attach_volume(CoreStates.OK)
+        utils.create_marketplace_resource_for_imported_resources(self.instance)
+
+        volume.refresh_from_db()
+        volume.runtime_state = "available"
+        volume.save()
+
+        self.assertEqual(self.resource_of(volume).state, ResourceStates.OK)
+
+    def test_erred_attached_volume_is_erred(self):
+        volume = self.attach_volume(CoreStates.ERRED)
+
+        utils.create_marketplace_resource_for_imported_resources(self.instance)
+
+        self.assertEqual(self.resource_of(volume).state, ResourceStates.ERRED)
