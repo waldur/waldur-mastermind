@@ -317,12 +317,17 @@ def create_resource_of_volume_if_instance_created(
         if marketplace_models.Resource.objects.filter(scope=volume).exists():
             continue
 
+        # The resource follows the volume's state only on a transition, so it
+        # starts from the volume's current state: the volume of an imported
+        # instance is already OK and may never transition again.
         volume_resource = marketplace_models.Resource(
             project=resource.project,
             offering=volume_offering,
             created=resource.created,
             name=volume.name,
             scope=volume,
+            state=marketplace_utils.get_resource_state(volume.state),
+            backend_id=volume.backend_id or "",
         )
 
         volume_resource.init_cost()
