@@ -23,7 +23,7 @@ from django.core.exceptions import (
     ValidationError,
 )
 from django.core.validators import DomainNameValidator
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import (
     Count,
     Exists,
@@ -193,6 +193,7 @@ from waldur_pid import models as pid_models
 
 from . import (
     api_key_spending_limits,
+    attribute_types,
     billing_mode,
     daily_usage,
     derived_limits,
@@ -2234,6 +2235,66 @@ class SetOfferingsUsernameSerializer(serializers.Serializer):
     )
 
 
+OPTION_ATTRIBUTE_TYPES = ("choice", "list")
+
+
+def is_default_option(default, key) -> bool:
+    """A list attribute's default is a list of option keys, a choice's is one key."""
+    if isinstance(default, list):
+        return key in default
+    return default == key
+
+
+def make_unique_key(model, base: str, fallback: str, taken=(), **scope) -> str:
+    """Build a key that is free in ``model`` within ``scope``.
+
+    Section and attribute keys are primary keys shared by every category, so a
+    key derived from a title alone collides as soon as two categories use the
+    same section name; numbering the candidate keeps it readable.
+    """
+    base = slugify(base).replace("-", "_")[:240] or fallback
+    key = base
+    suffix = 2
+    while key in taken or model.objects.filter(key=key, **scope).exists():
+        key = f"{base}_{suffix}"
+        suffix += 1
+    return key
+
+
+def reject_key_change(serializer, attrs):
+    """Keys are referenced by offerings and options; renaming one orphans them.
+
+    For sections and attributes the key is also the primary key, so a changed
+    key would make Django insert a second row instead of renaming the first.
+    """
+    instance = serializer.instance
+    if instance is not None and "key" in attrs and attrs["key"] != instance.key:
+        raise serializers.ValidationError(
+            {"key": _("Key cannot be changed once it is created.")}
+        )
+
+
+GENERATED_KEY_ATTEMPTS = 5
+
+
+def create_with_generated_key(create, validated_data, make_key):
+    """Create a row whose key was not given, retrying on a key collision.
+
+    The free key is looked up before the insert, so two requests generating
+    the same key at once would otherwise end in an IntegrityError.
+    """
+    taken = set()
+    for attempt in range(GENERATED_KEY_ATTEMPTS):
+        validated_data["key"] = make_key(taken)
+        try:
+            with transaction.atomic():
+                return create(validated_data)
+        except IntegrityError:
+            if attempt == GENERATED_KEY_ATTEMPTS - 1:
+                raise
+            taken.add(validated_data["key"])
+
+
 class NestedAttributeOptionSerializer(serializers.ModelSerializer):
     is_default = serializers.SerializerMethodField()
 
@@ -2243,7 +2304,7 @@ class NestedAttributeOptionSerializer(serializers.ModelSerializer):
 
     def get_is_default(self, obj) -> bool:
         """Return True if this option is the default for its attribute."""
-        return obj.attribute.default == obj.key
+        return is_default_option(obj.attribute.default, obj.key)
 
 
 class NestedAttributeSerializer(serializers.ModelSerializer):
@@ -2980,7 +3041,20 @@ class MarketplaceCategorySerializer(
 
     @staticmethod
     def eager_load(queryset, request):
-        return queryset.distinct().prefetch_related("sections", "sections__attributes")
+        return queryset.distinct().prefetch_related(
+            Prefetch(
+                "sections",
+                queryset=models.Section.objects.order_by("created", "key"),
+            ),
+            Prefetch(
+                "sections__attributes",
+                queryset=models.Attribute.objects.order_by("created", "key"),
+            ),
+            Prefetch(
+                "sections__attributes__options",
+                queryset=models.AttributeOption.objects.order_by("id"),
+            ),
+        )
 
     def get_offering_count(self, category) -> int:
         request = self.context["request"]
@@ -16676,8 +16750,29 @@ class ServiceProviderRevenues(serializers.Serializer):
     )
 
 
+class AttributeOptionItemSerializer(serializers.ModelSerializer):
+    """An option written together with its attribute.
+
+    Options are matched by key: a known key updates the option's title, an
+    unknown or missing key creates one, and an existing option left out of the
+    list is deleted.
+    """
+
+    is_default = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.AttributeOption
+        fields = ("uuid", "key", "title", "is_default")
+        read_only_fields = ("uuid",)
+        extra_kwargs = {"key": {"required": False}}
+
+    def get_is_default(self, obj) -> bool:
+        return is_default_option(obj.attribute.default, obj.key)
+
+
 class AttributeSerializer(serializers.HyperlinkedModelSerializer):
     section_title = serializers.ReadOnlyField(source="section.title")
+    options = AttributeOptionItemSerializer(many=True, required=False)
 
     class Meta:
         model = models.Attribute
@@ -16692,6 +16787,7 @@ class AttributeSerializer(serializers.HyperlinkedModelSerializer):
             "type",
             "required",
             "default",
+            "options",
         )
         extra_kwargs = dict(
             section={
@@ -16704,6 +16800,128 @@ class AttributeSerializer(serializers.HyperlinkedModelSerializer):
             },
         )
         read_only_fields = ["created"]
+
+    def validate(self, attrs):
+        reject_key_change(self, attrs)
+        instance = self.instance
+        attribute_type = attrs.get("type", instance and instance.type)
+
+        options = attrs.get("options")
+        if options is not None:
+            if options and attribute_type not in OPTION_ATTRIBUTE_TYPES:
+                raise serializers.ValidationError(
+                    {
+                        "options": _(
+                            "Options can only be added to attributes of type choice or list."
+                        )
+                    }
+                )
+            keys = [option["key"] for option in options if option.get("key")]
+            if len(keys) != len(set(keys)):
+                raise serializers.ValidationError(
+                    {"options": _("Option keys must be unique.")}
+                )
+            option_keys = keys
+        elif instance is not None and attribute_type in OPTION_ATTRIBUTE_TYPES:
+            option_keys = list(instance.options.values_list("key", flat=True))
+        else:
+            option_keys = []
+
+        validator = attribute_types.get_attribute_type(attribute_type)
+        if "default" in attrs:
+            # A default the client sends must fit the type and options.
+            default = attrs["default"]
+            if default is not None and validator:
+                try:
+                    validator.validate(default, option_keys)
+                except ValidationError as e:
+                    raise serializers.ValidationError({"default": e.messages})
+        elif instance is not None and instance.default is not None and validator:
+            # A stored default that a change of type or options no longer
+            # fits is dropped rather than failing a request that never sent
+            # one; unrelated edits leave it alone, even if it is already stale.
+            if "type" in attrs or options is not None:
+                try:
+                    validator.validate(instance.default, option_keys)
+                except ValidationError:
+                    attrs["default"] = None
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        options = validated_data.pop("options", None)
+        if validated_data.get("key"):
+            attribute = super().create(validated_data)
+        else:
+            section = validated_data["section"]
+            attribute = create_with_generated_key(
+                super().create,
+                validated_data,
+                lambda taken: make_unique_key(
+                    models.Attribute,
+                    f"{section.key}_{validated_data['title']}",
+                    fallback=f"{section.key}_attribute",
+                    taken=taken,
+                ),
+            )
+        if options:
+            self._sync_options(attribute, options)
+        return attribute
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        # Serialises concurrent edits of one attribute, so two option syncs
+        # cannot generate the same option key.
+        models.Attribute.objects.select_for_update().filter(pk=instance.pk).first()
+        options = validated_data.pop("options", None)
+        attribute = super().update(instance, validated_data)
+        if attribute.type not in OPTION_ATTRIBUTE_TYPES:
+            # Options of a type that no longer takes them would only linger
+            # and resurface if the type is switched back.
+            attribute.options.all().delete()
+        elif options is not None:
+            self._sync_options(attribute, options)
+        return attribute
+
+    @staticmethod
+    def _sync_options(attribute, options):
+        existing = {option.key: option for option in attribute.options.all()}
+        # Keys named in the request are reserved up front, so an option whose
+        # key is generated cannot take one that a later item asks for.
+        kept = {item["key"] for item in options if item.get("key")}
+        for item in options:
+            key = item.get("key")
+            option = existing.get(key) if key else None
+            if option:
+                if option.title != item["title"]:
+                    option.title = item["title"]
+                    option.save(update_fields=["title"])
+            else:
+                key = key or make_unique_key(
+                    models.AttributeOption,
+                    item["title"],
+                    fallback="option",
+                    taken=kept,
+                    attribute=attribute,
+                )
+                models.AttributeOption.objects.create(
+                    attribute=attribute, key=key, title=item["title"]
+                )
+            kept.add(key)
+        attribute.options.exclude(key__in=kept).delete()
+
+
+class AttributeCreateSerializer(AttributeSerializer):
+    """Create-only: the key may be left out and is then generated.
+
+    A separate class keeps ``key`` required in the response schema, which
+    every client reads, while only the create request may omit it.
+    """
+
+    class Meta(AttributeSerializer.Meta):
+        extra_kwargs = dict(
+            AttributeSerializer.Meta.extra_kwargs, key={"required": False}
+        )
 
 
 class AttributeOptionSerializer(serializers.HyperlinkedModelSerializer):
@@ -16735,17 +16953,18 @@ class AttributeOptionSerializer(serializers.HyperlinkedModelSerializer):
 
     def get_is_default(self, obj) -> bool:
         """Return True if this option is the default for its attribute."""
-        return obj.attribute.default == obj.key
+        return is_default_option(obj.attribute.default, obj.key)
 
     def validate_attribute(self, value):
-        if value.type != "choice":
+        if value.type not in OPTION_ATTRIBUTE_TYPES:
             raise serializers.ValidationError(
-                _("Options can only be added to attributes of type choice.")
+                _("Options can only be added to attributes of type choice or list.")
             )
         return value
 
-    def validate(self, data):
-        return super().validate(data)
+    def validate(self, attrs):
+        reject_key_change(self, attrs)
+        return super().validate(attrs)
 
 
 class SectionSerializer(serializers.HyperlinkedModelSerializer):
@@ -16773,6 +16992,38 @@ class SectionSerializer(serializers.HyperlinkedModelSerializer):
             },
         )
         read_only_fields = ["created"]
+
+    def validate(self, attrs):
+        reject_key_change(self, attrs)
+        return attrs
+
+
+class SectionCreateSerializer(SectionSerializer):
+    """Create-only: the key may be left out and is then generated.
+
+    A separate class keeps ``key`` required in the response schema, which
+    every client reads, while only the create request may omit it.
+    """
+
+    class Meta(SectionSerializer.Meta):
+        extra_kwargs = dict(
+            SectionSerializer.Meta.extra_kwargs, key={"required": False}
+        )
+
+    def create(self, validated_data):
+        if validated_data.get("key"):
+            return super().create(validated_data)
+        category = validated_data["category"]
+        return create_with_generated_key(
+            super().create,
+            validated_data,
+            lambda taken: make_unique_key(
+                models.Section,
+                f"{category.title}_{validated_data['title']}",
+                fallback=f"section_{category.uuid.hex[:8]}",
+                taken=taken,
+            ),
+        )
 
 
 class IntegrationStatusSerializer(serializers.ModelSerializer):

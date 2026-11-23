@@ -808,7 +808,7 @@ class CategoryHelpArticleAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
-admin.site.register(models.Category)
+admin.site.register(models.Category, CategoryAdmin)
 admin.site.register(models.CategoryGroup, CategoryGroupAdmin)
 admin.site.register(models.OfferingGroup, OfferingGroupAdmin)
 admin.site.register(models.PosixIdPool, PosixIdPoolAdmin)

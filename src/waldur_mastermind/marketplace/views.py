@@ -19328,7 +19328,7 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
 @extend_schema_view(
     list=extend_schema(
         summary="List sections",
-        description="Returns a paginated list of all sections. Sections are used to group attributes within a category.",
+        description="Returns a paginated list of all sections. Sections are used to group attributes within a category. Filter by category (URL or UUID).",
     ),
     retrieve=extend_schema(
         summary="Retrieve a section",
@@ -19336,7 +19336,9 @@ class RobotAccountViewSet(core_views.ActionsViewSet):
     ),
     create=extend_schema(
         summary="Create a section",
-        description="Creates a new section within a category. Requires staff permissions.",
+        description="Creates a new section within a category. The key is generated from the category and section titles when omitted, and cannot be changed afterwards. Requires staff permissions.",
+        request=serializers.SectionCreateSerializer,
+        responses={201: serializers.SectionSerializer},
     ),
     update=extend_schema(
         summary="Update a section",
@@ -19360,11 +19362,17 @@ class SectionViewSet(rf_viewsets.ModelViewSet):
     and requires staff permissions for modification.
     """
 
-    queryset = models.Section.objects.all().order_by("title")
+    queryset = models.Section.objects.all().select_related("category").order_by("title")
     lookup_field = "key"
     serializer_class = serializers.SectionSerializer
+    filterset_class = filters.SectionFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return serializers.SectionCreateSerializer
+        return super().get_serializer_class()
 
 
 @extend_schema_view(
@@ -19378,15 +19386,17 @@ class SectionViewSet(rf_viewsets.ModelViewSet):
     ),
     create=extend_schema(
         summary="Create an attribute",
-        description="Creates a new attribute within a section. Requires staff permissions.",
+        description="Creates a new attribute within a section, optionally with its options. The key is generated from the section key and title when omitted, and cannot be changed afterwards. Requires staff permissions.",
+        request=serializers.AttributeCreateSerializer,
+        responses={201: serializers.AttributeSerializer},
     ),
     update=extend_schema(
         summary="Update an attribute",
-        description="Updates an existing attribute. Requires staff permissions.",
+        description="Updates an existing attribute. When options are given, they replace the current ones: options are matched by key, new ones are created and missing ones deleted. Switching to a type without options deletes them. Requires staff permissions.",
     ),
     partial_update=extend_schema(
         summary="Partially update an attribute",
-        description="Partially updates an existing attribute. Requires staff permissions.",
+        description="Partially updates an existing attribute. When options are given, they replace the current ones: options are matched by key, new ones are created and missing ones deleted. Switching to a type without options deletes them. Requires staff permissions.",
     ),
     destroy=extend_schema(
         summary="Delete an attribute",
@@ -19402,12 +19412,22 @@ class AttributeViewSet(rf_viewsets.ModelViewSet):
     permissions for modification.
     """
 
-    queryset = models.Attribute.objects.all().order_by("title")
+    queryset = (
+        models.Attribute.objects.all()
+        .select_related("section")
+        .prefetch_related("options")
+        .order_by("title")
+    )
     lookup_field = "uuid"
     serializer_class = serializers.AttributeSerializer
     filterset_class = filters.AttributeFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return serializers.AttributeCreateSerializer
+        return super().get_serializer_class()
 
 
 @extend_schema_view(
@@ -19421,7 +19441,7 @@ class AttributeViewSet(rf_viewsets.ModelViewSet):
     ),
     create=extend_schema(
         summary="Create an attribute option",
-        description="Creates a new option for a choice-type attribute. Requires staff permissions.",
+        description="Creates a new option for a choice or list attribute. Requires staff permissions.",
     ),
     update=extend_schema(
         summary="Update an attribute option",
