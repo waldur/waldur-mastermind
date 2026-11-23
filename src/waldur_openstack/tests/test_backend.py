@@ -2829,6 +2829,9 @@ class PushInstancePortsTest(BaseBackendTest):
             project=self.fixture.project,
             tenant=self.fixture.tenant,
             state=CoreStates.OK,
+            # Its own id: a sequence value can repeat the fixture instance's in
+            # the same service settings, depending on what ran before.
+            backend_id="claiming-instance-id",
         )
         claimant = factories.PortFactory(
             tenant=self.fixture.tenant,
