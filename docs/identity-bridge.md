@@ -249,13 +249,15 @@ Creates or updates a user based on CUID (username). The caller specifies which I
 }
 ```
 
+**Privileged accounts**: only staff may change a staff, support or identity manager account. When anyone else pushes an existing one, the account is returned unchanged: `created` is `false` and `updated_fields` is empty. Its attributes, `active_isds` and `attribute_sources` stay as they are. The account does not have to belong to the caller's ISD: any identity manager, for any ISD it manages, can learn the UUID of any active privileged account whose username it knows or guesses (`admin`, say). That UUID is what lets an ISD agent give the account project roles. Removing such an account is still refused (see below).
+
 **Error responses**:
 
 | Status | Condition |
 |--------|-----------|
 | 400 | Invalid source format, disallowed fields, or deactivated user |
 | 401 | Not authenticated |
-| 403 | Feature disabled, insufficient permissions, source not in `managed_isds`, or a non-staff caller naming a staff, support or identity manager account |
+| 403 | Feature disabled, insufficient permissions, or source not in `managed_isds` |
 
 ### Remove User from ISD
 

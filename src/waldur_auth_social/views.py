@@ -15,6 +15,7 @@ from rest_framework.exceptions import (
     APIException,
     AuthenticationFailed,
     NotFound,
+    ParseError,
     ValidationError,
 )
 from rest_framework.response import Response
@@ -102,18 +103,18 @@ CHANGES_ISD_USERS = access.any_of(
     access.custom(
         "An identity manager (`is_identity_manager`) whose `managed_isds` "
         "include the request's `source`, with a personal access token of any "
-        "scopes. Only staff may push or remove staff, support or identity "
+        "scopes. Only staff may change or remove staff, support or identity "
         "manager accounts."
     ),
 )
 
 PRIVILEGED_ACCOUNT_MESSAGE = (
-    "Only staff may push or remove staff, support or identity manager accounts."
+    "Only staff may remove staff, support or identity manager accounts."
 )
 
 
 def is_privileged_account(user):
-    """An account an identity manager may not push or remove: an ISD could
+    """An account an identity manager may not change or remove: an ISD could
     otherwise claim it, overwrite its attributes and then deactivate it."""
     return user.is_staff or user.is_support or user.is_identity_manager
 
@@ -757,7 +758,9 @@ class IdentityBridgeView(generics.GenericAPIView):
             "Creates or updates a user based on username (CUID). "
             "Requires FEDERATED_IDENTITY_SYNC_ENABLED to be True. "
             "Caller must be staff or an identity manager with the declared source in managed_isds. "
-            "Only staff may push staff, support or identity manager accounts."
+            "Only staff may change staff, support or identity manager accounts: "
+            "anyone else pushing an existing one gets it back unchanged "
+            "(`created` false, no `updated_fields`)."
         ),
         request=IdentityBridgeRequestSerializer,
         responses={200: IdentityBridgeResultSerializer},
@@ -803,12 +806,21 @@ class IdentityBridgeView(generics.GenericAPIView):
             if k not in ("username", "source")
         }
 
-        # 6. Only staff may push a privileged account
+        # 6. Only staff may change a privileged account. A non-staff caller gets
+        # it back unchanged: its UUID lets the caller give it project roles,
+        # while its attributes, ISDs and active state stay as they are.
         if not has_staff_access(request):
             existing = User.all_objects.filter(username=username).first()
             if existing and is_privileged_account(existing):
+                if not existing.is_active:
+                    raise ParseError(f"User {username} is deactivated.")
                 return Response(
-                    PRIVILEGED_ACCOUNT_MESSAGE, status=status.HTTP_403_FORBIDDEN
+                    {
+                        "uuid": existing.uuid.hex,
+                        "created": False,
+                        "updated_fields": [],
+                    },
+                    status=status.HTTP_200_OK,
                 )
 
         # 7. Create or update user
