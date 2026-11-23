@@ -383,5 +383,7 @@ def get_components_usage_data_from_resources(
         get_components_usage_data,
     )
 
-    resources = filter_resources_for_usage_stats(resources, include_terminated)
+    resources = filter_resources_for_usage_stats(
+        resources, include_terminated, for_current_month
+    )
     return get_components_usage_data(resources, for_current_month)

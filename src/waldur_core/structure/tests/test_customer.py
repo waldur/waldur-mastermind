@@ -33,12 +33,14 @@ from waldur_core.structure.tests.utils import (
     client_delete_user,
     client_update_user,
 )
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.marketplace.utils import filter_resources_for_usage_stats
 
 
 class CustomerBaseTest(test.APITestCase):
@@ -1660,11 +1662,118 @@ class CustomerResourceQuotasTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         disk = self._get_component(self.url + "?include_terminated=true", "disk")
-        # Only this month's 10 counts for a terminated resource, not the
-        # year-to-date 25.
+        # The year-to-date 25 of the ANNUAL component counts, as for an
+        # active resource.
+        self.assertEqual(disk["limit_usage"], 25)
+        self.assertEqual(disk["limit_usage_terminated"], 25)
+        self.assertIsNone(disk["limit"])
+
+        disk = self._get_component(
+            self.url + "?include_terminated=true&for_current_month=true", "disk"
+        )
         self.assertEqual(disk["limit_usage"], 10)
         self.assertEqual(disk["limit_usage_terminated"], 10)
-        self.assertIsNone(disk["limit"])
+
+    @freeze_time("2025-12-15")
+    def test_terminated_limit_based_usage_counts_in_a_later_month_of_its_period(
+        self,
+    ):
+        # Terminated after its last usage in October, viewed in December.
+        self._enable_include_terminated()
+        self.limit_based_resource.state = ResourceStates.TERMINATED
+        self.limit_based_resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+
+        disk = self._get_component(self.url + "?include_terminated=true", "disk")
+        self.assertEqual(disk["limit_usage"], 25)
+        self.assertEqual(disk["limit_usage_terminated"], 25)
+
+        # Nothing of it was reported this month.
+        response = self.client.get(
+            self.url + "?include_terminated=true&for_current_month=true"
+        )
+        self.assertFalse(
+            any(
+                c["type"] == "disk" and c["limit_usage"]
+                for c in response.data["components"]
+            )
+        )
+
+    @freeze_time("2026-02-15")
+    def test_terminated_limit_based_usage_of_an_earlier_period_adds_nothing(self):
+        self._enable_include_terminated()
+        self.limit_based_resource.state = ResourceStates.TERMINATED
+        self.limit_based_resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url + "?include_terminated=true")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(
+            any(
+                c["type"] == "disk" and c["limit_usage"]
+                for c in response.data["components"]
+            )
+        )
+
+    @freeze_time("2025-12-15")
+    def test_terminated_usage_based_usage_counts_in_its_limit_period(self):
+        # A usage-billed component with an annual period keeps the latest
+        # month of a terminated resource for the rest of the year.
+        self.component1.limit_period = LimitPeriods.ANNUAL
+        self.component1.save()
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+        self.assertEqual(cpu["usage"], 7)
+        self.assertEqual(cpu["usage_terminated"], 2)
+        self.assertEqual(cpu["limit"], 8)
+
+    def _terminated_resource2_is_loaded(self):
+        resources = marketplace_models.Resource.objects.filter(id=self.resource2.id)
+        return filter_resources_for_usage_stats(
+            resources, include_terminated=True
+        ).exists()
+
+    @freeze_time("2025-11-15")
+    def test_terminated_monthly_usage_of_an_earlier_month_adds_nothing(self):
+        # resource2 last reported usage in October; its components are monthly.
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+        self.assertEqual(cpu["usage_terminated"], 0)
+        # Nothing of it can count, so it is not loaded at all.
+        self.assertFalse(self._terminated_resource2_is_loaded())
+
+    def test_terminated_quarterly_usage_counts_until_the_quarter_ends(self):
+        self.component1.limit_period = LimitPeriods.QUARTERLY
+        self.component1.save()
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        with freeze_time("2025-12-15"):
+            cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+            self.assertEqual(cpu["usage_terminated"], 2)
+            self.assertTrue(self._terminated_resource2_is_loaded())
+
+        with freeze_time("2026-01-15"):
+            cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+            self.assertEqual(cpu["usage_terminated"], 0)
+            self.assertFalse(self._terminated_resource2_is_loaded())
+
+    @freeze_time("2028-03-15")
+    def test_terminated_usage_of_a_total_period_component_has_no_bound(self):
+        # A total limit period is the whole history, so the latest month of a
+        # terminated resource keeps counting, as for an active one.
+        self.component1.limit_period = LimitPeriods.TOTAL
+        self.component1.save()
+        self._remove_project2()
+        self.client.force_authenticate(self.fixture.staff)
+
+        cpu = self._get_component(self.url + "?include_terminated=true", "cpu")
+        self.assertEqual(cpu["usage_terminated"], 2)
+        self.assertTrue(self._terminated_resource2_is_loaded())
 
     @freeze_time("2025-10-15")
     def test_removed_project_stats_include_its_usage_when_requested(self):
