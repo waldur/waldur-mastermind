@@ -892,6 +892,26 @@ def sync_arrow_billing(
         logger.error(f"Arrow billing sync failed: {e}")
 
 
+def _match_vendor_offering(vendor_offering_map: dict, vendor: str):
+    """
+    The value mapped to a billing line's vendor.
+
+    Mappings carry the catalog's vendor name ("Amazon") while the billing
+    export may spell it out ("Amazon Web Services"), so a leading whole-word
+    match also counts; the longest mapping name wins.
+    """
+    if not vendor:
+        return None
+    if vendor in vendor_offering_map:
+        return vendor_offering_map[vendor]
+    vendor_lower = vendor.lower()
+    for name in sorted(vendor_offering_map, key=len, reverse=True):
+        name_lower = (name or "").lower()
+        if name_lower and vendor_lower.startswith(name_lower + " "):
+            return vendor_offering_map[name]
+    return None
+
+
 def _process_customer_billing(
     settings: models.ArrowSettings,
     mapping: models.ArrowCustomerMapping,
@@ -999,15 +1019,22 @@ def _process_customer_billing(
                 resource = None
                 project = None
                 if license_ref_value:
-                    resource = marketplace_models.Resource.objects.filter(
-                        attributes__arrow_license_reference=license_ref_value,
-                        project__customer=customer,
-                    ).first()
+                    resource = (
+                        marketplace_models.Resource.objects.exclude(
+                            state=marketplace_models.Resource.States.TERMINATED
+                        )
+                        .order_by("-created")
+                        .filter(
+                            attributes__arrow_license_reference=license_ref_value,
+                            project__customer=customer,
+                        )
+                        .first()
+                    )
                 if resource:
                     project = resource.project
                 else:
                     # Fall back to offering from vendor mapping to find a default project
-                    offering = vendor_offering_map.get(vendor)
+                    offering = _match_vendor_offering(vendor_offering_map, vendor)
                     if offering:
                         # Try to find any project for this customer
                         project = structure_models.Project.objects.filter(
@@ -1015,12 +1042,31 @@ def _process_customer_billing(
                         ).first()
 
                 if sync_item:
-                    # Update existing item
-                    if sync_item.original_price != unit_price:
-                        # Price changed - update
-                        sync_item.invoice_item.unit_price = unit_price
-                        sync_item.invoice_item.save(update_fields=["unit_price"])
-                        # Note: don't update original_price - that's for reconciliation
+                    invoice_item = sync_item.invoice_item
+                    # An issued invoice stays as issued.
+                    if invoice_item.invoice.state in (
+                        invoices_models.Invoice.States.PENDING,
+                        invoices_models.Invoice.States.PENDING_FINALIZATION,
+                    ):
+                        details = dict(invoice_item.details or {})
+                        update_fields = []
+                        # Follow Arrow's price only when Arrow changed it, so
+                        # a manual correction in Waldur is not undone.
+                        last_arrow_price = _parse_decimal(
+                            details.get("arrow_price", sync_item.original_price)
+                        )
+                        if unit_price != last_arrow_price:
+                            invoice_item.unit_price = unit_price
+                            details["arrow_price"] = str(unit_price)
+                            update_fields += ["unit_price", "details"]
+                        if invoice_item.quantity != Decimal("1"):
+                            # Items made before line totals were billed once.
+                            details["arrow_quantity"] = str(invoice_item.quantity)
+                            invoice_item.quantity = Decimal("1")
+                            update_fields += ["quantity", "details"]
+                        if update_fields:
+                            invoice_item.details = details
+                            invoice_item.save(update_fields=list(set(update_fields)))
                 else:
                     # Create invoice item
                     invoice_item = invoices_models.InvoiceItem.objects.create(
@@ -1030,12 +1076,17 @@ def _process_customer_billing(
                         project_name=project.name if project else "",
                         project_uuid=project.uuid.hex if project else "",
                         name=description[:255],
+                        # unit_price is the line total (Customer/Sell Total
+                        # Price already includes Qty), so bill it once; the
+                        # Arrow quantity is kept in details for display.
                         unit_price=unit_price,
-                        quantity=quantity,
+                        quantity=Decimal("1"),
                         unit=invoices_models.InvoiceItem.Units.QUANTITY,
                         details={
                             "source": "arrow",
                             "arrow_line_reference": line_ref,
+                            "arrow_quantity": str(quantity),
+                            "arrow_price": str(unit_price),
                             "vendor_name": vendor,
                             "subscription_reference": line.get(
                                 "Vendor Subscription ID", ""
@@ -1522,8 +1573,9 @@ def sync_arrow_resources(
                 vendor = info.get("vendor", "")
                 sub_offering = offering
                 sub_plan = None
-                if vendor and vendor in vendor_mapping:
-                    sub_offering, sub_plan = vendor_mapping[vendor]
+                matched = _match_vendor_offering(vendor_mapping, vendor)
+                if matched:
+                    sub_offering, sub_plan = matched
 
                 created = _sync_resource_from_subscription(
                     sub_id=sub_id,

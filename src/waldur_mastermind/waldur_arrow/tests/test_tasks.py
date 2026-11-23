@@ -1,10 +1,13 @@
 """Tests for Arrow Celery tasks."""
 
 from decimal import Decimal
+from importlib import import_module
 from unittest import mock
 
+from django.apps import apps as django_apps
 from django.test import TestCase
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.waldur_arrow import models, tasks
 from waldur_mastermind.waldur_arrow.tests.fixtures import ArrowFixture
@@ -75,6 +78,122 @@ class SyncArrowBillingTest(TestCase):
             month=2,
         )
         self.assertEqual(invoice.items.count(), 2)
+
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages"
+    )
+    def test_line_total_is_not_multiplied_by_quantity(self, mock_export):
+        self.fixture.arrow_settings
+        self.fixture.customer_mapping
+
+        mock_export.return_value = {
+            "headers": [
+                "Sequence",
+                "End User Company Name",
+                "Customer Unit Price",
+                "Customer Total Price",
+                "Qty",
+            ],
+            "values": [
+                [
+                    "LINE-001",
+                    self.fixture.customer_mapping.arrow_company_name,
+                    "100.00",
+                    "300.00",
+                    "3",
+                ],
+            ],
+        }
+
+        tasks.sync_arrow_billing(year=2024, month=5)
+
+        invoice = invoice_models.Invoice.objects.get(
+            customer=self.fixture.customer, year=2024, month=5
+        )
+        item = invoice.items.get()
+        self.assertEqual(item.price, Decimal("300.00"))
+        self.assertEqual(item.details["arrow_quantity"], "3")
+        sync = models.ArrowBillingSync.objects.get(report_period="2024-05")
+        self.assertEqual(sync.sell_total, item.price)
+
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages"
+    )
+    def test_resync_bills_a_legacy_item_once(self, mock_export):
+        """Items created before line totals were billed once carry quantity=Qty."""
+        self.fixture.arrow_settings
+        mapping = self.fixture.customer_mapping
+        mock_export.return_value = {
+            "headers": [
+                "Sequence",
+                "End User Company Name",
+                "Customer Total Price",
+                "Qty",
+            ],
+            "values": [["LINE-001", mapping.arrow_company_name, "300.00", "3"]],
+        }
+        tasks.sync_arrow_billing(year=2024, month=6)
+        item = invoice_models.InvoiceItem.objects.get(
+            invoice__year=2024, invoice__month=6
+        )
+        item.quantity = Decimal("3")  # as the old code stored it
+        item.save()
+
+        tasks.sync_arrow_billing(year=2024, month=6)
+
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, Decimal("1"))
+        self.assertEqual(item.price, Decimal("300.00"))
+
+    def _line(self, total, qty="1"):
+        mapping = self.fixture.customer_mapping
+        return {
+            "headers": [
+                "Sequence",
+                "End User Company Name",
+                "Customer Total Price",
+                "Qty",
+            ],
+            "values": [["LINE-001", mapping.arrow_company_name, total, qty]],
+        }
+
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages"
+    )
+    def test_resync_leaves_an_issued_invoice_alone(self, mock_export):
+        self.fixture.arrow_settings
+        mock_export.return_value = self._line("100.00")
+        tasks.sync_arrow_billing(year=2024, month=7)
+        invoice = invoice_models.Invoice.objects.get(year=2024, month=7)
+        invoice.state = invoice_models.Invoice.States.CREATED
+        invoice.save()
+
+        mock_export.return_value = self._line("120.00")
+        tasks.sync_arrow_billing(year=2024, month=7)
+
+        self.assertEqual(invoice.items.get().price, Decimal("100.00"))
+
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages"
+    )
+    def test_resync_keeps_a_manual_price_correction(self, mock_export):
+        self.fixture.arrow_settings
+        mock_export.return_value = self._line("100.00")
+        tasks.sync_arrow_billing(year=2024, month=8)
+        item = invoice_models.InvoiceItem.objects.get(
+            invoice__year=2024, invoice__month=8
+        )
+        item.unit_price = Decimal("90.00")  # staff discount
+        item.save()
+
+        tasks.sync_arrow_billing(year=2024, month=8)
+        item.refresh_from_db()
+        self.assertEqual(item.unit_price, Decimal("90.00"))
+
+        mock_export.return_value = self._line("130.00")  # Arrow changed it
+        tasks.sync_arrow_billing(year=2024, month=8)
+        item.refresh_from_db()
+        self.assertEqual(item.unit_price, Decimal("130.00"))
 
     @mock.patch(
         "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages"
@@ -266,3 +385,64 @@ class ParseDecimalTest(TestCase):
 
     def test_parse_decimal_invalid_returns_zero(self):
         self.assertEqual(tasks._parse_decimal("not-a-number"), Decimal("0"))
+
+
+class MatchVendorOfferingTest(TestCase):
+    def test_catalog_name_matches_the_export_spelling(self):
+        offering = object()
+        mapping = {"Amazon": offering, "Microsoft": object()}
+
+        self.assertIs(
+            tasks._match_vendor_offering(mapping, "Amazon Web Services"), offering
+        )
+        self.assertIsNone(tasks._match_vendor_offering({"IBM": offering}, "IBMX Corp"))
+        longest = object()
+        self.assertIs(
+            tasks._match_vendor_offering(
+                {"Microsoft": offering, "Microsoft Azure": longest},
+                "Microsoft Azure Plan",
+            ),
+            longest,
+        )
+        self.assertIs(tasks._match_vendor_offering(mapping, "Amazon"), offering)
+        self.assertIsNone(tasks._match_vendor_offering(mapping, "Red Hat"))
+        self.assertIsNone(tasks._match_vendor_offering(mapping, ""))
+
+
+class BillLineTotalsOnceMigrationTest(TestCase):
+    def test_fixes_open_invoices_and_their_totals_only(self):
+        migration = import_module(
+            "waldur_mastermind.waldur_arrow.migrations.0008_bill_arrow_line_totals_once"
+        )
+        customer = structure_factories.CustomerFactory()
+        open_invoice = invoice_models.Invoice.objects.create(
+            customer=customer, year=2024, month=9
+        )
+        issued = invoice_models.Invoice.objects.create(
+            customer=customer,
+            year=2024,
+            month=8,
+            state=invoice_models.Invoice.States.CREATED,
+        )
+        for invoice in (open_invoice, issued):
+            invoice_models.InvoiceItem.objects.create(
+                invoice=invoice,
+                name="line",
+                unit_price=Decimal("300"),
+                quantity=Decimal("3"),
+                unit=invoice_models.InvoiceItem.Units.QUANTITY,
+                details={"source": "arrow", "arrow_line_reference": "L1"},
+            )
+            invoice.update_cache()
+
+        # A real migration runs on historical models, without the signal
+        # that refreshes an invoice's cached totals on item save.
+        with mock.patch.object(invoice_models.Invoice, "update_cache"):
+            migration.bill_line_totals_once(django_apps, None)
+
+        open_invoice.refresh_from_db()
+        issued.refresh_from_db()
+        self.assertEqual(open_invoice.items.get().quantity, Decimal("1"))
+        self.assertEqual(open_invoice.total_price, Decimal("300.00"))
+        self.assertEqual(issued.items.get().quantity, Decimal("3"))
+        self.assertEqual(issued.total_price, Decimal("900.00"))

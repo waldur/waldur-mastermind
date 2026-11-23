@@ -147,7 +147,9 @@ class ArrowSettingsSerializer(
         lookup_field="uuid",
     )
     api_key = serializers.CharField(
+        write_only=True,
         required=False,
+        allow_blank=True,
         help_text="Arrow API Key (leave empty on update to keep current)",
     )
 
@@ -177,6 +179,12 @@ class ArrowSettingsSerializer(
             "modified",
         )
 
+    def update(self, instance, validated_data):
+        # The key is never sent to clients, so an edit form submits it blank.
+        if not validated_data.get("api_key"):
+            validated_data.pop("api_key", None)
+        return super().update(instance, validated_data)
+
 
 class ArrowSettingsCreateSerializer(ArrowSettingsSerializer):
     """Serializer for creating ArrowSettings."""
@@ -184,6 +192,7 @@ class ArrowSettingsCreateSerializer(ArrowSettingsSerializer):
     api_key = serializers.CharField(
         write_only=True,
         required=True,
+        allow_blank=False,
         help_text="Arrow API Key (required for creation)",
     )
 
@@ -728,7 +737,12 @@ class FetchBillingExportRequestSerializer(serializers.Serializer):
 
     period_from = serializers.CharField(help_text="YYYY-MM format")
     period_to = serializers.CharField(help_text="YYYY-MM format")
-    classification = serializers.CharField(required=False)
+    classification = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Classification to keep (e.g. IAAS); empty keeps every line. "
+        "Defaults to the settings' classification filter.",
+    )
 
 
 class FetchLicenseInfoRequestSerializer(serializers.Serializer):

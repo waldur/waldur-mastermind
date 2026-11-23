@@ -1,4 +1,5 @@
 import django_filters
+from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
 
@@ -36,6 +37,17 @@ class ArrowCustomerMappingFilter(django_filters.FilterSet):
         view_name="customer-detail", field_name="waldur_customer__uuid"
     )
     is_active = django_filters.BooleanFilter()
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by Waldur organization, Arrow company or Arrow reference",
+    )
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(waldur_customer__name__icontains=value)
+            | Q(arrow_company_name__icontains=value)
+            | Q(arrow_reference__icontains=value)
+        )
 
     class Meta:
         model = models.ArrowCustomerMapping
@@ -47,6 +59,7 @@ class ArrowCustomerMappingFilter(django_filters.FilterSet):
             "waldur_customer",
             "waldur_customer_uuid",
             "is_active",
+            "query",
         )
 
 
@@ -109,6 +122,18 @@ class ArrowBillingSyncFilter(django_filters.FilterSet):
     )
     state = django_filters.NumberFilter()
     arrow_state = django_filters.CharFilter(lookup_expr="iexact")
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by Arrow company, Waldur organization, Arrow reference or statement",
+    )
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(customer_mapping__arrow_company_name__icontains=value)
+            | Q(customer_mapping__waldur_customer__name__icontains=value)
+            | Q(customer_mapping__arrow_reference__icontains=value)
+            | Q(statement_reference__icontains=value)
+        )
 
     class Meta:
         model = models.ArrowBillingSync
@@ -122,6 +147,7 @@ class ArrowBillingSyncFilter(django_filters.FilterSet):
             "report_period_to",
             "state",
             "arrow_state",
+            "query",
         )
 
 

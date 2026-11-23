@@ -11,6 +11,7 @@ It handles authentication, pagination, and provides methods for:
 
 import logging
 from dataclasses import dataclass
+from urllib.parse import parse_qs, urlparse
 
 import requests
 
@@ -40,6 +41,26 @@ class ArrowCredentials:
         return url
 
 
+def get_total_pages(pagination: dict | None) -> int | None:
+    """
+    Page count from an Arrow pagination block.
+
+    List endpoints (customers, licenses) report it as snake_case
+    ``total_page``. The billing export documents only perPage/currentPage,
+    so it may report none.
+    """
+    if not pagination:
+        return None
+    for key in ("total_page", "totalPages", "total_pages", "TotalPages"):
+        value = pagination.get(key)
+        if value not in (None, ""):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
 class ArrowClient:
     """
     Client for Arrow (ArrowSphere) API.
@@ -48,7 +69,14 @@ class ArrowClient:
     """
 
     DEFAULT_PER_PAGE = 100
+    # (connect, read) seconds. Without a timeout a hung Arrow API holds a
+    # Celery worker, or a web worker for the views that call it inline,
+    # indefinitely. A billing export page of 1000 lines can take a while.
+    REQUEST_TIMEOUT = (10, 120)
+
     BILLING_EXPORT_PER_PAGE = 1000  # Arrow's max for billing exports
+    # Guard against a server that ignores the page and repeats it forever.
+    BILLING_EXPORT_MAX_PAGES = 500
 
     def __init__(self, credentials: ArrowCredentials):
         self.credentials = credentials
@@ -72,7 +100,9 @@ class ArrowClient:
         """Make a GET request to the Arrow API."""
         url = f"{self.credentials.get_base_url()}{endpoint}"
         try:
-            response = self.session.get(url, params=params)
+            response = self.session.get(
+                url, params=params, timeout=self.REQUEST_TIMEOUT
+            )
         except requests.exceptions.RequestException as e:
             logger.error("Arrow API GET %s connection failed: %s", endpoint, e)
             raise ArrowBackendError(f"Arrow API request to {endpoint} failed: {e}")
@@ -103,11 +133,15 @@ class ArrowClient:
                 f"Arrow API {endpoint} returned invalid JSON (status {response.status_code}): {body}"
             )
 
-    def _post(self, endpoint: str, data: dict | None = None) -> dict:
+    def _post(
+        self, endpoint: str, data: dict | None = None, params: dict | None = None
+    ) -> dict:
         """Make a POST request to the Arrow API."""
         url = f"{self.credentials.get_base_url()}{endpoint}"
         try:
-            response = self.session.post(url, json=data)
+            response = self.session.post(
+                url, json=data, params=params, timeout=self.REQUEST_TIMEOUT
+            )
         except requests.exceptions.RequestException as e:
             logger.error("Arrow API POST %s connection failed: %s", endpoint, e)
             raise ArrowBackendError(f"Arrow API request to {endpoint} failed: {e}")
@@ -227,8 +261,7 @@ class ArrowClient:
             all_customers.extend(customers)
 
             # Check pagination
-            pagination = response.get("pagination", {})
-            total_pages = pagination.get("totalPages", 1)
+            total_pages = get_total_pages(response.get("pagination")) or 1
             if page >= total_pages:
                 break
             page += 1
@@ -285,7 +318,11 @@ class ArrowClient:
             "page": page,
         }
 
-        return self._post("billing/erp/exports/sync", data=payload)
+        # The API reference documents the page in the body; Arrow's PHP SDK
+        # sends it as a query parameter, so send both.
+        return self._post(
+            "billing/erp/exports/sync", data=payload, params={"page": page}
+        )
 
     def export_billing_all_pages(
         self,
@@ -306,6 +343,7 @@ class ArrowClient:
         """
         all_values = []
         headers = []
+        previous_values = None
         page = 1
 
         while True:
@@ -323,15 +361,31 @@ class ArrowClient:
             values = data.get("values", [])
             if not values:
                 break
+            if values == previous_values:
+                raise ArrowBackendError(
+                    f"Arrow billing export returned page {page - 1} again for "
+                    f"page {page}; is the page parameter being ignored?"
+                )
+            previous_values = values
 
             all_values.extend(values)
 
-            # Check pagination
+            # Check pagination: trust the reported page count when there is
+            # one, else a short page ends the export.
             pagination = response.get("pagination", {})
-            per_page = pagination.get("perPage", self.BILLING_EXPORT_PER_PAGE)
-            if len(values) < per_page:
-                # No more pages
-                break
+            total_pages = get_total_pages(pagination)
+            if total_pages is not None:
+                if page >= total_pages:
+                    break
+            else:
+                per_page = pagination.get("perPage", self.BILLING_EXPORT_PER_PAGE)
+                if len(values) < per_page:
+                    break
+            if page >= self.BILLING_EXPORT_MAX_PAGES:
+                raise ArrowBackendError(
+                    f"Arrow billing export for {period_from}..{period_to} did not "
+                    f"end after {page} pages"
+                )
             page += 1
 
         return {
@@ -375,6 +429,35 @@ class ArrowClient:
         return self._get(f"subscriptions/{reference}")
 
     # -------------------- Licenses --------------------
+
+    LICENSES_PER_PAGE = 1000  # the v2 maximum
+    LICENSES_MAX_PAGES = 100
+
+    def list_all_licenses(self) -> list[dict]:
+        """
+        List every license of the partner.
+
+        Uses ``licenses/v2``: the v1 ``licenses`` list was removed by Arrow
+        on 2026-09-30 (HTTP 410). v2 pages with a ``search_after`` cursor
+        taken from ``pagination.next``; page numbers stop at 10,000 results.
+        """
+        licenses: list[dict] = []
+        params: dict = {"per_page": self.LICENSES_PER_PAGE}
+        for _ in range(self.LICENSES_MAX_PAGES):
+            response = self._get("licenses/v2", params=params)
+            page = (response.get("data") or {}).get("licenses") or []
+            licenses.extend(page)
+            next_link = (response.get("pagination") or {}).get("next") or ""
+            search_after = parse_qs(urlparse(next_link).query).get("search_after")
+            if not page or not search_after:
+                return licenses
+            params = {
+                "per_page": self.LICENSES_PER_PAGE,
+                "search_after": search_after[0],
+            }
+        raise ArrowBackendError(
+            f"Arrow license list did not end after {self.LICENSES_MAX_PAGES} pages"
+        )
 
     def get_license(self, license_reference: str) -> dict:
         """
