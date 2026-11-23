@@ -8,6 +8,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ReviewerChecklistMixin`](#reviewerchecklistmixin) | `waldur_core.checklist.mixins` | Mixin for ViewSets that provide checklist review functionality to reviewers |
 | [`UserChecklistMixin`](#userchecklistmixin) | `waldur_core.checklist.mixins` | Mixin for ViewSets that provide checklist functionality to end users |
 | [`LatestAnswerTestMixin`](#latestanswertestmixin) | `waldur_core.checklist.tests.test_latest_answers` | No description available |
+| [`ChecklistEditGuardMixin`](#checklisteditguardmixin) | `waldur_core.checklist.views` | Runs the checklist edit guards before a question, option or dependency is wri... |
 | [`ConstanceTableMixin`](#constancetablemixin) | `waldur_core.configuration.tests.utils` | Gives a test django-constance's settings table |
 | [`ExcludedFieldsAdminMixin`](#excludedfieldsadminmixin) | `waldur_core.core.admin` | This mixin allows to toggle display of fields in Django model admin according... |
 | [`ExtraActionsMixin`](#extraactionsmixin) | `waldur_core.core.admin` | Allows to add extra actions to admin list page |
@@ -136,6 +137,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration` | No description available |
 | [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
+| [`SiteAgentFixtureMixin`](#siteagentfixturemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_pat_template` | No description available |
 | [`RegisteredScopeMixin`](#registeredscopemixin) | `waldur_mastermind.matrix_chat.tests.test_room_scopes` | Registers Customer, for the test only, as a kind of room scope whose members ... |
 | [`AppserviceErrorCountMixin`](#appserviceerrorcountmixin) | `waldur_mastermind.matrix_chat.views` | Counts the view's 4xx and 5xx answers for the webhook_errors diagnostic |
 | [`MatrixEnabledWriteGuardMixin`](#matrixenabledwriteguardmixin) | `waldur_mastermind.matrix_chat.views` | Reject mutating requests while the Matrix integration is disabled |
@@ -274,6 +276,15 @@ Default permissions are IsAdminUser but should be overridden with app-specific p
 **Module:** `waldur_core.checklist.tests.test_latest_answers`
 
 **Description:** No description available.
+
+### ChecklistEditGuardMixin
+
+**Module:** `waldur_core.checklist.views`
+
+**Description:**
+
+Runs the checklist edit guards before a question, option or dependency
+is written, so a checklist an app has locked can't be changed from here.
 
 ### ConstanceTableMixin
 
@@ -1801,6 +1812,12 @@ manager and offering manager, with the roles' grants from permissions.yaml.
 ### ResourceGlauthAccessMixin
 
 **Module:** `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access`
+
+**Description:** No description available.
+
+### SiteAgentFixtureMixin
+
+**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_pat_template`
 
 **Description:** No description available.
 
