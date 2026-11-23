@@ -2,10 +2,11 @@ import socket
 from unittest import mock
 
 import responses
+from django.core.cache import cache
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_auth_social import models
+from waldur_auth_social import discovery, models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_core.structure.tests.fixtures import UserFixture
 
@@ -138,6 +139,42 @@ class IdentityProvidersViewSetTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.identity_provider.refresh_from_db()
         self.assertEqual(self.identity_provider.client_secret, "kept-secret")
+
+    @responses.activate
+    def test_update_drops_the_cached_discovery_document(self):
+        discovery_url = "https://example.com/.well-known/openid-configuration"
+        self._mock_openid_configuration(discovery_url)
+        self.identity_provider.discovery_url = discovery_url
+        self.identity_provider.save()
+        cache.clear()
+        discovery.get_discovery_document(self.identity_provider)
+        self.client.force_authenticate(self.staff)
+
+        payload = self._get_base_provider_payload(provider="test_provider")
+        response = self.client.put(self.get_detail_url(), payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        calls_before = len(responses.calls)
+
+        discovery.get_discovery_document(self.identity_provider)
+        self.assertEqual(len(responses.calls), calls_before + 1)
+
+    @responses.activate
+    def test_create_drops_what_was_cached_for_a_previous_provider(self):
+        discovery_url = "https://example.com/.well-known/openid-configuration"
+        self._mock_openid_configuration(discovery_url)
+        previous = models.IdentityProvider(
+            provider=ProviderChoices.KEYCLOAK, discovery_url=discovery_url
+        )
+        stale_key = discovery._cache_key("token_auth_method", previous)
+        cache.set(stale_key, "client_secret_basic")
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.post(
+            self.get_list_url(), self._get_base_provider_payload()
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIsNone(cache.get(stale_key))
 
     @responses.activate
     def test_create_requires_client_secret(self):

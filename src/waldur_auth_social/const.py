@@ -7,6 +7,13 @@ class ProviderChoices:
     CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
 
 
+class TokenEndpointAuthMethod:
+    """OIDC ``token_endpoint_auth_method`` values Waldur can use."""
+
+    CLIENT_SECRET_POST = "client_secret_post"
+    CLIENT_SECRET_BASIC = "client_secret_basic"
+
+
 WRITABLE_USER_FIELDS = (
     "first_name",
     "last_name",

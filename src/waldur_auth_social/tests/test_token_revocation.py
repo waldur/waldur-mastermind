@@ -1,3 +1,4 @@
+import base64
 import time
 from datetime import timedelta
 from urllib.parse import parse_qs
@@ -10,7 +11,9 @@ from rest_framework import status, test
 from rest_framework.reverse import reverse
 
 from waldur_auth_social import oauth_tokens, tasks
+from waldur_auth_social.const import TokenEndpointAuthMethod
 from waldur_auth_social.models import IdentityProvider, OAuthToken
+from waldur_auth_social.tests.oidc_helpers import POST_AND_BASIC
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
 from waldur_core.logging.enums import EventType
@@ -58,7 +61,14 @@ class TokenRevocationTest(test.APITestCase):
         cache.clear()
 
     def discovery(self, **document):
-        responses.get(DISCOVERY_URL, json={"issuer": "x", **document})
+        responses.get(
+            DISCOVERY_URL,
+            json={
+                "issuer": "x",
+                "token_endpoint_auth_methods_supported": POST_AND_BASIC,
+                **document,
+            },
+        )
 
     def logout(self, user=None):
         self.client.force_authenticate(user or self.user)
@@ -109,6 +119,26 @@ class TokenRevocationTest(test.APITestCase):
         # Access tokens minted from it are unusable at once, not at expiry.
         self.assertIsNone(oauth_tokens.cached_access_token(self.user))
         self.assertEqual(self.revoked_reasons(), ["logout"])
+
+    @responses.activate
+    def test_revocation_uses_basic_auth_when_provider_accepts_only_basic(self):
+        self.discovery(
+            revocation_endpoint=REVOCATION_URL,
+            token_endpoint_auth_methods_supported=[
+                TokenEndpointAuthMethod.CLIENT_SECRET_BASIC
+            ],
+        )
+        responses.post(REVOCATION_URL, status=200)
+
+        self.logout()
+
+        self.assertEqual(
+            self.revocation_requests(),
+            [{"token": ["offline-1"], "token_type_hint": ["refresh_token"]}],
+        )
+        [call] = [c for c in responses.calls if c.request.url == REVOCATION_URL]
+        expected = base64.b64encode(b"waldur:secret").decode()
+        self.assertEqual(call.request.headers["Authorization"], f"Basic {expected}")
 
     @responses.activate
     def test_logout_succeeds_when_the_provider_refuses_revocation(self):

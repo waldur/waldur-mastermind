@@ -1,5 +1,7 @@
+import base64
 import time
 from unittest import mock
+from urllib.parse import parse_qs
 
 import jwt
 import responses
@@ -7,8 +9,10 @@ from django.core.cache import cache
 from django.db import connection
 from django.test import TestCase
 
-from waldur_auth_social import oauth_tokens, revocation, token_cache
+from waldur_auth_social import discovery, oauth_tokens, revocation, token_cache
+from waldur_auth_social.const import TokenEndpointAuthMethod
 from waldur_auth_social.models import IdentityProvider, OAuthToken
+from waldur_auth_social.tests.oidc_helpers import POST_AND_BASIC
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
 from waldur_core.logging.enums import EventType
@@ -47,6 +51,16 @@ class TokenTestBase(TestCase):
             auth_url="https://idp.example.org/auth",
             label="Keycloak",
         )
+        # These tests are about the tokens, not the discovery document
+        # (test_discovery), so it is not fetched: the provider takes the
+        # client credentials in the request body.
+        patcher = mock.patch.object(
+            discovery,
+            "get_discovery_document",
+            return_value={"token_endpoint_auth_methods_supported": POST_AND_BASIC},
+        )
+        self.discovery_document = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def store(self, refresh_token="refresh-1", access_token=None):
         oauth_tokens.store_tokens(
@@ -138,6 +152,39 @@ class RefreshTest(TokenTestBase):
         # The new access token is cached: no second refresh.
         self.assertEqual(oauth_tokens.get_access_token(self.user), fresh)
         self.assertEqual(len(responses.calls), 1)
+
+    @responses.activate
+    def test_refresh_sends_credentials_in_body_when_provider_accepts_it(self):
+        self.store("refresh-1", access_token=make_token(expires_in=10))
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+
+        oauth_tokens.get_access_token(self.user)
+
+        request = responses.calls[0].request
+        self.assertNotIn("Authorization", request.headers)
+        body = parse_qs(request.body)
+        self.assertEqual(body["client_id"], ["waldur"])
+        self.assertEqual(body["client_secret"], ["client-secret"])
+
+    @responses.activate
+    def test_refresh_uses_basic_auth_when_provider_accepts_only_basic(self):
+        self.discovery_document.return_value = {
+            "token_endpoint_auth_methods_supported": [
+                TokenEndpointAuthMethod.CLIENT_SECRET_BASIC
+            ]
+        }
+        self.store("refresh-1", access_token=make_token(expires_in=10))
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+
+        oauth_tokens.get_access_token(self.user)
+
+        request = responses.calls[0].request
+        expected = base64.b64encode(b"waldur:client-secret").decode()
+        self.assertEqual(request.headers["Authorization"], f"Basic {expected}")
+        body = parse_qs(request.body)
+        self.assertNotIn("client_id", body)
+        self.assertNotIn("client_secret", body)
+        self.assertEqual(body["refresh_token"], ["refresh-1"])
 
     @responses.activate
     def test_token_refreshed_by_another_worker_meanwhile_is_reused(self):

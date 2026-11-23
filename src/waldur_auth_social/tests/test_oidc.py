@@ -1,3 +1,4 @@
+import base64
 from datetime import timedelta
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
@@ -12,9 +13,13 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
 
 from waldur_auth_social import models, views
-from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
+from waldur_auth_social.const import (
+    PROVIDER_DEFAULTS,
+    ProviderChoices,
+    TokenEndpointAuthMethod,
+)
 from waldur_auth_social.serializers import IdentityProviderSerializer
-from waldur_auth_social.tests.oidc_helpers import mock_token_endpoint
+from waldur_auth_social.tests.oidc_helpers import POST_AND_BASIC, mock_token_endpoint
 from waldur_auth_social.utils import (
     create_or_update_oauth_user,
     parse_schac_personal_unique_id,
@@ -264,6 +269,8 @@ class OAuthViewDefaultInitTest(test.APITestCase):
 class OAuthViewCompleteTest(test.APITestCase):
     def setUp(self):
         super().setUp()
+        # The discovery document is cached per provider and URL.
+        cache.clear()
         self.provider = models.IdentityProvider.objects.create(
             provider=ProviderChoices.KEYCLOAK,
             client_id="test_client_id",
@@ -289,13 +296,17 @@ class OAuthViewCompleteTest(test.APITestCase):
         self.addCleanup(responses.stop)
 
     def _mock_token_request(
-        self, access_token="test_access_token", refresh_token="test_refresh_token"
+        self,
+        access_token="test_access_token",
+        refresh_token="test_refresh_token",
+        auth_methods=POST_AND_BASIC,
     ):
         return mock_token_endpoint(
             self.provider,
             lambda: getattr(self, "_userinfo_sub", "test-subject"),
             access_token=access_token,
             refresh_token=refresh_token,
+            auth_methods=auth_methods,
         )
 
     def _mock_userinfo_request(self, user_info):
@@ -306,6 +317,50 @@ class OAuthViewCompleteTest(test.APITestCase):
             json=user_info,
             status=status.HTTP_200_OK,
         )
+
+    def _sign_in_with_token_request(self, auth_methods):
+        """Complete a sign-in and return the request sent to the token endpoint."""
+        self._mock_token_request(auth_methods=auth_methods)
+        self._mock_userinfo_request({"sub": "test_sub", "email": "t@example.com"})
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="test_sub").exists())
+        [request] = [
+            call.request
+            for call in responses.calls
+            if call.request.url == self.provider.token_url
+        ]
+        return request
+
+    def _assert_basic_auth(self, request):
+        expected = base64.b64encode(b"test_client_id:test_client_secret").decode()
+        self.assertEqual(request.headers["Authorization"], f"Basic {expected}")
+        body = parse_qs(request.body)
+        self.assertNotIn("client_id", body)
+        self.assertNotIn("client_secret", body)
+        self.assertEqual(body["code"], [self.code])
+
+    def test_token_request_sends_credentials_in_body_when_provider_accepts_it(self):
+        request = self._sign_in_with_token_request(POST_AND_BASIC)
+
+        self.assertNotIn("Authorization", request.headers)
+        body = parse_qs(request.body)
+        self.assertEqual(body["client_id"], ["test_client_id"])
+        self.assertEqual(body["client_secret"], ["test_client_secret"])
+
+    def test_token_request_uses_basic_auth_when_provider_accepts_only_basic(self):
+        # TARA advertises client_secret_basic only.
+        request = self._sign_in_with_token_request(
+            [TokenEndpointAuthMethod.CLIENT_SECRET_BASIC]
+        )
+        self._assert_basic_auth(request)
+
+    def test_token_request_uses_basic_auth_when_provider_omits_auth_methods(self):
+        # Unity IdM (EUDAT B2ACCESS) omits the list; the OIDC default is basic.
+        request = self._sign_in_with_token_request(None)
+        self._assert_basic_auth(request)
 
     @override_config(FIRECREST_ALLOWED_API_URLS="https://firecrest.example.org")
     def test_successful_login_new_user(self):

@@ -14,8 +14,16 @@ import responses
 from cryptography.hazmat.primitives.asymmetric import rsa
 from rest_framework import status
 
+from waldur_auth_social.const import TokenEndpointAuthMethod
+
 SIGNING_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 SIGNING_KEY_ID = "test-key"
+
+# What Keycloak advertises: the client credentials may go in the request body.
+POST_AND_BASIC = [
+    TokenEndpointAuthMethod.CLIENT_SECRET_POST,
+    TokenEndpointAuthMethod.CLIENT_SECRET_BASIC,
+]
 
 
 def public_jwk(private_key=SIGNING_KEY, kid=SIGNING_KEY_ID):
@@ -33,12 +41,19 @@ def jwks_url_of(idp):
     return f"{issuer_of(idp)}/jwks"
 
 
-def mock_signing_keys(idp, keys=None):
-    """Register the provider's discovery document and JWKS endpoint."""
+def mock_signing_keys(idp, keys=None, auth_methods=POST_AND_BASIC):
+    """Register the provider's discovery document and JWKS endpoint.
+
+    ``auth_methods=None`` leaves ``token_endpoint_auth_methods_supported`` out
+    of the document.
+    """
+    document = {"issuer": issuer_of(idp), "jwks_uri": jwks_url_of(idp)}
+    if auth_methods is not None:
+        document["token_endpoint_auth_methods_supported"] = auth_methods
     responses.add(
         method="GET",
         url=idp.discovery_url,
-        json={"issuer": issuer_of(idp), "jwks_uri": jwks_url_of(idp)},
+        json=document,
         status=status.HTTP_200_OK,
     )
     return responses.add(
@@ -67,7 +82,11 @@ def make_id_token(
 
 
 def mock_token_endpoint(
-    idp, get_sub, access_token="test_access_token", refresh_token="test_refresh_token"
+    idp,
+    get_sub,
+    access_token="test_access_token",
+    refresh_token="test_refresh_token",
+    auth_methods=POST_AND_BASIC,
 ):
     """
     Register the token endpoint returning an ID token signed for the provider.
@@ -75,7 +94,7 @@ def mock_token_endpoint(
     `get_sub` is called when the request is made, so the subject can follow the
     user info a test registers after the token mock.
     """
-    mock_signing_keys(idp)
+    mock_signing_keys(idp, auth_methods=auth_methods)
 
     def callback(request):
         body = {
