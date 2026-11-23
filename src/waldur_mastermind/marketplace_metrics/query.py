@@ -14,6 +14,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
 
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import get_scope_ids
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import (
@@ -22,21 +23,22 @@ from waldur_core.structure.managers import (
 )
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import ResourceStates
-from waldur_mastermind.marketplace.managers import get_connected_offerings
 
 from . import enums, models, retention
 
 GAUGE_AGGREGATES = ("mean", "last", "min", "max")
 
 
-def connected_service_providers(user):
-    """Ids of the ServiceProvider records the user holds a role on.
+def definition_manager_providers(user):
+    """Ids of the service providers where the user may manage private definitions.
 
     A service provider manager holds their role there rather than on the
     provider organization, so get_connected_customers misses them.
     """
     return get_scope_ids(
-        user, ContentType.objects.get_for_model(marketplace_models.ServiceProvider)
+        user,
+        ContentType.objects.get_for_model(marketplace_models.ServiceProvider),
+        permission=PermissionEnum.CREATE_OFFERING,
     )
 
 
@@ -51,33 +53,39 @@ def consumed_offering_ids(user):
     )
 
 
-# What visible_offering_metrics, visible_series and visible_resource show, for
-# the API schema. Change them together.
+# Who is on an offering's provider side, as is_provider and
+# visible_offering_metrics have it: who reads the offering's component usages.
+PROVIDER_SIDE = (
+    "a role in the offering's organization, or one on the offering or its "
+    f"service provider that grants {PermissionEnum.SET_RESOURCE_USAGE.value}"
+)
+# What visible_offering_metrics, visible_series, visible_resource and
+# visible_project show, for the API schema. Change them together.
 OFFERING_METRICS_VISIBILITY = (
-    "Metrics of offerings where the caller holds a role, or holds one on the "
-    "offering's organization or service provider; and, unless archived, "
-    "metrics of offerings that a resource, not terminated, of a project where "
-    "the caller holds a role, or of an organization where they do, uses. Staff "
-    "and support see all."
+    f"Metrics of offerings on whose provider side the caller is ({PROVIDER_SIDE}); "
+    "and, unless archived, metrics of offerings that a resource, not "
+    "terminated, of a project where the caller holds a role, or of an "
+    "organization where they do, uses. Staff and support see all."
 )
 # What resource_summary and project_summary list: the same, never archived.
 SUMMARY_METRICS_VISIBILITY = (
     "Metrics the caller sees, as offering metrics show them, except archived ones."
 )
 SERIES_VISIBILITY = (
-    "Of a metric the caller sees, who is on the provider side (a role on the "
-    "offering, its organization or its service provider; staff and support) "
-    "reads every resource's data, anyone else only that of resources of "
-    "projects where they hold a role or of organizations where they do."
+    "Of a metric the caller sees, who is on the provider side, staff and "
+    "support read every resource's data, anyone else only that of resources "
+    "of projects where they hold a role or of organizations where they do."
 )
 RESOURCE_VISIBILITY = (
     "The resource must be of a project where the caller holds a role or of an "
     "organization where they do, or of an offering on whose provider side they "
-    "are; staff and support may name any."
+    "are; staff and support may name any. Any other gets a 404, as a missing "
+    "one does."
 )
 PROJECT_VISIBILITY = (
     "The project must be one where the caller holds a role or of an "
-    "organization where they do; staff and support may name any."
+    "organization where they do; staff and support may name any. Any other "
+    "gets a 404, as a missing one does."
 )
 
 
@@ -87,8 +95,7 @@ def visible_offering_metrics(user):
         return qs
     return qs.filter(
         Q(offering__customer__in=get_connected_customers(user))
-        | Q(offering__customer__serviceprovider__in=connected_service_providers(user))
-        | Q(offering__in=get_connected_offerings(user))
+        | marketplace_models.filter_by_usage_reporter_permission(user, "")
         | (
             Q(offering__in=consumed_offering_ids(user))
             & ~Q(state=enums.OfferingMetricStates.ARCHIVED)
@@ -99,12 +106,13 @@ def visible_offering_metrics(user):
 def is_provider(user, offering):
     if user.is_staff or user.is_support:
         return True
+    provider_ids, offering_ids = marketplace_models.usage_reporter_scope_ids(user)
     return (
         marketplace_models.Offering.objects.filter(pk=offering.pk)
         .filter(
             Q(customer__in=get_connected_customers(user))
-            | Q(customer__serviceprovider__in=connected_service_providers(user))
-            | Q(id__in=get_connected_offerings(user))
+            | Q(customer__serviceprovider__in=provider_ids)
+            | Q(id__in=offering_ids)
         )
         .exists()
     )
@@ -355,6 +363,17 @@ def visible_resource(user, uuid):
     if consumer or is_provider(user, resource.offering):
         return resource
     return None
+
+
+def visible_project(user, uuid):
+    """The project, if the user may see its metrics: its consumer."""
+    projects = structure_models.Project.objects.filter(uuid=uuid or None)
+    if not (user.is_staff or user.is_support):
+        projects = projects.filter(
+            Q(id__in=get_connected_projects(user))
+            | Q(customer__in=get_connected_customers(user))
+        )
+    return projects.first()
 
 
 def breakdown(user, offering_metric, group_by, start, end, project=None, resource=None):

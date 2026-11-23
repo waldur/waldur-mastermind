@@ -3504,6 +3504,18 @@ class ComponentQuota(TimeStampedModel):
         return f"resource: {self.resource.name}, component: {self.component.name}"
 
 
+def usage_reporter_scope_ids(user):
+    """Ids of the service providers and of the offerings the user may report usage for."""
+    permission = PermissionEnum.SET_RESOURCE_USAGE
+    provider_ids = get_scope_ids(
+        user,
+        ContentType.objects.get_for_model(ServiceProvider),
+        permission=permission,
+    )
+    offering_ids = managers.get_connected_offerings_by_permission(user, permission)
+    return provider_ids, offering_ids
+
+
 def filter_by_usage_reporter_permission(user, prefix):
     """Usage rows of offerings the user may report usage for.
 
@@ -3513,15 +3525,7 @@ def filter_by_usage_reporter_permission(user, prefix):
     for the offering, so either may read it back. Matched on the permission
     itself, as has_permission does; staff and global support never reach this.
     """
-    permission = PermissionEnum.SET_RESOURCE_USAGE
-    provider_ids = get_scope_ids(
-        user,
-        ContentType.objects.get_for_model(ServiceProvider),
-        permission=permission,
-    )
-    offering_ids = get_scope_ids(
-        user, ContentType.objects.get_for_model(Offering), permission=permission
-    )
+    provider_ids, offering_ids = usage_reporter_scope_ids(user)
     return Q(**{f"{prefix}offering__customer__serviceprovider__in": provider_ids}) | Q(
         **{f"{prefix}offering__in": offering_ids}
     )

@@ -119,8 +119,8 @@ class MetricDefinitionViewSet(core_views.ActionsViewSet):
 
     @access.shows(
         "Global definitions, and those private to organizations where the caller "
-        "holds a role or to service providers they hold a role on. Staff and "
-        "support see all."
+        "holds a role, or whose service provider they hold OFFERING.CREATE on, "
+        "as managing them needs. Staff and support see all."
     )
     def get_queryset(self):
         qs = super().get_queryset()
@@ -131,7 +131,7 @@ class MetricDefinitionViewSet(core_views.ActionsViewSet):
             Q(owner_customer__isnull=True)
             | Q(owner_customer__in=get_connected_customers(user))
             | Q(
-                owner_customer__serviceprovider__in=query.connected_service_providers(
+                owner_customer__serviceprovider__in=query.definition_manager_providers(
                     user
                 )
             )
@@ -465,15 +465,17 @@ class MetricGoalViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
 
     @access.describes(
-        access.custom(f"{_GOAL_MANAGERS} The metric must not be archived.")
+        access.custom(
+            f"{_GOAL_MANAGERS} The metric must be one the caller sees, as offering "
+            "metrics show them, and not archived; any other answers as a missing one."
+        )
     )
     def check_create_permissions(request, view, obj=None):
         # Resolve only what the permission needs: validating the rest first
         # would tell an outsider whether the project uses the offering.
         offering_metric = (
-            models.OfferingMetric.objects.exclude(
-                state=enums.OfferingMetricStates.ARCHIVED
-            )
+            query.visible_offering_metrics(request.user)
+            .exclude(state=enums.OfferingMetricStates.ARCHIVED)
             .filter(uuid=request.data.get("offering_metric") or None)
             .first()
         )
@@ -501,9 +503,9 @@ class MetricGoalViewSet(core_views.ActionsViewSet):
     @access.shows(
         "Goals of metrics the caller sees, as offering metrics show them: the "
         "offerings' default goals, and goals of projects where the caller holds "
-        "a role or of organizations where they do, or of offerings of "
-        "organizations or service providers where they hold a role. Staff and "
-        "support see all."
+        "a role or of organizations where they do, or of offerings on whose "
+        f"provider side they are ({query.PROVIDER_SIDE}). Staff and support see "
+        "all."
     )
     def get_queryset(self):
         qs = super().get_queryset()
@@ -516,10 +518,8 @@ class MetricGoalViewSet(core_views.ActionsViewSet):
             | Q(project__in=get_connected_projects(user))
             | Q(project__customer__in=get_connected_customers(user))
             | Q(offering_metric__offering__customer__in=get_connected_customers(user))
-            | Q(
-                offering_metric__offering__customer__serviceprovider__in=(
-                    query.connected_service_providers(user)
-                )
+            | marketplace_models.filter_by_usage_reporter_permission(
+                user, "offering_metric__"
             )
         )
 
@@ -534,7 +534,10 @@ class MetricSeriesView(views.APIView):
     access_declarations = {
         "get": [
             access.custom(
-                f"{query.OFFERING_METRICS_VISIBILITY} {query.SERIES_VISIBILITY}"
+                f"{query.OFFERING_METRICS_VISIBILITY} {query.SERIES_VISIBILITY} "
+                f"With resource_uuid: {query.RESOURCE_VISIBILITY} It must be "
+                "of the metric's offering. "
+                f"With project_uuid: {query.PROJECT_VISIBILITY}"
             )
         ]
     }
@@ -589,15 +592,11 @@ class MetricSeriesView(views.APIView):
             raise exceptions.NotFound()
         resource = project = None
         if data.get("resource_uuid"):
-            resource = marketplace_models.Resource.objects.filter(
-                uuid=data["resource_uuid"]
-            ).first()
-            if resource is None:
+            resource = query.visible_resource(request.user, data["resource_uuid"])
+            if resource is None or resource.offering_id != offering_metric.offering_id:
                 raise exceptions.NotFound()
         if data.get("project_uuid"):
-            project = structure_models.Project.objects.filter(
-                uuid=data["project_uuid"]
-            ).first()
+            project = query.visible_project(request.user, data["project_uuid"])
             if project is None:
                 raise exceptions.NotFound()
         group_by = data.get("group_by")
@@ -648,15 +647,7 @@ class ProjectMetricsView(views.APIView):
     )
     def get(self, request):
         user = request.user
-        projects = structure_models.Project.objects.filter(
-            uuid=request.query_params.get("project_uuid") or None
-        )
-        if not (user.is_staff or user.is_support):
-            projects = projects.filter(
-                Q(id__in=get_connected_projects(user))
-                | Q(customer__in=get_connected_customers(user))
-            )
-        project = projects.first()
+        project = query.visible_project(user, request.query_params.get("project_uuid"))
         if project is None:
             raise exceptions.NotFound()
         summary = query.project_summary(user, project)
@@ -736,15 +727,7 @@ class MetricBreakdownView(views.APIView):
             ):
                 raise exceptions.NotFound()
         else:
-            projects = structure_models.Project.objects.filter(
-                uuid=params.get("project_uuid") or None
-            )
-            if not (user.is_staff or user.is_support):
-                projects = projects.filter(
-                    Q(id__in=get_connected_projects(user))
-                    | Q(customer__in=get_connected_customers(user))
-                )
-            project = projects.first()
+            project = query.visible_project(user, params.get("project_uuid"))
             if project is None:
                 raise exceptions.NotFound()
         if offering_metric is None:
