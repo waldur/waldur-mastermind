@@ -781,9 +781,9 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
 
         Returns current month billing lines and consumption data directly from Arrow.
 
-        Resource linking: Resources are linked to Arrow via their `backend_id` field
-        which should contain the Arrow License Reference (e.g., XSP12345).
-        Consumption is fetched by calling get_monthly_consumption(backend_id) directly.
+        Resource linking: a resource is linked to Arrow by its license
+        (e.g. XSP12345) in the arrow_license_reference attribute, and
+        consumption is fetched for that license.
         """
         from .backend import ArrowBackendError, ArrowClient, ArrowCredentials
 
@@ -875,26 +875,26 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             )
             total_resources = all_customer_resources.count()
 
-            # Find resources that have backend_id (which should be the Arrow License Reference)
-            resources_with_license = all_customer_resources.exclude(
-                backend_id__isnull=True
-            ).exclude(backend_id="")
+            # Resources billed through an Arrow license (see arrow_license).
+            resources_with_license = all_customer_resources.filter(
+                tasks.arrow_licensed_resources_q()
+            ).exclude(state=marketplace_models.Resource.States.TERMINATED)
             resources_with_backend_id = resources_with_license.count()
 
             logger.info(
                 f"Customer {mapping.waldur_customer.name}: "
                 f"{total_resources} total resources, "
-                f"{resources_with_backend_id} with backend_id (license reference)"
+                f"{resources_with_backend_id} linked to an Arrow license"
             )
 
-            # For each resource with backend_id, use it as license_reference to fetch consumption
+            # Fetch consumption for each license
             # According to docs: "Resources are linked to Arrow via the backend_id field
             # containing the Arrow license reference (e.g., XSP12345)"
             for resource in resources_with_license:
-                license_ref = resource.backend_id  # backend_id IS the license reference
+                license_ref = tasks.arrow_license(resource)
 
                 try:
-                    # Fetch consumption from Arrow API using backend_id as license_reference
+                    # Fetch consumption from Arrow API for the license
                     consumption_data = client.get_monthly_consumption(
                         license_reference=license_ref,
                         period_from=period,
@@ -1098,10 +1098,15 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
 
         # Generate suggestions using fuzzy matching
         suggestions = []
-        linked_licenses = {r["backend_id"] for r in waldur_resources if r["backend_id"]}
+        # A resource's backend_id may be its vendor subscription, so linked
+        # means "has an Arrow license", not "has a backend_id".
+        license_by_resource = {
+            str(resource.uuid): tasks.arrow_license(resource) for resource in resources
+        }
+        linked_licenses = {ref for ref in license_by_resource.values() if ref}
 
         for resource in waldur_resources:
-            if resource["backend_id"]:
+            if license_by_resource[resource["uuid"]]:
                 # Already linked
                 continue
 
@@ -1155,12 +1160,12 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
     @extend_schema(
         request=serializers.LinkResourceRequestSerializer,
         responses={200: serializers.LinkResourceResponseSerializer},
-        description="Link a Waldur resource to an Arrow license by setting its backend_id.",
+        description="Link a Waldur resource to an Arrow license (its arrow_license_reference attribute).",
     )
     @decorators.action(detail=True, methods=["post"])
     def link_resource(self, request, uuid=None):
         """
-        Link a Waldur resource to an Arrow license by setting its backend_id.
+        Link a Waldur resource to an Arrow license (its arrow_license_reference attribute).
 
         This allows consumption tracking for the resource.
         """
@@ -1196,7 +1201,10 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             )
 
         old_backend_id = resource.backend_id
-        resource.backend_id = license_reference
+        # Resource sync finds its resources by the vendor subscription in
+        # backend_id; replacing it would make the next sync create a copy.
+        if not old_backend_id or old_backend_id.upper().startswith("XSP"):
+            resource.backend_id = license_reference
         # Consumption sync and billing-line matching find Arrow resources by
         # this attribute, as for resources created by the resource sync.
         resource.attributes = {
@@ -1648,13 +1656,10 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Check if resource has a backend_id (Arrow license reference)
-        license_ref = resource.backend_id
+        license_ref = tasks.arrow_license(resource)
         if not license_ref:
             return response.Response(
-                {
-                    "error": "Resource does not have a backend_id (Arrow license reference)"
-                },
+                {"error": "Resource is not linked to an Arrow license"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
