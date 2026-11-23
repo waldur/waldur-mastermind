@@ -1,9 +1,45 @@
 import datetime
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.common.utils import parse_date
 
 from . import enums
+
+if TYPE_CHECKING:
+    # models imports this module.
+    from .models import Checklist
+
+# Question types whose answers and conditions reference options by UUID.
+SELECT_QUESTION_TYPES = frozenset(
+    {
+        enums.QuestionTypes.SINGLE_SELECT,
+        enums.QuestionTypes.MULTI_SELECT,
+    }
+)
+
+# Apps that own a checklist register a callable here that raises a
+# ValidationError when its questions must not change; the checklist app cannot
+# know those rules without importing the apps that use it.
+CHECKLIST_EDIT_GUARDS: list[Callable[["Checklist"], None]] = []
+
+
+def validate_checklist_editable(checklist: "Checklist") -> None:
+    for guard in CHECKLIST_EDIT_GUARDS:
+        guard(checklist)
+
+
+def map_option_references(value, mapping: dict[str, str]):
+    """``value`` -- one option reference or a list of them -- through ``mapping``.
+
+    A reference ``mapping`` does not know raises ``KeyError``.
+    """
+    if value is None:
+        return None
+    if isinstance(value, list):
+        return [mapping[str(item)] for item in value]
+    return mapping[str(value)]
 
 
 def is_valid_operator_for_question_type(question_type, operator):

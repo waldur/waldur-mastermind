@@ -11,7 +11,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import filters as structure_filters
 
 # Structure models imported dynamically to avoid circular dependencies
-from . import filters, models, serializers
+from . import filters, models, serializers, utils
 
 
 def get_score(num, den):
@@ -34,6 +34,35 @@ def validate_question_unanswered(question):
         )
 
 
+class ChecklistEditGuardMixin:
+    """Runs the checklist edit guards before a question, option or dependency
+    is written, so a checklist an app has locked can't be changed from here."""
+
+    # The field, on the model and its serializer, that leads to the checklist.
+    checklist_field = "question"
+
+    def _validate_editable(self, related):
+        checklist = (
+            related if isinstance(related, models.Checklist) else related.checklist
+        )
+        utils.validate_checklist_editable(checklist)
+
+    def perform_create(self, serializer):
+        self._validate_editable(serializer.validated_data[self.checklist_field])
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        # A move to another checklist changes both the old and the new one.
+        self._validate_editable(getattr(serializer.instance, self.checklist_field))
+        if self.checklist_field in serializer.validated_data:
+            self._validate_editable(serializer.validated_data[self.checklist_field])
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        self._validate_editable(getattr(instance, self.checklist_field))
+        super().perform_destroy(instance)
+
+
 class ChecklistAdminView(core_views.ActionsViewSet):
     queryset = models.Checklist.objects.all().order_by("-created")
     serializer_class = serializers.ChecklistSerializer
@@ -45,6 +74,14 @@ class ChecklistAdminView(core_views.ActionsViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
     filterset_class = filters.ChecklistFilter
     destroy_validators = [validate_checklist_unanswered]
+
+    def perform_update(self, serializer):
+        utils.validate_checklist_editable(serializer.instance)
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        utils.validate_checklist_editable(instance)
+        super().perform_destroy(instance)
 
     @extend_schema(
         description="Return checklist questions.",
@@ -70,7 +107,7 @@ class ChecklistAdminView(core_views.ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class QuestionsAdminView(core_views.ActionsViewSet):
+class QuestionsAdminView(ChecklistEditGuardMixin, core_views.ActionsViewSet):
     queryset = models.Question.objects.all().order_by("-checklist__created", "order")
     serializer_class = serializers.QuestionAdminSerializer
     filter_backends = [
@@ -81,9 +118,10 @@ class QuestionsAdminView(core_views.ActionsViewSet):
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
     filterset_class = filters.QuestionFilter
     destroy_validators = [validate_question_unanswered]
+    checklist_field = "checklist"
 
 
-class QuestionOptionAdminViewSet(core_views.ActionsViewSet):
+class QuestionOptionAdminViewSet(ChecklistEditGuardMixin, core_views.ActionsViewSet):
     queryset = models.QuestionOption.objects.select_related("question").order_by(
         "question__checklist", "question"
     )
@@ -97,7 +135,7 @@ class QuestionOptionAdminViewSet(core_views.ActionsViewSet):
     filterset_class = filters.QuestionOptionFilter
 
 
-class QuestionDependencyViewSet(core_views.ActionsViewSet):
+class QuestionDependencyViewSet(ChecklistEditGuardMixin, core_views.ActionsViewSet):
     serializer_class = serializers.QuestionDependencySerializer
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
     lookup_field = "uuid"
