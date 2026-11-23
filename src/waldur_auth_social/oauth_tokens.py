@@ -29,7 +29,7 @@ from waldur_core.configuration import config
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 
-from . import revocation
+from . import discovery, revocation
 from .models import IdentityProvider, OAuthToken
 from .token_cache import cache_access_token, cached_access_token, forget_access_tokens
 
@@ -243,15 +243,10 @@ def _refresh(oauth_token: OAuthToken) -> str:
             f"Identity provider {oauth_token.provider} is not configured."
         )
     try:
-        response = requests.post(
+        response = discovery.post_with_client_auth(
+            provider,
             provider.token_url,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": oauth_token.refresh_token,
-                "client_id": provider.client_id,
-                "client_secret": provider.client_secret,
-            },
-            verify=provider.verify_ssl,
+            {"grant_type": "refresh_token", "refresh_token": oauth_token.refresh_token},
             timeout=REQUEST_TIMEOUT,
         )
     except requests.exceptions.RequestException as e:
@@ -288,19 +283,17 @@ def _exchange(user, subject_token, audience, scope=None) -> str:
     if not provider:
         raise TokenUnavailable(SIGN_IN_AGAIN, oauth_token and oauth_token.provider)
     try:
-        response = requests.post(
+        response = discovery.post_with_client_auth(
+            provider,
             provider.token_url,
-            data={
+            {
                 "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
                 "subject_token": subject_token,
                 "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
                 "requested_token_type": "urn:ietf:params:oauth:token-type:access_token",
                 "audience": audience,
                 "scope": scope or audience,
-                "client_id": provider.client_id,
-                "client_secret": provider.client_secret,
             },
-            verify=provider.verify_ssl,
             timeout=REQUEST_TIMEOUT,
         )
     except requests.exceptions.RequestException as e:

@@ -50,7 +50,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.serializers import IdentityBridgeStatsSerializer
 
-from . import models, oauth_tokens
+from . import discovery, models, oauth_tokens
 from .serializers import (
     AuthSerializer,
     DiscoverMetadataRequestSerializer,
@@ -66,6 +66,9 @@ from .serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+# The identity provider's token endpoint, while the user waits to sign in.
+TOKEN_REQUEST_TIMEOUT = 15
 
 
 OIDC_STATE_KEY = "oidc_state"
@@ -492,22 +495,12 @@ class OAuthViewComplete(BaseOAuthView):
             if not code_verifier:
                 raise OAuthException(self.config.provider, "PKCE verification failed.")
             data["code_verifier"] = code_verifier
-        headers = None
-        if self.config.provider == ProviderChoices.TARA:
-            raw_token = f"{self.config.client_id}:{self.config.client_secret}"
-            auth_token = base64.b64encode(raw_token.encode("utf-8"))
-            headers = {"Authorization": b"Basic %s" % auth_token}
-        else:
-            data |= {
-                "client_id": self.config.client_id,
-                "client_secret": self.config.client_secret,
-            }
         try:
-            token_response = requests.post(
+            token_response = discovery.post_with_client_auth(
+                self.config,
                 self.config.token_url,
-                data=data,
-                headers=headers,
-                verify=self.config.verify_ssl,
+                data,
+                timeout=TOKEN_REQUEST_TIMEOUT,
             )
         except requests.exceptions.RequestException as e:
             logger.warning("Unable to send authentication request. Error is %s", e)

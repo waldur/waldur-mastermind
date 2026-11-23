@@ -16,7 +16,7 @@ from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.permissions import has_staff_access
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 
-from . import models
+from . import discovery, models
 
 
 class AuthSerializer(serializers.Serializer):
@@ -211,7 +211,12 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
             protected_fields = []
         if protected_fields is not None:
             validated_data["protected_fields"] = protected_fields
-        return super().update(instance, validated_data)
+        # The discovery document is cached under its URL; drop the copy of the
+        # old URL and of the new one, so the next request reads it afresh.
+        discovery.forget_discovery_document(instance)
+        instance = super().update(instance, validated_data)
+        discovery.forget_discovery_document(instance)
+        return instance
 
     def create(self, validated_data):
         provider = validated_data["provider"]
@@ -233,7 +238,11 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
                         validated_data[key].setdefault(nested_key, nested_value)
                 else:
                     validated_data.setdefault(key, value)
-        return super().create(validated_data)
+        instance = super().create(validated_data)
+        # A provider deleted and created again under the same name and URL
+        # must not inherit what was cached for the old one.
+        discovery.forget_discovery_document(instance)
+        return instance
 
 
 class RemoteEduteamsUUIDSerializer(serializers.Serializer):

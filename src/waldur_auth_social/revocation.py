@@ -16,16 +16,15 @@ revocation endpoint, or one that cannot be reached, is logged and skipped, so
 it never blocks a logout.
 """
 
-import hashlib
 import logging
 
 import requests
-from django.core.cache import cache
 from django.db import transaction
 
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 
+from . import discovery
 from .models import IdentityProvider, OAuthToken
 from .token_cache import forget_access_tokens
 
@@ -33,10 +32,6 @@ logger = logging.getLogger(__name__)
 
 # Logout waits for the revocation call, so keep it short.
 REQUEST_TIMEOUT = 5
-
-# The revocation endpoint rarely changes; a provider without one is cached too
-# (as an empty string), so it is not looked up again on every logout.
-ENDPOINT_CACHE_TIMEOUT = 60 * 60
 
 
 class RevocationReason:
@@ -49,32 +44,10 @@ class RevocationReason:
     REJECTED = "rejected"
 
 
-def _endpoint_cache_key(idp: IdentityProvider) -> str:
-    digest = hashlib.sha256(idp.discovery_url.encode()).hexdigest()
-    return f"oidc_revocation_endpoint:{idp.provider}:{digest}"
-
-
 def get_revocation_endpoint(idp: IdentityProvider) -> str | None:
     """The provider's ``revocation_endpoint`` from its discovery document."""
-    key = _endpoint_cache_key(idp)
-    endpoint = cache.get(key)
-    if endpoint is None:
-        try:
-            response = requests.get(
-                idp.discovery_url, verify=idp.verify_ssl, timeout=REQUEST_TIMEOUT
-            )
-            response.raise_for_status()
-            endpoint = response.json().get("revocation_endpoint") or ""
-        except (requests.RequestException, ValueError, AttributeError) as e:
-            # Not cached: the next logout tries the discovery document again.
-            logger.warning(
-                "Unable to read the revocation endpoint of identity provider %s: %s",
-                idp.provider,
-                e,
-            )
-            return None
-        cache.set(key, endpoint, ENDPOINT_CACHE_TIMEOUT)
-    return endpoint or None
+    document = discovery.get_discovery_document(idp)
+    return (document or {}).get("revocation_endpoint") or None
 
 
 def revoke_at_provider(provider: str, refresh_token: str) -> bool:
@@ -96,15 +69,10 @@ def revoke_at_provider(provider: str, refresh_token: str) -> bool:
         )
         return False
     try:
-        response = requests.post(
+        response = discovery.post_with_client_auth(
+            idp,
             endpoint,
-            data={
-                "token": refresh_token,
-                "token_type_hint": "refresh_token",
-                "client_id": idp.client_id,
-                "client_secret": idp.client_secret,
-            },
-            verify=idp.verify_ssl,
+            {"token": refresh_token, "token_type_hint": "refresh_token"},
             timeout=REQUEST_TIMEOUT,
         )
     except requests.RequestException as e:
