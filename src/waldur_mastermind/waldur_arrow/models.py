@@ -2,6 +2,7 @@ import logging
 from decimal import Decimal
 from typing import cast
 
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMIntegerField, transition
@@ -580,3 +581,35 @@ class ArrowConsumptionRecord(core_models.UuidMixin, TimeStampedModel):
             if self.reconciled_at
             else None,
         }
+
+
+class ArrowBillingChangesJob(core_models.UuidMixin, TimeStampedModel):
+    """A Billing changes run started from the API; the caller polls it."""
+
+    class States:
+        RUNNING = "running"
+        DONE = "done"
+        FAILED = "failed"
+
+        CHOICES = (
+            (RUNNING, "Running"),
+            (DONE, "Done"),
+            (FAILED, "Failed"),
+        )
+
+    action = models.CharField(max_length=32)
+    year = models.PositiveSmallIntegerField()
+    month = models.PositiveSmallIntegerField()
+    resource_uuid = models.CharField(max_length=32, blank=True)
+    dry_run = models.BooleanField(default=True)
+    state = models.CharField(
+        max_length=16, choices=States.CHOICES, default=States.RUNNING
+    )
+    report = models.JSONField(null=True, blank=True, encoder=DjangoJSONEncoder)
+    error = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-created",)
+
+    def __str__(self):
+        return f"{self.action} {self.year}-{self.month:02d} ({self.state})"
