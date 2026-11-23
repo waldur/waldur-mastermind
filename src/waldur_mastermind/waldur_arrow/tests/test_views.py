@@ -401,6 +401,25 @@ class ArrowLicenseLinkingTest(test.APITestCase):
             ).exists()
         )
 
+    def test_linking_keeps_the_vendor_subscription_of_a_synced_resource(self):
+        self.resource.backend_id = "11111111-aaaa-bbbb-cccc-000000000001"
+        self.resource.attributes = {"arrow_license_reference": "XSP-OLD"}
+        self.resource.save()
+
+        response = self.client.post(
+            self.url + "link_resource/",
+            {"resource_uuid": self.resource.uuid.hex, "license_reference": "XSP-LIC-1"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.resource.refresh_from_db()
+        self.assertEqual(
+            self.resource.backend_id, "11111111-aaaa-bbbb-cccc-000000000001"
+        )
+        self.assertEqual(
+            self.resource.attributes["arrow_license_reference"], "XSP-LIC-1"
+        )
+
     def test_license_cannot_be_linked_to_a_second_resource(self):
         other = marketplace_models.Resource.objects.create(
             name="Other",
@@ -485,3 +504,89 @@ class DiscoverLicensesTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(response.data["arrow_licenses"][0]["vendor_name"], "Amazon")
+
+
+class HistoricalConsumptionLicenseTest(test.APITestCase):
+    """Resources from the resource sync keep the vendor subscription in backend_id."""
+
+    def setUp(self):
+        self.fixture = ArrowFixture()
+        self.fixture.arrow_settings
+        self.client.force_authenticate(self.fixture.user)
+        self.resource = marketplace_models.Resource.objects.create(
+            name="Synced subscription",
+            offering=marketplace_factories.OfferingFactory(),
+            project=structure_factories.ProjectFactory(customer=self.fixture.customer),
+            state=marketplace_models.Resource.States.OK,
+            backend_id="11111111-aaaa-bbbb-cccc-000000000001",
+            attributes={"arrow_license_reference": "XSP-LIC-1"},
+        )
+
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.get_monthly_consumption"
+    )
+    def test_history_is_fetched_for_the_license(self, mock_consumption):
+        mock_consumption.return_value = {"headers": [], "lines": []}
+
+        response = self.client.post(
+            "/api/admin/arrow/billing-syncs/sync_resource_historical_consumption/",
+            {
+                "resource_uuid": self.resource.uuid.hex,
+                "period_from": "2024-01",
+                "period_to": "2024-01",
+                "dry_run": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            mock_consumption.call_args.kwargs["license_reference"], "XSP-LIC-1"
+        )
+
+    def test_empty_license_attribute_is_not_replaced_by_backend_id(self):
+        self.resource.attributes = {"arrow_license_reference": ""}
+        self.resource.save()
+
+        response = self.client.post(
+            "/api/admin/arrow/billing-syncs/sync_resource_historical_consumption/",
+            {
+                "resource_uuid": self.resource.uuid.hex,
+                "period_from": "2024-01",
+                "period_to": "2024-01",
+                "dry_run": True,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class ArrowLicenseRuleTest(test.APITestCase):
+    def resource(self, backend_id="", attributes=None):
+        return marketplace_models.Resource.objects.create(
+            name="R",
+            offering=marketplace_factories.OfferingFactory(),
+            project=structure_factories.ProjectFactory(),
+            state=marketplace_models.Resource.States.OK,
+            backend_id=backend_id,
+            attributes=attributes or {},
+        )
+
+    def test_license_rule_and_filter_agree(self):
+        cases = {
+            "XSP-ATTR": self.resource("sub-1", {"arrow_license_reference": "XSP-ATTR"}),
+            "": self.resource("sub-2", {"arrow_license_reference": ""}),
+            "xsp-legacy": self.resource("xsp-legacy"),
+        }
+        unlinked = self.resource("11111111-aaaa-bbbb-cccc-000000000002")
+
+        for expected, resource in cases.items():
+            self.assertEqual(tasks.arrow_license(resource), expected)
+        self.assertEqual(tasks.arrow_license(unlinked), "")
+        self.assertEqual(
+            set(
+                marketplace_models.Resource.objects.filter(
+                    tasks.arrow_licensed_resources_q()
+                )
+            ),
+            {cases["XSP-ATTR"], cases["xsp-legacy"]},
+        )

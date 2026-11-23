@@ -1039,10 +1039,10 @@ class FetchCustomerArrowDataResponseSerializer(serializers.Serializer):
     This endpoint works by:
     1. Fetching billing export from Arrow for the current period (for display)
     2. Filtering billing lines by customer reference
-    3. Finding Waldur resources that have a backend_id set
-    4. Using backend_id directly as license_reference to fetch consumption data
+    3. Finding Waldur resources linked to an Arrow license
+    4. Fetching consumption data for each license
 
-    The backend_id IS the Arrow license reference - no lookup/mapping needed.
+    Each resource is matched by its Arrow license (arrow_license_reference attribute).
     """
 
     customer_mapping_uuid = serializers.UUIDField()
@@ -1075,7 +1075,7 @@ class FetchCustomerArrowDataResponseSerializer(serializers.Serializer):
         help_text="Total number of resources for this customer in Waldur."
     )
     resources_with_backend_id = serializers.IntegerField(
-        help_text="Number of resources with backend_id set (Arrow license reference)."
+        help_text="Number of resources linked to an Arrow license."
     )
     matched_resources = serializers.IntegerField(
         help_text="Number of resources for which consumption was successfully fetched."

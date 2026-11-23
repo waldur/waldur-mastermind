@@ -36,6 +36,34 @@ from .backend import ArrowBackendError, ArrowClient, ArrowCredentials, get_arrow
 # - Nothing changes an invoice once it is no longer pending.
 
 
+LICENSE_ATTRIBUTE = "arrow_license_reference"
+
+
+def arrow_license(resource) -> str:
+    """
+    The Arrow license a resource is billed through, or "" when it has none.
+
+    Resources from the resource sync and from linking keep the license in
+    the arrow_license_reference attribute; resource sync stores the vendor
+    subscription in backend_id. An attribute that is present but empty means
+    the resource has no license, never "use backend_id". Only links made
+    before the attribute existed have the license (XSP...) in backend_id.
+    """
+    attributes = resource.attributes or {}
+    if LICENSE_ATTRIBUTE in attributes:
+        return attributes[LICENSE_ATTRIBUTE] or ""
+    backend_id = resource.backend_id or ""
+    return backend_id if backend_id.upper().startswith("XSP") else ""
+
+
+def arrow_licensed_resources_q() -> Q:
+    """Filter for resources that arrow_license() gives a license for."""
+    has_attribute = Q(attributes__has_key=LICENSE_ATTRIBUTE)
+    return (has_attribute & ~Q(**{f"attributes__{LICENSE_ATTRIBUTE}": ""})) | (
+        ~has_attribute & Q(backend_id__istartswith="XSP")
+    )
+
+
 def _is_open_invoice(invoice) -> bool:
     """Only a pending invoice may still change."""
     return (
@@ -1034,19 +1062,18 @@ def sync_arrow_billing(
             resource = marketplace_models.Resource.objects.filter(
                 uuid=resource_uuid
             ).first()
-            if resource and resource.backend_id:
-                target_license_ref = (resource.attributes or {}).get(
-                    "arrow_license_reference"
-                ) or resource.backend_id
-                logger.info(
-                    f"Filtering billing lines for resource {resource_uuid} "
-                    f"(license ref: {target_license_ref})"
-                )
-            else:
+            target_license_ref = arrow_license(resource) if resource else ""
+            if not target_license_ref:
+                # Dropping the filter would process every customer's lines.
                 logger.warning(
-                    f"Resource {resource_uuid} not found or has no backend_id, "
-                    "skipping resource filter"
+                    f"Resource {resource_uuid} not found or not linked to an "
+                    "Arrow license, nothing to check"
                 )
+                return
+            logger.info(
+                f"Filtering billing lines for resource {resource_uuid} "
+                f"(license ref: {target_license_ref})"
+            )
 
         # Group billing lines by customer company name
         lines_by_name: dict[str, list[dict]] = {}
