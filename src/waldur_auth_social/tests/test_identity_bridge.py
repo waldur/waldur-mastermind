@@ -761,7 +761,7 @@ class IdentityBridgePrivilegedAccountTest(TestCase):
         removed = self.client.post(BRIDGE_REMOVE_URL, payload, format="json")
         return pushed, removed
 
-    def test_identity_manager_cannot_push_or_remove_privileged_accounts(self):
+    def test_identity_manager_cannot_change_or_remove_privileged_accounts(self):
         for flags in (
             {"is_staff": True},
             {"is_support": True},
@@ -772,7 +772,17 @@ class IdentityBridgePrivilegedAccountTest(TestCase):
                     first_name="Alice", active_isds=[], **flags
                 )
                 pushed, removed = self.push_then_remove(self.manager, target.username)
-                self.assertEqual(pushed.status_code, status.HTTP_403_FORBIDDEN)
+                # The push names the account, so it can be given project roles,
+                # but changes nothing on it.
+                self.assertEqual(pushed.status_code, status.HTTP_200_OK)
+                self.assertEqual(
+                    pushed.data,
+                    {
+                        "uuid": target.uuid.hex,
+                        "created": False,
+                        "updated_fields": [],
+                    },
+                )
                 self.assertEqual(removed.status_code, status.HTTP_403_FORBIDDEN)
                 target.refresh_from_db()
                 self.assertTrue(target.is_active)
@@ -794,6 +804,60 @@ class IdentityBridgePrivilegedAccountTest(TestCase):
         target.refresh_from_db()
         self.assertTrue(target.is_active)
         self.assertEqual(target.active_isds, ["isd:puhuri"])
+
+    def test_identity_manager_push_of_privileged_account_keeps_other_isd_data(self):
+        target = structure_factories.UserFactory(
+            is_support=True,
+            first_name="Alice",
+            active_isds=["isd:fenix"],
+            attribute_sources={
+                "first_name": {"source": "isd:fenix", "timestamp": "2026-01-01"}
+            },
+        )
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            BRIDGE_URL,
+            {
+                "username": target.username,
+                "source": "isd:puhuri",
+                "first_name": "Mallory",
+                "email": "mallory@example.com",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["updated_fields"], [])
+        target.refresh_from_db()
+        self.assertEqual(target.first_name, "Alice")
+        self.assertNotEqual(target.email, "mallory@example.com")
+        self.assertEqual(target.active_isds, ["isd:fenix"])
+        self.assertEqual(
+            target.attribute_sources,
+            {"first_name": {"source": "isd:fenix", "timestamp": "2026-01-01"}},
+        )
+
+    def test_identity_manager_push_of_deactivated_privileged_account_is_refused(self):
+        target = structure_factories.UserFactory(is_staff=True, is_active=False)
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            BRIDGE_URL,
+            {"username": target.username, "source": "isd:puhuri"},
+            format="json",
+        )
+        # The same answer a deactivated regular user gets.
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        target.refresh_from_db()
+        self.assertFalse(target.is_active)
+
+    def test_identity_manager_from_other_isd_cannot_look_up_privileged_account(self):
+        target = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(self.manager)
+        response = self.client.post(
+            BRIDGE_URL,
+            {"username": target.username, "source": "isd:fenix"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_staff_can_push_and_remove_privileged_account(self):
         target = structure_factories.UserFactory(is_staff=True, active_isds=[])
