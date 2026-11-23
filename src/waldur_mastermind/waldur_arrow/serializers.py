@@ -677,6 +677,12 @@ class CleanupConsumptionResponseSerializer(serializers.Serializer):
     records_deleted = serializers.IntegerField()
     compensation_items_affected = serializers.IntegerField()
     invoice_items_affected = serializers.IntegerField()
+    records_kept_issued = serializers.IntegerField(
+        help_text="Records left in place because their charge is on an issued invoice"
+    )
+    records_kept_imported = serializers.IntegerField(
+        help_text="Records left in place because an import settled their month"
+    )
 
 
 class ConsumptionStatusResponseSerializer(serializers.Serializer):
