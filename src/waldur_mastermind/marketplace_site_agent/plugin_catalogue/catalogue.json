@@ -442,7 +442,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Settings for the ``ceph_s3`` (management) and ``croit_usage`` (reporting) backends.",
+        "description": "Settings for the ``ceph_s3`` (management), ``croit_usage`` and ``rgw_usage`` (reporting) backends.",
         "properties": {
           "admin_access_key": {
             "anyOf": [
@@ -742,6 +742,23 @@
             "default": null,
             "description": "On termination, keep the backend resource and only remove its users",
             "title": "Soft Delete"
+          },
+          "storage_size": {
+            "anyOf": [
+              {
+                "enum": [
+                  "logical",
+                  "allocated"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Bucket size rgw_usage bills: 'logical' (default; the bytes stored, as croit's statistics bill them) or 'allocated' (RGW size_actual, including allocation overhead)",
+            "title": "Storage Size"
           },
           "tenant_template": {
             "anyOf": [
@@ -947,7 +964,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Settings for the ``ceph_s3`` (management) and ``croit_usage`` (reporting) backends.",
+        "description": "Settings for the ``ceph_s3`` (management), ``croit_usage`` and ``rgw_usage`` (reporting) backends.",
         "properties": {
           "admin_access_key": {
             "anyOf": [
@@ -1247,6 +1264,23 @@
             "default": null,
             "description": "On termination, keep the backend resource and only remove its users",
             "title": "Soft Delete"
+          },
+          "storage_size": {
+            "anyOf": [
+              {
+                "enum": [
+                  "logical",
+                  "allocated"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Bucket size rgw_usage bills: 'logical' (default; the bytes stored, as croit's statistics bill them) or 'allocated' (RGW size_actual, including allocation overhead)",
+            "title": "Storage Size"
           },
           "tenant_template": {
             "anyOf": [
@@ -8432,6 +8466,528 @@
           }
         },
         "title": "RancherKcCrdBackendSettingsSchema",
+        "type": "object"
+      },
+      "version": "1.0.8rc15"
+    },
+    {
+      "component_schema": null,
+      "name": "rgw_usage",
+      "package": "waldur-site-agent-ceph-s3",
+      "roles": [
+        "order_processing",
+        "membership_sync",
+        "reporting"
+      ],
+      "secret_settings": [
+        "admin_access_key",
+        "admin_secret_key",
+        "croit_reporting.password",
+        "croit_reporting.token",
+        "password",
+        "token"
+      ],
+      "sensitive_component_settings": [],
+      "sensitive_settings": [
+        "admin_path",
+        "api_url",
+        "croit_reporting.api_url",
+        "croit_reporting.bucket_state_file",
+        "croit_reporting.verify_ssl",
+        "s3_endpoint",
+        "tenant_template",
+        "verify_ssl"
+      ],
+      "settings_schema": {
+        "$defs": {
+          "CroitReportingSettings": {
+            "description": "croit's address and credentials, for reading its statistics only.",
+            "properties": {
+              "api_url": {
+                "description": "croit API URL",
+                "sensitive": true,
+                "title": "Api Url",
+                "type": "string"
+              },
+              "bucket_state_file": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "File remembering the buckets each account resource held this billing period, so buckets deleted before an agent restart stay billed",
+                "sensitive": true,
+                "title": "Bucket State File"
+              },
+              "password": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit password",
+                "secret": true,
+                "title": "Password"
+              },
+              "timeout": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "HTTP timeout in seconds",
+                "title": "Timeout"
+              },
+              "token": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit API token",
+                "secret": true,
+                "title": "Token"
+              },
+              "username": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "croit username",
+                "title": "Username"
+              },
+              "verify_ssl": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "description": "Verify TLS (default true)",
+                "sensitive": true,
+                "title": "Verify Ssl"
+              }
+            },
+            "required": [
+              "api_url"
+            ],
+            "title": "CroitReportingSettings",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Settings for the ``ceph_s3`` (management), ``croit_usage`` and ``rgw_usage`` (reporting) backends.",
+        "properties": {
+          "admin_access_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "RGW admin access key (radosgw flavour)",
+            "secret": true,
+            "title": "Admin Access Key"
+          },
+          "admin_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "RGW admin API path (default 'admin')",
+            "sensitive": true,
+            "title": "Admin Path"
+          },
+          "admin_secret_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "RGW admin secret key (radosgw flavour)",
+            "secret": true,
+            "title": "Admin Secret Key"
+          },
+          "allocation_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for resource (allocation) backend ids",
+            "title": "Allocation Prefix"
+          },
+          "api_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit API URL (croit flavour)",
+            "sensitive": true,
+            "title": "Api Url"
+          },
+          "backend_id_max_retries": {
+            "anyOf": [
+              {
+                "minimum": 1,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Attempts to find a unique backend id (default 50)",
+            "title": "Backend Id Max Retries"
+          },
+          "check_all_offerings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check backend id uniqueness against every offering, not only this one",
+            "title": "Check All Offerings"
+          },
+          "check_backend_id_uniqueness": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Check a new backend id against the offering's history",
+            "title": "Check Backend Id Uniqueness"
+          },
+          "croit_reporting": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/CroitReportingSettings"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit connection for croit_usage reporting when management uses the radosgw flavour on a croit cluster"
+          },
+          "customer_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for customer-level backend ids",
+            "title": "Customer Prefix"
+          },
+          "default_account": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Account new user associations are created under",
+            "title": "Default Account"
+          },
+          "default_placement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Default placement target for new users",
+            "title": "Default Placement"
+          },
+          "default_storage_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Default storage class for new users",
+            "title": "Default Storage Class"
+          },
+          "default_tenant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fixed RGW tenant for new users; older form of tenant_template",
+            "title": "Default Tenant"
+          },
+          "flavour": {
+            "anyOf": [
+              {
+                "enum": [
+                  "croit",
+                  "radosgw",
+                  "CROIT",
+                  "RADOSGW"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "'croit' (default) or 'radosgw'",
+            "title": "Flavour"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit password (croit flavour)",
+            "secret": true,
+            "title": "Password"
+          },
+          "periodic_limits": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Periodic limits subscription (event mode)",
+            "title": "Periodic Limits"
+          },
+          "project_prefix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Prefix for project-level backend ids",
+            "title": "Project Prefix"
+          },
+          "rgw_accounts": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (radosgw flavour, Ceph 20.2.2 or later)",
+            "title": "Rgw Accounts"
+          },
+          "s3_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "S3 endpoint users connect to (required)",
+            "sensitive": true,
+            "title": "S3 Endpoint"
+          },
+          "s3_region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "S3 region (default 'default')",
+            "title": "S3 Region"
+          },
+          "soft_delete": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "On termination, keep the backend resource and only remove its users",
+            "title": "Soft Delete"
+          },
+          "storage_size": {
+            "anyOf": [
+              {
+                "enum": [
+                  "logical",
+                  "allocated"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Bucket size rgw_usage bills: 'logical' (default; the bytes stored, as croit's statistics bill them) or 'allocated' (RGW size_actual, including allocation overhead)",
+            "title": "Storage Size"
+          },
+          "tenant_template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "RGW tenant for new users, rendered per resource (croit flavour), e.g. '{customer_slug}_{customer_uuid:.8}'. Fields: resource_slug, resource_uuid, customer_slug, customer_uuid, project_slug, project_uuid, offering_slug, offering_uuid",
+            "sensitive": true,
+            "title": "Tenant Template"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "HTTP timeout in seconds (default 30)",
+            "title": "Timeout"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit API token, instead of username/password",
+            "secret": true,
+            "title": "Token"
+          },
+          "username": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "croit username (croit flavour)",
+            "title": "Username"
+          },
+          "verify_ssl": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Verify TLS (default true)",
+            "sensitive": true,
+            "title": "Verify Ssl"
+          }
+        },
+        "title": "CephS3BackendSettingsSchema",
         "type": "object"
       },
       "version": "1.0.8rc15"
