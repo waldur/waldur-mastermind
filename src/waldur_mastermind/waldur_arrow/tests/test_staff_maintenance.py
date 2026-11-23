@@ -384,22 +384,56 @@ class FetchBillingExportTest(test.APITestCase):
         self.fixture = StaffMaintenanceFixture()
         self.client.force_authenticate(self.fixture.user)
 
-    @mock.patch("waldur_mastermind.waldur_arrow.views.get_arrow_client")
-    def test_fetch_billing_export(self, mock_get_client):
+    # autospec keeps the real signature, so an unexpected keyword fails here
+    # as it would against the real client.
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages",
+        autospec=True,
+    )
+    def test_fetch_billing_export(self, mock_export):
         self.fixture.arrow_settings
-        mock_client = mock.MagicMock()
-        mock_client.export_billing_all_pages.return_value = [
-            {"line_reference": "LINE-001", "sell_price": "100.00"}
-        ]
-        mock_get_client.return_value = mock_client
+        mock_export.return_value = {
+            "headers": ["Sequence", "Classification", "Customer Total Price"],
+            "values": [
+                ["1", "IAAS", "100.00"],
+                ["2", "SAAS", "50.00"],
+            ],
+        }
 
         response = self.client.post(
             "/api/admin/arrow/billing-syncs/fetch_billing_export/",
             {"period_from": "2024-01", "period_to": "2024-01"},
         )
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["classification"], "IAAS")
         self.assertEqual(response.data["row_count"], 1)
+        self.assertEqual(response.data["data"][0]["Sequence"], "1")
+
+
+class FetchBillingExportClassificationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = StaffMaintenanceFixture()
+        self.client.force_authenticate(self.fixture.user)
+
+    @mock.patch(
+        "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages",
+        autospec=True,
+    )
+    def test_blank_classification_keeps_every_line(self, mock_export):
+        self.fixture.arrow_settings
+        mock_export.return_value = {
+            "headers": ["Sequence", "Classification"],
+            "values": [["1", "IAAS"], ["2", "SAAS"]],
+        }
+
+        response = self.client.post(
+            "/api/admin/arrow/billing-syncs/fetch_billing_export/",
+            {"period_from": "2024-01", "period_to": "2024-01", "classification": ""},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["row_count"], 2)
 
 
 class FetchLicenseInfoTest(test.APITestCase):

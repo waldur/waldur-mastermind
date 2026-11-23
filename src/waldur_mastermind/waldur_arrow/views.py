@@ -4,7 +4,7 @@ from decimal import Decimal
 from difflib import SequenceMatcher
 
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status
@@ -14,14 +14,32 @@ from waldur_core.configuration.models import Setting, Source
 from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import filters, models, serializers, tasks
-from .backend import ArrowBackendError, ArrowClient, ArrowCredentials, get_arrow_client
+from .backend import (
+    ArrowBackendError,
+    ArrowClient,
+    ArrowCredentials,
+    get_arrow_client,
+)
 
 logger = logging.getLogger(__name__)
 
 
 # -------------------- Arrow Settings ViewSet --------------------
+
+
+def _license_taken(license_reference: str, exclude_resource=None) -> bool:
+    """A license may be billed through one resource only."""
+    # Links made before the attribute existed set only backend_id.
+    resources = marketplace_models.Resource.objects.filter(
+        Q(attributes__arrow_license_reference=license_reference)
+        | Q(backend_id=license_reference)
+    ).exclude(state=marketplace_models.Resource.States.TERMINATED)
+    if exclude_resource is not None:
+        resources = resources.exclude(pk=exclude_resource.pk)
+    return resources.exists()
 
 
 class ArrowSettingsViewSet(core_views.ActionsViewSet):
@@ -849,7 +867,6 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
 
         try:
             # Get resources for this customer
-            from waldur_mastermind.marketplace import models as marketplace_models
 
             # Get all resources for this customer
             all_customer_resources = marketplace_models.Resource.objects.filter(
@@ -1029,34 +1046,25 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             error_msg = f"Failed to fetch Arrow customers: {e}"
             logger.warning(error_msg)
 
-        # Fetch licenses from the /licenses API
+        # Fetch the partner's licenses and keep this customer's
         if resolved_arrow_ref:
             try:
-                page = 1
-                while page <= 50:  # Safety limit
-                    response_data = client._get(
-                        "licenses", params={"page": page, "per_page": 100}
-                    )
-                    licenses = response_data.get("data", {}).get("licenses", [])
-                    if not licenses:
-                        break
-
-                    for lic in licenses:
-                        if lic.get("customer_ref") == resolved_arrow_ref:
-                            arrow_licenses.append(
-                                {
-                                    "license_reference": lic.get("license_id", ""),
-                                    "vendor_name": lic.get("service_ref", ""),
-                                    "offer_name": lic.get("name", ""),
-                                    "offer_sku": lic.get("sku", ""),
-                                    "friendly_name": lic.get("friendlyName", ""),
-                                }
-                            )
-
-                    pagination = response_data.get("pagination", {})
-                    if page >= pagination.get("totalPages", 1):
-                        break
-                    page += 1
+                for lic in client.list_all_licenses():
+                    if lic.get("customer_ref") == resolved_arrow_ref:
+                        arrow_licenses.append(
+                            {
+                                "license_reference": lic.get("license_id", ""),
+                                # `program` carries the vendor as the catalog
+                                # names it ("Microsoft", "Amazon"), which is
+                                # what vendor mappings are created from;
+                                # service_ref is a code (AWS_AMAZON_SUBSCRIPTION).
+                                "vendor_name": lic.get("program")
+                                or lic.get("service_ref", ""),
+                                "offer_name": lic.get("name", ""),
+                                "offer_sku": lic.get("sku", ""),
+                                "friendly_name": lic.get("friendlyName", ""),
+                            }
+                        )
 
                 logger.info(
                     f"Found {len(arrow_licenses)} licenses for customer {resolved_arrow_ref}"
@@ -1067,7 +1075,6 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
                 logger.warning(error_msg)
 
         # Get Waldur resources for this customer
-        from waldur_mastermind.marketplace import models as marketplace_models
 
         waldur_resources = []
         resources = marketplace_models.Resource.objects.filter(
@@ -1157,14 +1164,15 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
         This allows consumption tracking for the resource.
         """
         mapping = self.get_object()
+        # Serialize link/import per customer, so two requests cannot both
+        # pass the one-resource-per-license check.
+        models.ArrowCustomerMapping.objects.select_for_update().get(pk=mapping.pk)
 
         serializer = serializers.LinkResourceRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         resource_uuid = serializer.validated_data["resource_uuid"]
         license_reference = serializer.validated_data["license_reference"]
-
-        from waldur_mastermind.marketplace import models as marketplace_models
 
         try:
             resource = marketplace_models.Resource.objects.get(
@@ -1177,9 +1185,24 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
+        if _license_taken(license_reference, exclude_resource=resource):
+            return response.Response(
+                {
+                    "error": f"License {license_reference} is already linked to "
+                    "another resource"
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         old_backend_id = resource.backend_id
         resource.backend_id = license_reference
-        resource.save(update_fields=["backend_id"])
+        # Consumption sync and billing-line matching find Arrow resources by
+        # this attribute, as for resources created by the resource sync.
+        resource.attributes = {
+            **(resource.attributes or {}),
+            "arrow_license_reference": license_reference,
+        }
+        resource.save(update_fields=["backend_id", "attributes"])
 
         logger.info(
             f"Linked resource {resource.name} ({resource.uuid}) to Arrow license {license_reference}. "
@@ -1213,10 +1236,12 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
         Creates a new resource in the specified project with the license reference
         as backend_id, linked to the specified offering.
         """
-        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.enums import OrderStates
 
         mapping = self.get_object()
+        # Serialize link/import per customer, so two requests cannot both
+        # pass the one-resource-per-license check.
+        models.ArrowCustomerMapping.objects.select_for_update().get(pk=mapping.pk)
 
         serializer = serializers.ImportLicenseRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -1247,11 +1272,14 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Check if already imported
-        if marketplace_models.Resource.objects.filter(
-            offering=offering,
-            backend_id=license_reference,
-        ).exists():
+        # Check if already imported or linked
+        if (
+            _license_taken(license_reference)
+            or marketplace_models.Resource.objects.filter(
+                offering=offering,
+                backend_id=license_reference,
+            ).exists()
+        ):
             return response.Response(
                 {"error": f"License {license_reference} has already been imported"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1264,6 +1292,7 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             backend_id=license_reference,
             state=marketplace_models.Resource.States.OK,
             name=license_name,
+            attributes={"arrow_license_reference": license_reference},
         )
         resource.init_cost()
         resource.save()
@@ -1355,11 +1384,13 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get already-mapped references for this settings
+        # Get already-mapped references for this settings. Inactive mappings
+        # count too: (arrow_reference, settings) is unique, so offering one
+        # again would only fail on create.
         mapped_refs = set(
-            models.ArrowCustomerMapping.objects.filter(
-                settings=settings, is_active=True
-            ).values_list("arrow_reference", flat=True)
+            models.ArrowCustomerMapping.objects.filter(settings=settings).values_list(
+                "arrow_reference", flat=True
+            )
         )
 
         # Filter out already-mapped customers
@@ -1595,7 +1626,6 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
         This is useful for backporting historical usage data for newly imported
         resources or to refresh consumption data for a specific resource.
         """
-        from waldur_mastermind.marketplace import models as marketplace_models
 
         serializer = serializers.SyncResourceHistoricalConsumptionRequestSerializer(
             data=request.data
@@ -2192,18 +2222,26 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
             classification = input_serializer.validated_data.get(
                 "classification", settings.classification_filter
             )
-            billing_data = client.export_billing_all_pages(
+            export = client.export_billing_all_pages(
                 export_type_reference=settings.export_type_reference,
                 period_from=input_serializer.validated_data["period_from"],
                 period_to=input_serializer.validated_data["period_to"],
-                classification=classification,
             )
+            rows = client.parse_billing_export_to_dicts(export)
+            # The export API has no classification filter; apply it here.
+            if classification:
+                rows = [
+                    row
+                    for row in rows
+                    if str(row.get("Classification", "")).upper()
+                    == classification.upper()
+                ]
             data = {
                 "period_from": input_serializer.validated_data["period_from"],
                 "period_to": input_serializer.validated_data["period_to"],
                 "classification": classification,
-                "row_count": len(billing_data),
-                "data": billing_data[:100],  # Limit to first 100 rows
+                "row_count": len(rows),
+                "data": rows[:100],  # Limit to first 100 rows
             }
             response_serializer = serializers.FetchBillingExportResponseSerializer(data)
             return response.Response(
