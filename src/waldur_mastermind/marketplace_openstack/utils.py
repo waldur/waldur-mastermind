@@ -253,22 +253,45 @@ def import_limits(resource: marketplace_models.Resource):
     resource.save(update_fields=["limits"])
 
 
-def tenant_limits_validator(limits: dict):
-    cores = limits.get(CORES_TYPE) or 0
-    if not cores:
+def tenant_limit_plan_validator(limits: dict):
+    """A limit plan bills the tenant quotas, so each one has to be known.
+
+    A tenant ordered under a usage plan may have no limits and run on the
+    backend default quotas, which a limit plan would bill as zero. A limit
+    of 0 is a real quota and is accepted.
+    """
+    if limits.get(CORES_TYPE) is None:
         raise exceptions.ValidationError("CPU limit is mandatory.")
 
-    ram = limits.get(RAM_TYPE) or 0
-    if not ram:
+    if limits.get(RAM_TYPE) is None:
         raise exceptions.ValidationError("RAM limit is mandatory.")
 
-    storage = sum(
-        value
+    if not any(
+        value is not None
         for key, value in limits.items()
         if is_valid_volume_type_name(key) or key == STORAGE_TYPE
-    )
-    if not storage:
+    ):
         raise exceptions.ValidationError("Storage limit is mandatory.")
+
+
+def fill_omitted_tenant_limits(
+    limits: dict, offering: marketplace_models.Offering, limit_types: set[str]
+) -> dict:
+    """Return limits with omitted limit-billed cores, RAM and storage set to 0.
+
+    An omitted quota is otherwise created with the backend default, which is
+    usable but not billed under a limit plan. A component billed by usage
+    keeps the backend default. Empty limits are returned as is: a tenant
+    ordered without limits keeps the backend default quotas.
+    """
+    if not limits:
+        return limits
+    keys = {CORES_TYPE, RAM_TYPE}
+    storage_mode = offering.plugin_options.get("storage_mode") or STORAGE_MODE_FIXED
+    if storage_mode == STORAGE_MODE_FIXED:
+        keys.add(STORAGE_TYPE)
+    omitted = {key: 0 for key in sorted(keys & limit_types) if limits.get(key) is None}
+    return {**limits, **omitted}
 
 
 def map_limits_to_quotas(limits, offering: marketplace_models.Offering, is_create=True):

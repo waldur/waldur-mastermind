@@ -10245,11 +10245,13 @@ class ResourceSwitchPlanSerializer(serializers.HyperlinkedModelSerializer):
         newly_limited = target.limit_types - current.limit_types
         if not newly_limited:
             return
-        limits_validator = plugins.manager.get_limits_validator(plan.offering.type)
-        if limits_validator is None:
+        limit_plan_validator = plugins.manager.get_limit_plan_validator(
+            plan.offering.type
+        )
+        if limit_plan_validator is None:
             return
         try:
-            limits_validator(resource.limits or {})
+            limit_plan_validator(resource.limits or {})
         except rf_exceptions.ValidationError as e:
             raise rf_exceptions.ValidationError(
                 {

@@ -18,7 +18,10 @@ from .utils import get_external_ip
 class MarketplaceTenantCreateSerializer(
     openstack_serializers.OpenStackTenantSerializer
 ):
-    quotas = serializers.JSONField(required=False, default=dict)
+    # 0 is a valid quota for a tenant ordered with zero limits.
+    quotas = serializers.DictField(
+        child=serializers.IntegerField(min_value=0), required=False, default=dict
+    )
     skip_connection_extnet = serializers.BooleanField(default=False)
     skip_creation_of_default_router = serializers.BooleanField(default=False)
     skip_creation_of_default_subnet = serializers.BooleanField(default=False)

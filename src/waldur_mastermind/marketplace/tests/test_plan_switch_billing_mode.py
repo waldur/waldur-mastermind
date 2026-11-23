@@ -310,6 +310,13 @@ class PlanSwitchApiTest(PlanSwitchBillingModeBase):
         self.assertEqual(details["new_plan_billing_mode"], "limit")
         self.assertEqual(details["order_subtype"], "plan_switch")
 
+    def test_switch_to_limit_plan_with_zero_limits_creates_an_order(self):
+        resource = self.make_resource(
+            self.usage_plan, limits={"cores": 0, "ram": 0, "storage": 0}
+        )
+        response = self.switch_plan(resource, self.limit_plan)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     def test_switch_to_usage_plan_needs_no_limits(self):
         resource = self.make_resource(self.limit_plan)
         response = self.switch_plan(resource, self.usage_plan)

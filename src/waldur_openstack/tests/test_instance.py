@@ -128,6 +128,13 @@ class InstanceCreateTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_instance_cannot_be_created_in_a_tenant_with_zero_quotas(self):
+        Quotas = self.tenant.Quotas
+        for quota in (Quotas.vcpu, Quotas.ram, Quotas.storage):
+            self.tenant.set_quota_limit(quota, 0)
+        response = self.create_instance(self.get_valid_data())
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_quotas_update(self):
         response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

@@ -381,6 +381,102 @@ class TenantCreateTest(BaseOpenStackTest):
         tenant: openstack_models.Tenant = order.resource.scope
         self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), -1)
 
+    def test_zero_limits_are_accepted_and_pushed_as_zero(self):
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
+        self.offering.save()
+
+        response = self.create_order(limits={"cores": 0, "ram": 0, "storage": 0})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        marketplace_utils.process_order(order, self.fixture.staff)
+
+        tenant: openstack_models.Tenant = order.resource.scope
+        self.assertEqual(tenant.quota_limits["vcpu"], 0)
+        self.assertEqual(tenant.quota_limits["ram"], 0)
+        self.assertEqual(tenant.quota_limits["storage"], 0)
+
+    def test_omitted_limits_are_created_as_zero(self):
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
+        self.offering.save()
+
+        response = self.create_order(limits={"cores": 4})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        marketplace_utils.process_order(order, self.fixture.staff)
+
+        tenant: openstack_models.Tenant = order.resource.scope
+        self.assertEqual(tenant.quota_limits["vcpu"], 4)
+        self.assertEqual(tenant.quota_limits["ram"], 0)
+        self.assertEqual(tenant.quota_limits["storage"], 0)
+
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.limits, {"cores": 4, "ram": 0, "storage": 0})
+
+    def test_limits_omitted_in_an_order_edit_are_created_as_zero(self):
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
+        self.offering.save()
+        response = self.create_order(limits={"cores": 2, "ram": 1024, "storage": 1024})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        marketplace_models.Order.objects.filter(pk=order.pk).update(
+            state=OrderStates.PENDING_CONSUMER
+        )
+
+        response = self.client.patch(
+            marketplace_factories.OrderFactory.get_url(order),
+            {"limits": {"cores": 4}},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        # Validating the edit does not fill the limits as a side effect.
+        order.resource.refresh_from_db()
+        self.assertEqual(order.resource.limits, {"cores": 4})
+
+        order.refresh_from_db()
+        marketplace_utils.process_order(order, self.fixture.staff)
+
+        tenant: openstack_models.Tenant = order.resource.scope
+        self.assertEqual(tenant.quota_limits["vcpu"], 4)
+        self.assertEqual(tenant.quota_limits["ram"], 0)
+        self.assertEqual(tenant.quota_limits["storage"], 0)
+        order.refresh_from_db()
+        order.resource.refresh_from_db()
+        self.assertEqual(order.limits, {"cores": 4, "ram": 0, "storage": 0})
+        self.assertEqual(order.resource.limits, {"cores": 4, "ram": 0, "storage": 0})
+
+    def test_omitted_limit_billed_by_usage_keeps_the_backend_default(self):
+        self.offering.plugin_options["storage_mode"] = STORAGE_MODE_FIXED
+        self.offering.save()
+        self.offering.components.filter(type__in=[CORES_TYPE, RAM_TYPE]).update(
+            billing_type=BillingTypes.USAGE
+        )
+
+        response = self.create_order(limits={"storage": 100})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.limits, {"storage": 100})
+        quotas = map_limits_to_quotas(order.limits, self.offering)
+        self.assertNotIn("vcpu", quotas)
+        self.assertNotIn("ram", quotas)
+
+    def test_negative_limit_is_rejected(self):
+        response = self.create_order(limits={"cores": -1, "ram": 0, "storage": 0})
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("vcpu", response.data["quotas"])
+
+    def test_fractional_limit_is_rejected(self):
+        response = self.create_order(limits={"cores": 1.5, "ram": 0, "storage": 0})
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("whole number", str(response.data["non_field_errors"]))
+
 
 class TenantMutateTest(test.APITestCase):
     def setUp(self):
@@ -1207,3 +1303,19 @@ class TenantUpdateLimitValidationTest(TenantUpdateLimitTestBase):
     def test_validation_if_value_limit_less_min(self):
         response = self.update_limits(self.fixture.staff, self.resource, {"cores": 1})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_omitted_limits_keep_their_value(self):
+        self.resource.limits = {"cores": 10, "ram": 10240, "storage": 102400}
+        self.resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = marketplace_factories.ResourceFactory.get_url(
+            self.resource, "update_limits"
+        )
+
+        response = self.client.post(url, {"limits": {"ram": 20480}})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = marketplace_models.Order.objects.get(
+            resource=self.resource, type=OrderTypes.UPDATE
+        )
+        self.assertEqual(order.limits, {"cores": 10, "ram": 20480, "storage": 102400})

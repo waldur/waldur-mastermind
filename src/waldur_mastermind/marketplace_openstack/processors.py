@@ -56,8 +56,9 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
                     f"Invalid MTU value: {mtu} in {order.offering}. Skipping."
                 )
 
-        if order.limits:
-            quotas = utils.map_limits_to_quotas(order.limits, order.offering)
+        limits = self.get_filled_limits()
+        if limits:
+            quotas = utils.map_limits_to_quotas(limits, order.offering)
             return dict(quotas=quotas, **payload)
 
         # A plan that bills the builtin components by usage does not require
@@ -72,12 +73,51 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
             _("Order does not contain limits. Quotas are required to create a tenant.")
         )
 
+    def get_filled_limits(self):
+        order = self.order
+        limit_types = billing_mode.resolve_for_order(order).limit_types
+        return utils.fill_omitted_tenant_limits(
+            order.limits, order.offering, limit_types
+        )
+
+    def validate_order(self, request):
+        # An order placed with omitted limits is saved with them filled, so the
+        # provider approves the limits the tenant is created with. An edited
+        # order is validated on a copy, so this is not relied upon:
+        # send_request fills them again.
+        self.order.limits = self.get_filled_limits()
+        super().validate_order(request)
+
+    def send_request(self, user):
+        # The tenant quotas come from the filled limits, and the order and
+        # resource are billed by the same values.
+        order = self.order
+        limits = self.get_filled_limits()
+        if limits != order.limits:
+            order.limits = limits
+            order.save(update_fields=["limits"])
+        resource = order.resource
+        if limits != resource.limits:
+            resource.limits = limits
+            resource.save(update_fields=["limits"])
+        return super().send_request(user)
+
     @classmethod
     def get_resource_model(cls):
         return openstack_models.Tenant
 
 
 class TenantUpdateProcessor(processors.UpdateScopedResourceProcessor):
+    def validate_order(self, request):
+        # A limit omitted from the update keeps its current value: the backend
+        # quota is left unchanged, so the resource limits have to be too.
+        if self.is_update_limit_order():
+            self.order.limits = {
+                **(self.order.resource.limits or {}),
+                **(self.order.limits or {}),
+            }
+        super().validate_order(request)
+
     def update_limits_process(self, user):
         scope = self.get_resource()
         if not scope or not isinstance(scope, openstack_models.Tenant):
