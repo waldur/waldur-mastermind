@@ -1480,6 +1480,14 @@ def terminate_resources_if_project_end_date_has_been_reached():
                 f"Project end date has been reached on {today}; "
                 "grace period disabled for this offering."
             )
+            # An offering with disabled grace must stop taking new work
+            # on the raw project end date, not wait for the full grace window.
+            for resource in grace_disabled_resources.filter(
+                paused=False,
+                offering__plugin_options__supports_pausing=True,
+                offering__plugin_options__block_new_submissions_on_expiry=True,
+            ):
+                utils.pause_for_project_expiration(resource)
             utils.schedule_resources_termination(
                 grace_disabled_resources,
                 termination_comment=termination_comment,
