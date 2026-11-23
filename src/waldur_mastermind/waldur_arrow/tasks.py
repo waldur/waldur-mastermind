@@ -956,12 +956,21 @@ def _reconcile_consumption_record(
     return changed
 
 
+def _month_name(period) -> str:
+    """October 2026, for a date or a YYYY-MM string."""
+    if isinstance(period, str):
+        try:
+            year, month = map(int, period.split("-")[:2])
+        except ValueError:
+            return period
+        period = date(year, month, 1)
+    return period.strftime("%B %Y")
+
+
 def _compensation_name(record, adjustment: Decimal, prefix: str) -> str:
-    kind = "additional charge" if adjustment > 0 else "credit"
-    return (
-        f"{prefix} adjustment: {record.resource.name} "
-        f"({kind} for {record.billing_period})"
-    )[:255]
+    # The invoice lists the item under its resource, and the amount's sign
+    # tells a charge from a credit: the name only says which month it fixes.
+    return f"{prefix} adjustment for {_month_name(record.billing_period)}"[:255]
 
 
 def _compensation_details(record, invoiced: Decimal, adjustment: Decimal) -> dict:
@@ -1566,12 +1575,10 @@ def _reconcile_sync(
                 continue
 
             # Create compensation invoice item
-            if price_diff > 0:
-                description = (
-                    f"{prefix} adjustment: {item.description} (additional charge)"
-                )
-            else:
-                description = f"{prefix} adjustment: {item.description} (credit)"
+            description = (
+                f"{prefix} adjustment for {_month_name(sync.report_period)}: "
+                f"{item.description}"
+            )
 
             # Carry over resource/project from original invoice item
             original_resource = (
