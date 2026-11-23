@@ -3332,6 +3332,23 @@ class CategoryFilter(django_filters.FilterSet):
         return queryset.filter(offerings__in=accessible_offerings).distinct()
 
 
+class SectionFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.Section
+        fields = []
+
+    category = core_filters.URLFilter(
+        view_name="marketplace-category-detail",
+        field_name="category__uuid",
+        label="Category URL",
+    )
+    category_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-category-detail",
+        field_name="category__uuid",
+        label="Category UUID",
+    )
+
+
 class AttributeFilter(django_filters.FilterSet):
     class Meta:
         model = models.Attribute

@@ -121,3 +121,52 @@ class SectionDeleteTest(test.APITestCase):
         url = factories.SectionFactory.get_url(self.section)
         response = self.client.delete(url)
         return response
+
+
+class SectionKeyTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.client.force_authenticate(self.fixture.staff)
+        self.category = factories.CategoryFactory(title="HPC Services")
+
+    def create(self, **payload):
+        payload.setdefault("category", factories.CategoryFactory.get_url(self.category))
+        return self.client.post(factories.SectionFactory.get_list_url(), payload)
+
+    def test_key_is_generated_from_category_and_title(self):
+        response = self.create(title="Support Team")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["key"], "hpc_services_support_team")
+
+    def test_generated_key_is_numbered_when_taken(self):
+        self.create(title="Support")
+        response = self.create(title="Support")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["key"], "hpc_services_support_2")
+
+    def test_title_without_slug_characters_falls_back(self):
+        category = factories.CategoryFactory(title="Ж")
+        response = self.create(
+            title="Поддержка", category=factories.CategoryFactory.get_url(category)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertTrue(response.data["key"].startswith("section_"))
+
+    def test_key_cannot_be_changed(self):
+        section = factories.SectionFactory(key="original", category=self.category)
+        response = self.client.patch(
+            factories.SectionFactory.get_url(section=section), {"key": "renamed"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            list(models.Section.objects.values_list("key", flat=True)), ["original"]
+        )
+
+    def test_filter_by_category(self):
+        factories.SectionFactory(key="mine", category=self.category)
+        factories.SectionFactory(key="other")
+        response = self.client.get(
+            factories.SectionFactory.get_list_url(),
+            {"category_uuid": self.category.uuid.hex},
+        )
+        self.assertEqual([s["key"] for s in response.data], ["mine"])
