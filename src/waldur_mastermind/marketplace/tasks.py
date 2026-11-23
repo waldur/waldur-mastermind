@@ -1500,6 +1500,18 @@ def terminate_resources_if_project_end_date_has_been_reached():
         project_resources = models.Resource.objects.filter(project=project)
         active_resources = project_resources.exclude(state=ResourceStates.TERMINATED)
 
+        # A failed termination order must not leave an expired allocation
+        # accepting new jobs. The site-agent offering explicitly opts in to
+        # submission-only pausing (GrpSubmitJobs=0, without changing QoS).
+        # Keep the pause across failed orders and their daily retries.
+        resources_to_block = active_resources.filter(
+            paused=False,
+            offering__plugin_options__supports_pausing=True,
+            offering__plugin_options__block_new_submissions_on_expiry=True,
+        ).exclude(state=ResourceStates.TERMINATING)
+        for resource in resources_to_block:
+            utils.pause_for_project_expiration(resource)
+
         if not active_resources:
             event_logger.emit(
                 "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
