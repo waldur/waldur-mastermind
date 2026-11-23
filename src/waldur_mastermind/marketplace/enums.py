@@ -653,6 +653,11 @@ REMOTE_OFFERING = "Waldur.RemoteOffering"
 SCRIPT_OFFERING = "Marketplace.Script"
 SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
 SITE_AGENT_OFFERING = "Marketplace.SiteAgent"
+# Mode the site agent registers for usage reporting, both the long-running
+# report process and the one-shot command. The User-Agent is
+# ``waldur-site-agent-<mode>/<version>``, so the mark is that same mode.
+REPORT_SERVICE_MODE = "report"
+USAGE_REPORTING_AGENT_MARK = f"waldur-site-agent-{REPORT_SERVICE_MODE}"
 # Former name of the site-agent type, from when the agent only drove SLURM.
 # Accepted on every input path and resolved to SITE_AGENT_OFFERING; never
 # stored or returned.

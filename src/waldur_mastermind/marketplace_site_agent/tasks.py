@@ -98,11 +98,19 @@ def sync_offering_users():
     name="waldur_mastermind.marketplace_site_agent.mark_offering_backend_as_disconnected_after_timeout"
 )
 def mark_offering_backend_as_disconnected_after_timeout():
+    """Mark site-agent integrations Disconnected after an hour without a request.
+
+    Usage reporting is not one of these. A provider pushes usage on their own
+    schedule, including a one-shot run days apart, and silence is not a dropped
+    connection. The row keeps the time of the last report-agent request.
+    """
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
     integration_statuses = marketplace_models.IntegrationStatus.objects.filter(
         status=marketplace_models.IntegrationStatus.States.ACTIVE,
         offering__type=SITE_AGENT_OFFERING,
         last_request_timestamp__lt=one_hour_ago,
+    ).exclude(
+        agent_type=marketplace_models.IntegrationStatus.AgentTypes.USAGE_REPORTING
     )
     for integration_status in integration_statuses:
         integration_status.set_backend_disconnected()
@@ -201,6 +209,13 @@ def send_messages_about_pending_orders():
     name="waldur_mastermind.marketplace_site_agent.mark_agent_services_as_inactive"
 )
 def mark_agent_services_as_inactive():
+    """Mark a daemon agent service Idle after 10 minutes without a processor run.
+
+    The report service is exempt. Usage reporting runs when the provider's
+    accounting run finishes and then exits, so a quiet ``report`` service is
+    not an idle daemon. Its processor ``last_run`` stays the record of the
+    last report.
+    """
     threshold = timezone.now() - datetime.timedelta(minutes=10)
 
     # Aggregate the latest processor run per service in a single query instead of
@@ -209,6 +224,7 @@ def mark_agent_services_as_inactive():
     # have never run as well as services without any processors at all.
     stale_agent_services = list(
         models.AgentService.objects.filter(state=enums.AgentServiceState.ACTIVE)
+        .exclude(mode=enums.REPORT_SERVICE_MODE)
         .annotate(last_processor_run=Max("agentprocessor__last_run"))
         .filter(last_processor_run__lte=threshold)
     )
