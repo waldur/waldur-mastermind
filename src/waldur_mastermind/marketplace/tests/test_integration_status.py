@@ -1,4 +1,7 @@
+import datetime
+
 from ddt import data, ddt
+from django.utils import timezone
 from rest_framework import test
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -77,7 +80,7 @@ class IntegrationStatusCreationTest(test.APITestCase):
             ).count(),
         )
         response = self.client.get(
-            url, headers={"USER_AGENT": "waldur-site-agent/1.0.0"}
+            url, headers={"USER_AGENT": "waldur-site-agent-report/1.0.0"}
         )
         self.assertEqual(200, response.status_code)
 
@@ -114,7 +117,7 @@ class IntegrationStatusCreationTest(test.APITestCase):
             ).count(),
         )
         response = self.client.get(
-            url, headers={"USER_AGENT": "waldur-site-agent/1.0.0"}
+            url, headers={"USER_AGENT": "waldur-site-agent-report/1.0.0"}
         )
         self.assertEqual(200, response.status_code)
 
@@ -125,6 +128,54 @@ class IntegrationStatusCreationTest(test.APITestCase):
                 agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
             ).count(),
         )
+
+    def test_other_site_agent_modes_do_not_refresh_usage_reporting(self):
+        """Membership sync and the event agent list the same resources.
+
+        That list keeps resource sync current. It must not move the
+        usage-reporting timestamp, or a daily reporter looks freshly reported
+        for as long as another mode keeps listing.
+        """
+        url = (
+            factories.ResourceFactory.get_list_url()
+            + f"?offering_uuid={self.offering.uuid.hex}"
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        usage_status = factories.IntegrationStatusFactory(
+            offering=self.offering,
+            agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING,
+            status=models.IntegrationStatus.States.ACTIVE,
+            service_name="waldur-site-agent-report/0.9.0",
+        )
+        usage_status.last_request_timestamp = timezone.now() - datetime.timedelta(
+            days=3
+        )
+        usage_status.save(update_fields=["last_request_timestamp", "service_name"])
+        reported_at = usage_status.last_request_timestamp
+
+        response = self.client.get(
+            url,
+            headers={"USER_AGENT": "waldur-site-agent-membership_sync/1.0.0"},
+        )
+        self.assertEqual(200, response.status_code)
+
+        usage_status.refresh_from_db()
+        self.assertEqual(usage_status.last_request_timestamp, reported_at)
+        self.assertEqual(usage_status.service_name, "waldur-site-agent-report/0.9.0")
+        self.assertTrue(
+            models.IntegrationStatus.objects.filter(
+                offering=self.offering,
+                agent_type=models.IntegrationStatus.AgentTypes.RESOURCE_SYNC,
+                status=models.IntegrationStatus.States.ACTIVE,
+            ).exists()
+        )
+
+        response = self.client.get(
+            url, headers={"USER_AGENT": "waldur-site-agent/1.0.0"}
+        )
+        self.assertEqual(200, response.status_code)
+        usage_status.refresh_from_db()
+        self.assertEqual(usage_status.last_request_timestamp, reported_at)
 
 
 @ddt

@@ -97,6 +97,7 @@ from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     SUPPORT_OFFERING,
+    USAGE_REPORTING_AGENT_MARK,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -6110,8 +6111,19 @@ def can_update_offering_in_any_scope(
 
 
 def refresh_integration_agent_status(request, agent_type):
+    """Record a site-agent request against one integration row.
+
+    Listing resources is how several modes talk to Waldur. Only the report
+    agent's User-Agent may refresh usage reporting. A membership-sync or
+    event-agent list would otherwise make that row look freshly reported.
+    """
     user_agent = core_utils.get_user_agent(request)
     if "waldur-site-agent" not in user_agent:
+        return
+    if (
+        agent_type == models.IntegrationStatus.AgentTypes.USAGE_REPORTING
+        and USAGE_REPORTING_AGENT_MARK not in user_agent
+    ):
         return
 
     offering_uuid = request.query_params.get("offering_uuid")
