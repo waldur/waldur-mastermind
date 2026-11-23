@@ -598,6 +598,30 @@ class ImportStructureCommandTest(TestCase):
                 )
                 self.assertEqual(offering.agent_configuration, {})
 
+    def test_import_keeps_agent_settings(self):
+        agent_configuration = {
+            "agent_settings": {
+                "resource_import_enabled": True,
+                "omit_anomalous_usage_components": False,
+            }
+        }
+        offering = self._import_offering(
+            type=SITE_AGENT_OFFERING, agent_configuration=agent_configuration
+        )
+        self.assertEqual(offering.agent_configuration, agent_configuration)
+
+    def test_import_leaves_out_invalid_agent_settings(self):
+        for index, agent_settings in enumerate(
+            ({"verify_ssl": False}, {"resource_import_enabled": "yes"})
+        ):
+            with self.subTest(agent_settings=agent_settings):
+                offering = self._import_offering(
+                    uuid=f"ffffffff-ffff-ffff-ffff-fffffffffff{index}",
+                    type=SITE_AGENT_OFFERING,
+                    agent_configuration={"agent_settings": agent_settings},
+                )
+                self.assertEqual(offering.agent_configuration, {})
+
     def test_import_keeps_a_component_named_like_a_credential(self):
         agent_configuration = {
             "backend_components": {"license_key": {"unit_factor_reporting": 1}}

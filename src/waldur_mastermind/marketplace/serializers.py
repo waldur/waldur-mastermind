@@ -343,7 +343,8 @@ def validate_agent_configuration_trust(request, offering, customer, old, new):
     """Refuse a change to where the site agent connects or what it runs without
     OFFERING.UPDATE_AGENT_CONFIGURATION.
 
-    That is a change of role backend, custom backends or an event setting, of a
+    That is a change of role backend, custom backends, an event setting or an
+    agent setting that decides what the agent imports or removes, of a
     backend setting or component field the plugin catalogue marks sensitive, or
     of a backend setting the schemas of the backends in use do not declare
     (see trust_sensitive_changes); the rest of the configuration needs only the
@@ -19401,6 +19402,71 @@ class SiteAgentConfigSecretSerializer(serializers.Serializer):
     env_var = serializers.CharField(
         allow_null=True,
         help_text="The variable the placeholder names, with secret_format=env.",
+    )
+
+
+class SiteAgentOfferingSettingsSerializer(
+    site_agent_configuration.EventSettingsSerializer,
+    site_agent_configuration.AgentSettingsSerializer,
+):
+    """One offering of the site agent's configuration, without its secrets.
+
+    The offering block of generate_site_agent_config, without waldur_api_url,
+    waldur_api_token and waldur_offering_uuid. Event and agent settings are
+    present only when set.
+    """
+
+    name = serializers.CharField()
+    backend_type = serializers.CharField(
+        help_text="The backend of the first role set, in role order."
+    )
+    order_processing_backend = serializers.CharField(required=False)
+    membership_sync_backend = serializers.CharField(required=False)
+    reporting_backend = serializers.CharField(required=False)
+    username_management_backend = serializers.CharField(required=False)
+    backend_settings = serializers.DictField(
+        help_text="Settings of the backends, with their secrets left out."
+    )
+    backend_components = serializers.DictField(
+        child=serializers.DictField(),
+        help_text="The offering's components by type, as the agent reads them.",
+    )
+    policy_settings = serializers.DictField(
+        required=False,
+        help_text="The offering's SLURM periodic usage policy, if it has one.",
+    )
+
+
+class SiteAgentOfferingSecretSerializer(serializers.Serializer):
+    """A backend secret the agent keeps in its own configuration."""
+
+    field = serializers.CharField(
+        help_text="Where the secret goes in the offering, such as "
+        "backend_settings.ldap.bind_password."
+    )
+    backend = serializers.CharField(help_text="The backend that reads it.")
+    requirement = serializers.ChoiceField(
+        choices=[
+            site_agent_configuration.REQUIRED,
+            site_agent_configuration.REQUIRED_WITH_PARENT,
+            site_agent_configuration.OPTIONAL,
+        ],
+        help_text="required_with_parent: needed once the block it sits in is set.",
+    )
+
+
+class SiteAgentOfferingConfigSerializer(serializers.Serializer):
+    """What a site agent loads for one offering."""
+
+    offering = SiteAgentOfferingSettingsSerializer()
+    secrets = SiteAgentOfferingSecretSerializer(
+        many=True,
+        help_text="The backend secrets the offering's backends declare; none of "
+        "them is in offering.",
+    )
+    version = serializers.CharField(
+        help_text="sha256 of offering as canonical JSON (sorted keys, no "
+        "whitespace); changes when, and only when, offering does."
     )
 
 

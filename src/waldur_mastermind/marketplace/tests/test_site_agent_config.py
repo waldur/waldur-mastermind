@@ -1,3 +1,5 @@
+import hashlib
+import json
 import string
 
 import yaml
@@ -5,7 +7,12 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ServiceProviderRole,
+)
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SITE_AGENT_OFFERING,
@@ -20,6 +27,8 @@ from waldur_mastermind.marketplace.views import (
 from waldur_mastermind.marketplace_site_agent import (
     agent_configuration as site_agent_configuration,
 )
+from waldur_mastermind.marketplace_site_agent import config_builder
+from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 
 
 @ddt
@@ -898,3 +907,371 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
         self.assertEqual(components["cpu"]["unit_factor"], 60)
         self.assertEqual(components["cpu"]["unit_factor_reporting"], 2)
         self.assertEqual(components["mem"]["unit_factor"], 1024)
+
+
+class SiteAgentOfferingConfigTest(test.APITestCase):
+    """The configuration a site agent loads for its offering (#1287)."""
+
+    setUp_generator = SiteAgentConfigGenerationTest.setUp
+    _use_dwdi_reporting = SiteAgentConfigFromAgentConfigurationTest._use_dwdi_reporting
+
+    def setUp(self):
+        self.setUp_generator()
+        # Test roles do not load permissions.yaml, which grants it to these.
+        for role in (CustomerRole.OWNER, OfferingRole.MANAGER):
+            role.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        self.offering_manager = structure_factories.UserFactory()
+        self.slurm_offering.add_user(self.offering_manager, OfferingRole.MANAGER)
+
+    def _get(self, user=None, offering=None):
+        self.client.force_authenticate(user or self.offering_manager)
+        return self.client.get(
+            factories.OfferingFactory.get_url(
+                offering or self.slurm_offering, "site_agent_config"
+            )
+        )
+
+    def _config(self):
+        response = self._get()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return json.loads(response.content)
+
+    def _generated(self, **extra):
+        """The generator's offering block and its secrets, for the same offering."""
+        self.client.force_authenticate(self.fixture.offering_owner)
+        body = {"offering_uuids": [str(self.slurm_offering.uuid)], **extra}
+        response = self.client.post(
+            factories.ServiceProviderFactory.get_url(
+                self.service_provider, "generate_site_agent_config"
+            ),
+            body,
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        block = yaml.safe_load(response.content)["offerings"][0]
+        response = self.client.post(
+            factories.ServiceProviderFactory.get_url(
+                self.service_provider, "site_agent_config_secrets"
+            ),
+            body,
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return block, response.data
+
+    def _generated_without_placeholders(self):
+        """The generator's offering block minus bootstrap fields and placeholders."""
+        block, secrets = self._generated()
+        for field in config_builder.BOOTSTRAP_FIELDS:
+            del block[field]
+        for secret in secrets:
+            if not secret["in_file"] or secret["field"] == "waldur_api_token":
+                continue
+            *parents, leaf = secret["field"].split(".")
+            node = block
+            for part in parents:
+                node = node[part]
+            del node[leaf]
+        settings = block["backend_settings"]
+        if settings.get("hostname") == config_builder.LEGACY_HOSTNAME_PLACEHOLDER:
+            del settings["hostname"]
+        return block
+
+    def _configure_everything(self):
+        """Roles, a required secret's block, event and agent settings, a policy."""
+        self._use_dwdi_reporting()
+        configuration = self.slurm_offering.agent_configuration
+        configuration["username_management_backend"] = "ldap"
+        configuration["backend_settings"]["ldap"] = {"uri": "ldap://ldap.example.com"}
+        configuration["event_settings"] = {
+            "stomp_enabled": True,
+            "stomp_ws_host": "waldur.example.com",
+            "stomp_ws_port": 443,
+        }
+        configuration["agent_settings"] = {
+            "resource_import_enabled": True,
+            "omit_anomalous_usage_components": False,
+        }
+        self.slurm_offering.save()
+        self.cpu_component.limit_amount = 100
+        self.cpu_component.save()
+        SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.slurm_offering,
+            actions="notify_organization_owners",
+            limit_type="GrpTRESMins",
+            tres_billing_weights={"CPU": 0.015625},
+            grace_ratio=0.2,
+        )
+
+    def test_offering_manager_reads_the_configuration(self):
+        config = self._config()
+
+        self.assertEqual(set(config), {"offering", "secrets", "version"})
+        self.assertEqual(config["offering"]["name"], "Test SLURM Cluster")
+
+    def test_who_may_read_it(self):
+        provider_manager = structure_factories.UserFactory()
+        self.service_provider.add_user(provider_manager, ServiceProviderRole.MANAGER)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION
+        )
+        support = structure_factories.UserFactory()
+        self.slurm_offering.customer.add_user(support, CustomerRole.SUPPORT)
+        for label, user, allowed in (
+            ("offering manager", self.offering_manager, True),
+            ("owner", self.fixture.offering_owner, True),
+            ("service provider manager", provider_manager, True),
+            ("staff", structure_factories.UserFactory(is_staff=True), True),
+            ("customer support", support, False),
+            ("unrelated user", structure_factories.UserFactory(), False),
+            ("consumer", self.fixture.owner, False),
+        ):
+            with self.subTest(label):
+                response = self._get(user)
+
+                if allowed:
+                    self.assertEqual(response.status_code, status.HTTP_200_OK)
+                else:
+                    self.assertIn(
+                        response.status_code,
+                        (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+                    )
+
+    def test_offering_manager_without_the_permission_is_refused(self):
+        OfferingRole.MANAGER.delete_permission(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION
+        )
+
+        response = self._get()
+
+        self.assertIn(
+            response.status_code,
+            (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
+        )
+
+    def test_other_offering_types_are_refused(self):
+        offering = factories.OfferingFactory(
+            type=BASIC_OFFERING, customer=self.fixture.offering_customer
+        )
+
+        response = self._get(self.fixture.offering_owner, offering)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_offering_is_the_generators_block_without_placeholders(self):
+        for label in ("legacy", "legacy without hostname", "configured"):
+            with self.subTest(label):
+                if label == "legacy without hostname":
+                    self.slurm_offering.plugin_options.pop("hostname")
+                    self.slurm_offering.save()
+                elif label == "configured":
+                    self._configure_everything()
+
+                self.assertEqual(
+                    self._config()["offering"], self._generated_without_placeholders()
+                )
+
+    def test_agent_settings_are_written_at_the_offering_level(self):
+        self._configure_everything()
+
+        block, _ = self._generated()
+        offering = self._config()["offering"]
+
+        for config in (block, offering):
+            self.assertIs(config["resource_import_enabled"], True)
+            self.assertIs(config["omit_anomalous_usage_components"], False)
+            self.assertNotIn("username_reconciliation_enabled", config)
+            self.assertNotIn("agent_settings", config)
+        keys = list(block)
+        self.assertLess(
+            keys.index("stomp_ws_port"), keys.index("resource_import_enabled")
+        )
+        self.assertLess(
+            keys.index("resource_import_enabled"), keys.index("backend_settings")
+        )
+
+    def test_secrets_are_listed_not_included(self):
+        self._configure_everything()
+
+        config = self._config()
+
+        self.assertEqual(
+            config["secrets"],
+            [
+                # In the order of the backends' roles.
+                {
+                    "field": "backend_settings.ldap.bind_password",
+                    "backend": "slurm",
+                    "requirement": "required",
+                },
+                {
+                    "field": "backend_settings.cscs_dwdi_client_secret",
+                    "backend": "cscs-dwdi-compute",
+                    "requirement": "required",
+                },
+                # Optional: listed though its block is not set.
+                {
+                    "field": "backend_settings.ldap.welcome_email.smtp_password",
+                    "backend": "ldap",
+                    "requirement": "optional",
+                },
+            ],
+        )
+        settings = config["offering"]["backend_settings"]
+        self.assertNotIn("cscs_dwdi_client_secret", settings)
+        self.assertEqual(settings["ldap"], {"uri": "ldap://ldap.example.com"})
+        # The same secrets as the generator's, apart from the API token.
+        _, generated = self._generated()
+        self.assertEqual(
+            sorted(
+                (s["field"], s["backend"], s["requirement"])
+                for s in generated
+                if s["field"] != "waldur_api_token"
+            ),
+            sorted(
+                (s["field"], s["backend"], s["requirement"]) for s in config["secrets"]
+            ),
+        )
+
+    def test_legacy_offering_lists_the_optional_ldap_secret(self):
+        config = self._config()
+
+        self.assertEqual(
+            config["secrets"],
+            [
+                {
+                    "field": "backend_settings.ldap.bind_password",
+                    "backend": "slurm",
+                    "requirement": "required_with_parent",
+                }
+            ],
+        )
+
+    def test_no_secret_value_or_placeholder_is_returned(self):
+        # Written straight to the database, past the serializers that refuse it.
+        self._configure_everything()
+        configuration = self.slurm_offering.agent_configuration
+        configuration["backend_settings"]["cscs_dwdi_client_secret"] = "leaked-1"
+        configuration["backend_settings"]["ldap"]["bind_password"] = "leaked-2"
+        self.slurm_offering.secret_options = {
+            "cscs_dwdi_client_secret": "leaked-3",
+            "api_token": "leaked-4",
+        }
+        self.slurm_offering.plugin_options["password"] = "leaked-5"
+        self.slurm_offering.save()
+
+        content = self._get().content.decode()
+
+        for text in ("leaked", "__waldur_agent_secret", "SECRET", "${", "<YOUR_"):
+            self.assertNotIn(text, content)
+        for field in config_builder.BOOTSTRAP_FIELDS:
+            self.assertNotIn(field, content)
+
+    def test_component_secrets_are_never_returned(self):
+        # Written straight to the database, past the serializer that refuses it.
+        self._use_dwdi_reporting()
+        self.slurm_offering.agent_configuration["backend_components"] = {
+            "cpu": {
+                "unit_factor_reporting": 1,
+                "api_token": "leaked-1",
+                "nested": {"password": "leaked-2"},
+            }
+        }
+        self.slurm_offering.save()
+
+        block, _ = self._generated()
+        offering = self._config()["offering"]
+
+        for config in (block, offering):
+            cpu = config["backend_components"]["cpu"]
+            self.assertEqual(cpu["unit_factor_reporting"], 1)
+            self.assertNotIn("api_token", cpu)
+            self.assertEqual(cpu["nested"], {})
+        self.assertNotIn("leaked", self._get().content.decode())
+        self.assertEqual(offering, self._generated_without_placeholders())
+
+    def test_version_is_the_hash_of_the_canonical_offering(self):
+        config = self._config()
+
+        canonical = json.dumps(
+            config["offering"], sort_keys=True, separators=(",", ":")
+        )
+        self.assertEqual(
+            config["version"], hashlib.sha256(canonical.encode()).hexdigest()
+        )
+
+    def test_version_changes_when_and_only_when_the_offering_does(self):
+        first = self._config()
+
+        self.assertEqual(self._config(), first)
+
+        # Not part of what the agent loads.
+        self.slurm_offering.description = "Another description"
+        self.slurm_offering.secret_options = {"cscs_dwdi_client_secret": "x"}
+        self.slurm_offering.save()
+        self.assertEqual(self._config()["version"], first["version"])
+
+        self.cpu_component.unit_factor = 30
+        self.cpu_component.save()
+        second = self._config()
+        self.assertNotEqual(second["offering"], first["offering"])
+        self.assertNotEqual(second["version"], first["version"])
+
+        self.slurm_offering.agent_configuration = {
+            "agent_settings": {"omit_anomalous_usage_components": True}
+        }
+        self.slurm_offering.save()
+        third = self._config()
+        self.assertIs(third["offering"]["omit_anomalous_usage_components"], True)
+        self.assertNotEqual(third["version"], second["version"])
+
+    def test_unset_event_setting_stored_as_null_does_not_change_the_version(self):
+        # Saving a configuration back as it was read stores the unset setting
+        # as null; the agent reads both as unset.
+        self.slurm_offering.agent_configuration = {
+            "event_settings": {"stomp_enabled": False}
+        }
+        self.slurm_offering.save()
+        first = self._config()
+
+        self.slurm_offering.agent_configuration = {
+            "event_settings": {
+                "stomp_enabled": False,
+                "stomp_membership_sync_enabled": None,
+            }
+        }
+        self.slurm_offering.save()
+        second = self._config()
+
+        self.assertNotIn("stomp_membership_sync_enabled", second["offering"])
+        self.assertEqual(second["version"], first["version"])
+
+    def test_legacy_offering_runs_slurm_with_its_defaults(self):
+        self.slurm_offering.plugin_options = {}
+        self.slurm_offering.save()
+
+        offering = self._config()["offering"]
+
+        self.assertEqual(offering["backend_type"], "slurm")
+        for field in config_builder.AGENT_ROLE_FIELDS:
+            self.assertEqual(offering[field], "slurm")
+        self.assertEqual(
+            offering["backend_settings"],
+            {
+                "default_account": "root",
+                "customer_prefix": "",
+                "project_prefix": "",
+                "allocation_prefix": "",
+                "qos_downscaled": "limited",
+                "qos_paused": "paused",
+                "qos_default": "normal",
+                "enable_user_homedir_account_creation": False,
+            },
+        )
+
+    def test_legacy_offering_keeps_a_hostname_it_sets(self):
+        offering = self._config()["offering"]
+
+        self.assertEqual(
+            offering["backend_settings"]["hostname"], "slurm.test.example.com"
+        )
