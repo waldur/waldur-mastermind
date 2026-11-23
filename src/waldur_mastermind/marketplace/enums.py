@@ -775,3 +775,19 @@ class S3BrowserFlavors:
         (MINIO, "MinIO-compatible (MinIO, RustFS)"),
         (GARAGE, "Garage"),
     )
+
+
+class OrderFlowChoices:
+    """Choice sets of the offering order-flow description."""
+
+    STEPS = (
+        "placed",
+        "consumer_review",
+        "project_start",
+        "provider_review",
+        "start_date",
+        "execution",
+        "done",
+    )
+    ACTORS = ("consumer", "provider", "scheduler", "backend")
+    TERMINALS = ("rejected", "canceled", "erred")

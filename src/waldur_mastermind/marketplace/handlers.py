@@ -255,11 +255,15 @@ def notify_approvers_when_order_is_created(
             # timestamp and cost one extra UPDATE per granted resource.
             if order.consumer_reviewed_by_id is None:
                 order.review_by_consumer(order.created_by)
-            if order.project.start_date and order.project.start_date > now().date():
-                order.state = OrderStates.PENDING_PROJECT
+            next_state = utils.next_order_state(order)
+            if next_state in (
+                OrderStates.PENDING_PROJECT,
+                OrderStates.PENDING_START_DATE,
+            ):
+                order.state = next_state
                 order.save(update_fields=["state"])
                 return
-            if utils.order_should_not_be_reviewed_by_provider(order):
+            if next_state == OrderStates.EXECUTING:
                 order.set_state_executing()
                 order.save()
                 logger.info(

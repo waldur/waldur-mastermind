@@ -6,6 +6,7 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
 from waldur_core.structure import models as structure_models
@@ -242,6 +243,7 @@ class ProjectStartDateTest(test.APITestCase):
         self.assertEqual(OrderStates.DONE, self.order.state)
         self.assertEqual(ResourceStates.OK, self.order.resource.state)
 
+    @override_config(ENABLE_ORDER_START_DATE=True)
     def test_order_moves_to_pending_start_date_when_project_starts(self):
         # Arrange: The project is ready, but the order has its own future start date.
         self.order.start_date = timezone.now().date() + datetime.timedelta(days=5)
@@ -259,6 +261,23 @@ class ProjectStartDateTest(test.APITestCase):
         # Assert: The order should now be waiting for its own start date.
         self.order.refresh_from_db()
         self.assertEqual(OrderStates.PENDING_START_DATE, self.order.state)
+
+    @override_config(ENABLE_ORDER_START_DATE=False)
+    def test_order_start_date_is_ignored_when_project_starts_if_disabled(self):
+        self.order.start_date = timezone.now().date() + datetime.timedelta(days=5)
+        self.order.save()
+
+        with (
+            mock.patch(
+                "waldur_mastermind.marketplace.utils.order_should_not_be_reviewed_by_provider",
+                return_value=True,
+            ),
+            mock.patch("waldur_mastermind.marketplace.tasks.process_order_on_commit"),
+        ):
+            tasks.process_pending_project_orders()
+
+        self.order.refresh_from_db()
+        self.assertEqual(OrderStates.EXECUTING, self.order.state)
 
     def test_order_moves_to_pending_provider_when_project_starts(self):
         # Arrange: The project is ready, but the offering requires provider review.
