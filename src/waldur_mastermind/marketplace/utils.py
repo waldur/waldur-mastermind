@@ -2904,22 +2904,55 @@ def release_project_grace_pauses(resources) -> list:
     return unpaused
 
 
-def filter_resources_for_usage_stats(resources, include_terminated=False):
+def filter_resources_for_usage_stats(
+    resources, include_terminated=False, for_current_month=False
+):
     """Narrow `resources` to the ones the stats endpoints aggregate.
 
     Terminated resources are left out unless `include_terminated` is set, and
-    even then only those with usage reported in the current month are kept:
-    nothing older is counted, so loading every resource the scope ever had
-    would only cost queries.
+    even then only those with usage in a period `get_components_usage_data`
+    can count are kept: this month for `for_current_month`, else the current
+    limit period of the usage's component, as `_in_usage_period` checks it.
+    Older usage is never counted, so loading every resource the scope ever
+    had would only cost queries: each one kept costs several per component.
+
+    The component's own `limit_period` is used, not the one a plan's billing
+    mode resolves to. A plan only ever narrows it to a month, so the rows
+    kept here are a superset of the rows counted.
     """
     terminated = models.Resource.States.TERMINATED
     if not include_terminated:
         return resources.exclude(state=terminated)
     today = datetime.date.today()
-    with_usage_this_month = models.ComponentUsage.objects.filter(
-        billing_period__year=today.year, billing_period__month=today.month
-    ).values("resource_id")
-    return resources.filter(~Q(state=terminated) | Q(id__in=with_usage_this_month))
+    this_month = Q(billing_period__year=today.year, billing_period__month=today.month)
+    if for_current_month:
+        in_period = this_month
+    else:
+        in_period = (
+            Q(component__limit_period=LimitPeriods.MONTH) & this_month
+            | Q(
+                component__limit_period=LimitPeriods.QUARTERLY,
+                billing_period__gte=_billing_period_date(
+                    core_utils.get_current_quarter_start()
+                ),
+                billing_period__lte=_billing_period_date(
+                    core_utils.get_current_quarter_end()
+                ),
+            )
+            | Q(
+                component__limit_period=LimitPeriods.ANNUAL,
+                billing_period__year__gte=today.year,
+            )
+            | ~Q(
+                component__limit_period__in=(
+                    LimitPeriods.MONTH,
+                    LimitPeriods.QUARTERLY,
+                    LimitPeriods.ANNUAL,
+                )
+            )
+        )
+    with_usage = models.ComponentUsage.objects.filter(in_period).values("resource_id")
+    return resources.filter(~Q(state=terminated) | Q(id__in=with_usage))
 
 
 def get_components_usage_data(resources, for_current_month=False):
@@ -2934,10 +2967,17 @@ def get_components_usage_data(resources, for_current_month=False):
     1024 before returning so the caller always receives GB.
 
     Terminated resources (present only when the caller asked for them) never
-    add to `limit`, which is the cap the scope holds now, and contribute only
-    usage reported in the current month. Their share of `usage` and
-    `limit_usage` is also reported as `usage_terminated` and
-    `limit_usage_terminated`.
+    add to `limit`, which is the cap the scope holds now. Their usage counts
+    over the same period as an active resource's, so a resource terminated
+    earlier in a quarter or year still adds its usage of that period:
+    a limit-billed component its usage in the component's limit period, and a
+    usage-billed one its latest month, as long as that month lies in the
+    component's current limit period, so that a resource gone for years does
+    not keep its last month forever. A component with a total limit period
+    has no such bound: its period is the whole history, so a terminated
+    resource keeps its latest month there, as for a limit-billed one it keeps
+    the sum of its history. Their share of `usage` and `limit_usage`
+    is also reported as `usage_terminated` and `limit_usage_terminated`.
     """
     MB_COMPONENT_TYPES = get_mb_component_types()
 
@@ -2988,17 +3028,14 @@ def get_components_usage_data(resources, for_current_month=False):
 
         for component in usage_components:
             key = (component.type, BillingTypes.USAGE)
-            if for_current_month or is_terminated:
+            if for_current_month:
                 usages = models.ComponentUsage.objects.filter(
                     resource=resource,
                     component=component,
                     billing_period__year=current_date.year,
                     billing_period__month=current_date.month,
                 )
-                total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
-                component_usage[key] += float(total_usage)
-                if is_terminated:
-                    component_usage_terminated[key] += float(total_usage)
+                total_usage = float(usages.aggregate(total=Sum("usage"))["total"] or 0)
             else:
                 latest = (
                     models.ComponentUsage.objects.filter(
@@ -3007,12 +3044,20 @@ def get_components_usage_data(resources, for_current_month=False):
                     .order_by("-billing_period")
                     .first()
                 )
-                if latest:
-                    component_usage[key] += float(latest.usage)
+                total_usage = float(latest.usage) if latest else 0
+                if (
+                    latest
+                    and is_terminated
+                    and not _in_usage_period(
+                        latest.billing_period, component.limit_period
+                    )
+                ):
+                    total_usage = 0
+            component_usage[key] += total_usage
+            if is_terminated:
+                component_usage_terminated[key] += total_usage
 
-        limit_override = (
-            LimitPeriods.MONTH if for_current_month or is_terminated else None
-        )
+        limit_override = LimitPeriods.MONTH if for_current_month else None
         limit_period_usage = get_current_period_usage(
             resource, limit_period=limit_override
         )
