@@ -14,6 +14,7 @@ from waldur_core.configuration.models import Setting, Source
 from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import filters, models, serializers, tasks
@@ -1762,6 +1763,7 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
                         license_ref=license_ref,
                         billing_period=billing_period,
                         period=period_str,
+                        price_source=settings.invoice_price_source,
                         prefix=settings.invoice_item_prefix or "Arrow consumption",
                     )
                     if synced:
@@ -1835,13 +1837,19 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
         only_unfinalized = serializer.validated_data.get("only_unfinalized")
         dry_run = serializer.validated_data.get("dry_run", True)
 
-        if period_from:
-            year, month = map(int, period_from.split("-"))
-            queryset = queryset.filter(billing_period__gte=date(year, month, 1))
+        try:
+            if period_from:
+                year, month = map(int, period_from.split("-"))
+                queryset = queryset.filter(billing_period__gte=date(year, month, 1))
 
-        if period_to:
-            year, month = map(int, period_to.split("-"))
-            queryset = queryset.filter(billing_period__lte=date(year, month, 1))
+            if period_to:
+                year, month = map(int, period_to.split("-"))
+                queryset = queryset.filter(billing_period__lte=date(year, month, 1))
+        except ValueError:
+            return response.Response(
+                {"error": "period_from and period_to must be YYYY-MM"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if resource_uuid:
             queryset = queryset.filter(resource__uuid=resource_uuid)
@@ -1851,18 +1859,55 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
         elif only_unfinalized:
             queryset = queryset.filter(finalized_at__isnull=True)
 
+        # A record whose license-month has a charge on an issued invoice, or
+        # that an import settled, is history: deleting it would let the next
+        # sync bill the month again.
+        pending = invoices_models.Invoice.States.PENDING
+        deletable, records_kept, records_imported = [], 0, 0
+        for record in queryset.select_related(
+            "resource__project__customer",
+            "invoice_item__invoice",
+            "compensation_item__invoice",
+        ):
+            if (record.raw_data or {}).get("source") == "arrow_import":
+                records_imported += 1
+                continue
+            issued = (
+                tasks.license_month_items(
+                    record.resource.project.customer,
+                    record.license_reference,
+                    record.billing_period,
+                    resource=record.resource,
+                )
+                .exclude(invoice__state=pending)
+                .exists()
+            )
+            if issued:
+                records_kept += 1
+            else:
+                deletable.append(record)
+
         # Count affected records
-        records_count = queryset.count()
-        compensation_items_count = queryset.filter(
-            compensation_item__isnull=False
-        ).count()
-        invoice_items_count = queryset.filter(invoice_item__isnull=False).count()
+        records_count = len(deletable)
+        compensation_items_count = sum(1 for r in deletable if r.compensation_item)
+        invoice_items_count = sum(1 for r in deletable if r.invoice_item)
 
         records_deleted = 0
         if not dry_run:
             with transaction.atomic():
-                records_deleted = records_count
-                queryset.delete()
+                records = deletable
+                invoices = set()
+                for record in records:
+                    # The items go with the record, or the next sync would
+                    # create a new record and item next to them.
+                    for item in (record.invoice_item, record.compensation_item):
+                        if item:
+                            invoices.add(item.invoice)
+                            item.delete()
+                    record.delete()
+                for invoice in invoices:
+                    invoice.update_cache()
+                records_deleted = len(records)
 
         data = {
             "dry_run": dry_run,
@@ -1870,6 +1915,8 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
             "records_deleted": records_deleted,
             "compensation_items_affected": compensation_items_count,
             "invoice_items_affected": invoice_items_count,
+            "records_kept_issued": records_kept,
+            "records_kept_imported": records_imported,
         }
         response_serializer = serializers.CleanupConsumptionResponseSerializer(data)
         return response.Response(response_serializer.data, status=status.HTTP_200_OK)

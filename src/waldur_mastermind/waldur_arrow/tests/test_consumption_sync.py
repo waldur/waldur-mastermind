@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -290,7 +291,10 @@ class SyncResourceConsumptionTest(TestCase):
 
 
 class ReconcileConsumptionRecordTest(TestCase):
-    """Tests for _reconcile_consumption_record function."""
+    """
+    _reconcile_consumption_record settles final billing against what was
+    invoiced, on the current invoice.
+    """
 
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory()
@@ -304,209 +308,147 @@ class ReconcileConsumptionRecordTest(TestCase):
             attributes={"arrow_license_reference": "XSP12345"},
         )
 
-    def test_reconciles_with_adjustment(self):
+    def _billed_record(self, sell="100.00", buy="80.00", price_source="sell"):
+        """A record invoiced the way the consumption sync invoices it."""
         record = models.ArrowConsumptionRecord.objects.create(
             resource=self.resource,
             license_reference="XSP12345",
             billing_period=date(2024, 12, 1),
-            consumed_sell=Decimal("100.00"),
-            consumed_buy=Decimal("80.00"),
+            consumed_sell=Decimal(sell),
+            consumed_buy=Decimal(buy),
         )
+        tasks._update_provisional_invoice_item(
+            record, self.resource, price_source=price_source
+        )
+        record.refresh_from_db()
+        return record
 
-        billing_info = {
-            "sell_total": Decimal("95.00"),  # Final is less than consumed
-            "buy_total": Decimal("76.00"),
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
+    def _reconcile(self, record, sell, buy, price_source="sell"):
+        return tasks._reconcile_consumption_record(
             record=record,
-            billing_info=billing_info,
+            billing_info={"sell_total": Decimal(sell), "buy_total": Decimal(buy)},
+            price_source=price_source,
         )
+
+    def test_reconciles_with_adjustment(self):
+        record = self._billed_record()
+
+        self.assertTrue(self._reconcile(record, "95.00", "76.00"))
 
         record.refresh_from_db()
-
-        self.assertTrue(compensation_created)
         self.assertTrue(record.is_finalized)
         self.assertTrue(record.is_reconciled)
         self.assertEqual(record.final_sell, Decimal("95.00"))
         self.assertEqual(record.final_buy, Decimal("76.00"))
-        self.assertIsNotNone(record.compensation_item)
-
-        # Check compensation item
         comp_item = record.compensation_item
         self.assertEqual(comp_item.unit_price, Decimal("-5.00"))
         self.assertIn("credit", comp_item.name.lower())
+        today = date.today()
+        self.assertEqual(
+            (comp_item.invoice.year, comp_item.invoice.month),
+            (today.year, today.month),
+        )
 
     def test_reconciles_with_additional_charge(self):
-        record = models.ArrowConsumptionRecord.objects.create(
-            resource=self.resource,
-            license_reference="XSP12345",
-            billing_period=date(2024, 12, 1),
-            consumed_sell=Decimal("100.00"),
-            consumed_buy=Decimal("80.00"),
-        )
+        record = self._billed_record()
 
-        billing_info = {
-            "sell_total": Decimal("110.00"),  # Final is more than consumed
-            "buy_total": Decimal("88.00"),
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
-            record=record,
-            billing_info=billing_info,
-        )
+        self.assertTrue(self._reconcile(record, "110.00", "88.00"))
 
         record.refresh_from_db()
-
-        self.assertTrue(compensation_created)
         self.assertEqual(record.final_sell, Decimal("110.00"))
-
-        # Check compensation item is an additional charge
-        comp_item = record.compensation_item
-        self.assertEqual(comp_item.unit_price, Decimal("10.00"))
-        self.assertIn("additional charge", comp_item.name.lower())
+        self.assertEqual(record.compensation_item.unit_price, Decimal("10.00"))
+        self.assertIn("additional charge", record.compensation_item.name.lower())
 
     def test_no_compensation_when_amounts_match(self):
-        record = models.ArrowConsumptionRecord.objects.create(
-            resource=self.resource,
-            license_reference="XSP12345",
-            billing_period=date(2024, 12, 1),
-            consumed_sell=Decimal("100.00"),
-            consumed_buy=Decimal("80.00"),
-        )
+        record = self._billed_record()
 
-        billing_info = {
-            "sell_total": Decimal("100.00"),  # Same as consumed
-            "buy_total": Decimal("80.00"),
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
-            record=record,
-            billing_info=billing_info,
-        )
+        self.assertFalse(self._reconcile(record, "100.00", "80.00"))
 
         record.refresh_from_db()
-
-        self.assertFalse(compensation_created)
         self.assertTrue(record.is_finalized)
         self.assertTrue(record.is_reconciled)
         self.assertIsNone(record.compensation_item)
 
-    def test_skips_already_reconciled(self):
+    def test_unbilled_record_is_charged_in_full(self):
+        """A record that never reached an invoice owes the whole final amount."""
         record = models.ArrowConsumptionRecord.objects.create(
             resource=self.resource,
             license_reference="XSP12345",
             billing_period=date(2024, 12, 1),
             consumed_sell=Decimal("100.00"),
             consumed_buy=Decimal("80.00"),
-            final_sell=Decimal("95.00"),
-            final_buy=Decimal("76.00"),
-            finalized_at=timezone.now(),
-            reconciled_at=timezone.now(),
         )
 
-        billing_info = {
-            "sell_total": Decimal("90.00"),  # Different from existing final
-            "buy_total": Decimal("72.00"),
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
-            record=record,
-            billing_info=billing_info,
-        )
+        self.assertTrue(self._reconcile(record, "95.00", "76.00"))
 
         record.refresh_from_db()
+        self.assertEqual(record.compensation_item.unit_price, Decimal("95.00"))
 
-        # Should not create compensation (already reconciled)
-        self.assertFalse(compensation_created)
-        # Final amounts should remain unchanged
-        self.assertEqual(record.final_sell, Decimal("95.00"))
+    def test_compares_with_invoiced_amount_not_consumption(self):
+        """An issued item keeps its amount; consumption may have moved on."""
+        record = self._billed_record()
+        record.invoice_item.invoice.state = invoice_models.Invoice.States.CREATED
+        record.invoice_item.invoice.save()
+        record.consumed_sell = Decimal("140.00")
+        record.save()
 
-    def test_force_reconcile_already_reconciled(self):
-        record = models.ArrowConsumptionRecord.objects.create(
-            resource=self.resource,
-            license_reference="XSP12345",
-            billing_period=date(2024, 12, 1),
-            consumed_sell=Decimal("100.00"),
-            consumed_buy=Decimal("80.00"),
-            reconciled_at=timezone.now(),
-        )
-
-        billing_info = {
-            "sell_total": Decimal("90.00"),
-            "buy_total": Decimal("72.00"),
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
-            record=record,
-            billing_info=billing_info,
-            force=True,
-        )
+        self.assertTrue(self._reconcile(record, "150.00", "120.00"))
 
         record.refresh_from_db()
+        self.assertEqual(record.invoice_item.unit_price, Decimal("100.00"))
+        self.assertEqual(record.compensation_item.unit_price, Decimal("50.00"))
 
-        self.assertTrue(compensation_created)
+    def test_rereconcile_updates_pending_compensation(self):
+        record = self._billed_record()
+        self._reconcile(record, "95.00", "76.00")
+
+        self.assertTrue(self._reconcile(record, "90.00", "72.00"))
+
+        record.refresh_from_db()
         self.assertEqual(record.final_sell, Decimal("90.00"))
+        self.assertEqual(record.compensation_item.unit_price, Decimal("-10.00"))
+        self.assertEqual(
+            invoice_models.InvoiceItem.objects.filter(
+                details__source="arrow_reconciliation"
+            ).count(),
+            1,
+        )
+
+    def test_issued_compensation_gets_a_follow_up(self):
+        """Once a compensation is issued, a later difference gets its own."""
+        record = self._billed_record()
+        self._reconcile(record, "95.00", "76.00")
+        record.refresh_from_db()
+        first = record.compensation_item
+        first.invoice.state = invoice_models.Invoice.States.CREATED
+        first.invoice.save()
+
+        self.assertTrue(self._reconcile(record, "90.00", "72.00"))
+
+        record.refresh_from_db()
+        first.refresh_from_db()
+        self.assertEqual(first.unit_price, Decimal("-5.00"))
+        self.assertNotEqual(record.compensation_item, first)
+        self.assertEqual(record.compensation_item.unit_price, Decimal("-5.00"))
+        self.assertEqual(tasks._record_invoiced_amount(record), Decimal("90.00"))
 
     def test_reconciles_using_buy_price_source(self):
-        """When price_source is 'buy', adjustment is computed from buy amounts."""
-        record = models.ArrowConsumptionRecord.objects.create(
-            resource=self.resource,
-            license_reference="XSP12345",
-            billing_period=date(2024, 12, 1),
-            consumed_sell=Decimal("100.00"),
-            consumed_buy=Decimal("80.00"),
-        )
+        record = self._billed_record(price_source="buy")
 
-        billing_info = {
-            "sell_total": Decimal("95.00"),
-            "buy_total": Decimal("70.00"),  # Final buy < consumed buy
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
-            record=record,
-            billing_info=billing_info,
-            price_source="buy",
-        )
+        self.assertTrue(self._reconcile(record, "95.00", "70.00", price_source="buy"))
 
         record.refresh_from_db()
-
-        self.assertTrue(compensation_created)
-        self.assertTrue(record.is_finalized)
-        self.assertTrue(record.is_reconciled)
         self.assertEqual(record.final_buy, Decimal("70.00"))
-
-        # Adjustment should be based on buy prices: 70 - 80 = -10
-        comp_item = record.compensation_item
-        self.assertEqual(comp_item.unit_price, Decimal("-10.00"))
-        self.assertIn("credit", comp_item.name.lower())
+        self.assertEqual(record.compensation_item.unit_price, Decimal("-10.00"))
+        self.assertIn("credit", record.compensation_item.name.lower())
 
     def test_no_compensation_buy_price_when_buy_amounts_match(self):
-        """When price_source is 'buy' and buy amounts match, no compensation."""
-        record = models.ArrowConsumptionRecord.objects.create(
-            resource=self.resource,
-            license_reference="XSP12345",
-            billing_period=date(2024, 12, 1),
-            consumed_sell=Decimal("100.00"),
-            consumed_buy=Decimal("80.00"),
-        )
+        record = self._billed_record(price_source="buy")
 
-        billing_info = {
-            "sell_total": Decimal("95.00"),  # Sell differs but irrelevant
-            "buy_total": Decimal("80.00"),  # Buy matches consumed
-        }
-
-        compensation_created = tasks._reconcile_consumption_record(
-            record=record,
-            billing_info=billing_info,
-            price_source="buy",
-        )
+        self.assertFalse(self._reconcile(record, "95.00", "80.00", price_source="buy"))
 
         record.refresh_from_db()
-
-        self.assertFalse(compensation_created)
         self.assertTrue(record.is_finalized)
-        self.assertTrue(record.is_reconciled)
         self.assertIsNone(record.compensation_item)
 
 

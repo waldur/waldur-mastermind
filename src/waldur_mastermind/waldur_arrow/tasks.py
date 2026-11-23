@@ -12,18 +12,135 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from celery import shared_task
+from dateutil.relativedelta import relativedelta
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.configuration import config
-from waldur_core.core import utils as core_utils
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models
 from .backend import ArrowBackendError, ArrowClient, ArrowCredentials, get_arrow_client
+
+# How Arrow charges reach an invoice (one charge per license and month):
+# - Licenses with consumption data are billed by the consumption sync: a
+#   provisional item on the month's invoice, kept current while that invoice
+#   is pending. After the month has ended, reconciliation compares Arrow's
+#   final billing export with what was invoiced and puts the difference on
+#   the current invoice as a compensation item.
+# - Billing-export lines for licenses without consumption records (e.g. seat
+#   licenses) are billed by the billing sync.
+# - Nothing changes an invoice once it is no longer pending.
+
+
+def _is_open_invoice(invoice) -> bool:
+    """Only a pending invoice may still change."""
+    return (
+        invoice is not None and invoice.state == invoices_models.Invoice.States.PENDING
+    )
+
+
+def _invoiced_amount(item) -> Decimal:
+    return (item.unit_price * item.quantity) if item else Decimal("0")
+
+
+def license_month_items(customer, license_reference, billing_period, resource=None):
+    """
+    Every invoice item that charges one Arrow license for one month, whatever
+    created it: the consumption item and its compensations, billing-sync
+    items and their compensations, import items, and priced cloud_cost
+    usage. Items may sit on the month's own invoice or, for late charges, on
+    a later one; each is counted once.
+    """
+    period = billing_period.strftime("%Y-%m")
+    in_month = Q(invoice__year=billing_period.year, invoice__month=billing_period.month)
+
+    # Billing-sync items (and the compensations made for them) of the month,
+    # matched by license; older items by their resource or the vendor
+    # subscription their sync item recorded.
+    sync_item_license = Q(details__license_reference=license_reference)
+    sync_comp_license = Q(
+        arrow_compensation_source__invoice_item__details__license_reference=(
+            license_reference
+        )
+    )
+    import_license = Q(details__license_reference=license_reference)
+    if resource is not None:
+        sync_item_license |= Q(resource=resource)
+        sync_comp_license |= Q(
+            arrow_compensation_source__invoice_item__resource=resource
+        )
+        if resource.backend_id:
+            sync_item_license |= Q(
+                arrow_sync_items__subscription_reference=resource.backend_id
+            )
+            sync_comp_license |= Q(
+                arrow_compensation_source__subscription_reference=resource.backend_id
+            )
+            import_license |= Q(details__subscription_id=resource.backend_id)
+
+    charges = (
+        Q(
+            arrow_consumption_records__license_reference=license_reference,
+            arrow_consumption_records__billing_period=billing_period,
+        )
+        | Q(
+            details__source="arrow_reconciliation",
+            details__license_reference=license_reference,
+            details__original_period=str(billing_period),
+        )
+        | (Q(arrow_sync_items__billing_sync__report_period=period) & sync_item_license)
+        | (
+            Q(arrow_compensation_source__billing_sync__report_period=period)
+            & sync_comp_license
+        )
+        # Import items: they have no billing-sync item.
+        | (
+            Q(details__source="arrow", arrow_sync_items__isnull=True)
+            & in_month
+            & import_license
+        )
+    )
+    if resource is not None:
+        charges |= (
+            in_month
+            & Q(resource=resource)
+            & Q(plan_component__component__type="cloud_cost")
+        )
+    return invoices_models.InvoiceItem.objects.filter(
+        Q(invoice__customer=customer) & charges
+    ).distinct()
+
+
+def _record_invoiced_amount(record, exclude=None) -> Decimal:
+    """What the customer has been charged for a record's license-month."""
+    items = license_month_items(
+        record.resource.project.customer,
+        record.license_reference,
+        record.billing_period,
+        resource=record.resource,
+    )
+    if exclude is not None:
+        items = items.exclude(pk=exclude.pk)
+    return sum((item.price for item in items), Decimal("0"))
+
+
+def _period_has_ended(year: int, month: int) -> bool:
+    return date(year, month, 1) + relativedelta(months=1) <= date.today()
+
+
+def _consumption_billed_licenses(license_refs, billing_period) -> set:
+    """License references whose charge for the month is a consumption record."""
+    refs = {ref for ref in license_refs if ref}
+    return set(
+        models.ArrowConsumptionRecord.objects.filter(
+            license_reference__in=refs, billing_period=billing_period
+        ).values_list("license_reference", flat=True)
+    )
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +214,7 @@ def check_validated_billing():
             # This is typically indicated in the billing data metadata
             # For now, we assume billing is validated after the month ends
             period_year, period_month = map(int, period.split("-"))
-            period_end = date(period_year, period_month, 1) + core_utils.month_delta(1)
+            period_end = date(period_year, period_month, 1) + relativedelta(months=1)
 
             if date.today() >= period_end:
                 sync.arrow_state = "validated"
@@ -303,6 +420,16 @@ def _sync_resource_consumption(
         logger.debug(f"No consumption data for {license_ref} in {period}, skipping")
         return False
 
+    # A settled month (reconciled, or imported from the billing export) keeps
+    # its figures; reconciliation owns any further difference.
+    if models.ArrowConsumptionRecord.objects.filter(
+        resource=resource,
+        billing_period=billing_period,
+        license_reference=license_ref,
+        finalized_at__isnull=False,
+    ).exists():
+        return False
+
     with transaction.atomic():
         # Update or create ArrowConsumptionRecord
         record, created = (
@@ -430,37 +557,93 @@ def _update_provisional_invoice_item(
         else record.consumed_sell
     )
 
-    # Get or create invoice
+    if record.is_finalized:
+        # Settled against final billing (or imported): reconciliation owns
+        # any further difference.
+        return
+
+    if record.invoice_item:
+        # Once its invoice has left PENDING the item stays as issued;
+        # reconciliation settles any later difference on the current invoice.
+        if not _is_open_invoice(record.invoice_item.invoice):
+            return
+        record.invoice_item.unit_price = unit_price
+        record.invoice_item.details = record.get_invoice_item_details()
+        record.invoice_item.save(update_fields=["unit_price", "details"])
+        record.invoice_item.invoice.update_cache()
+        return
+
     invoice, _ = invoices_models.Invoice.objects.get_or_create(
         customer=customer,
         year=year,
         month=month,
     )
-
-    # Check for existing invoice item
-    if record.invoice_item:
-        # Update existing item
-        record.invoice_item.unit_price = unit_price
-        record.invoice_item.details = record.get_invoice_item_details()
-        record.invoice_item.save(update_fields=["unit_price", "details"])
-    else:
-        # Create new invoice item
-        item = invoices_models.InvoiceItem.objects.create(
-            invoice=invoice,
-            resource=resource,
-            project=resource.project,
-            project_name=resource.project.name,
-            project_uuid=resource.project.uuid.hex,
-            name=f"{prefix}: {resource.name}"[:255],
-            unit_price=unit_price,
-            quantity=Decimal("1"),
-            unit=invoices_models.InvoiceItem.Units.QUANTITY,
-            details=record.get_invoice_item_details(),
+    if not _is_open_invoice(invoice):
+        # The month's invoice is already issued: leave the record unbilled,
+        # reconciliation charges it on the current invoice.
+        logger.info(
+            "Invoice %s for %s is %s; not adding Arrow consumption for %s",
+            invoice.uuid,
+            record.billing_period,
+            invoice.state,
+            resource.name,
         )
-        record.invoice_item = item
-        record.save(update_fields=["invoice_item"])
+        return
 
+    item = invoices_models.InvoiceItem.objects.create(
+        invoice=invoice,
+        resource=resource,
+        project=resource.project,
+        project_name=resource.project.name,
+        project_uuid=resource.project.uuid.hex,
+        name=f"{prefix}: {resource.name}"[:255],
+        unit_price=unit_price,
+        quantity=Decimal("1"),
+        unit=invoices_models.InvoiceItem.Units.QUANTITY,
+        details=record.get_invoice_item_details(),
+    )
+    record.invoice_item = item
+    record.save(update_fields=["invoice_item"])
+    _remove_superseded_billing_items(record)
     invoice.update_cache()
+
+
+def _remove_superseded_billing_items(record: models.ArrowConsumptionRecord):
+    """
+    Drop billing-sync items for this license and month from pending invoices.
+
+    The billing sync may bill a license before its first consumption record
+    exists; from then on the consumption record carries the charge. Items
+    already on an issued invoice stay and count as charged in reconciliation.
+    """
+    period = record.billing_period.strftime("%Y-%m")
+    sync_items = (
+        models.ArrowBillingSyncItem.objects.filter(
+            billing_sync__report_period=period,
+            invoice_item__invoice__customer=record.resource.project.customer,
+            invoice_item__invoice__state=invoices_models.Invoice.States.PENDING,
+        )
+        .filter(
+            Q(invoice_item__details__license_reference=record.license_reference)
+            | Q(invoice_item__resource=record.resource)
+            | (
+                Q(subscription_reference=record.resource.backend_id)
+                if record.resource.backend_id
+                else Q(pk__in=[])
+            )
+        )
+        .select_related("invoice_item__invoice")
+    )
+    for sync_item in sync_items:
+        invoice = sync_item.invoice_item.invoice
+        logger.info(
+            "Removing billing-sync item %s for %s %s: billed by consumption",
+            sync_item.invoice_item.uuid,
+            record.license_reference,
+            period,
+        )
+        sync_item.invoice_item.delete()  # cascades to the sync item
+        invoice.update_cache()
 
 
 @shared_task(name="waldur_mastermind.waldur_arrow.check_billing_export_scheduled")
@@ -469,7 +652,7 @@ def check_billing_export_scheduled():
     Scheduled task to check for finalized billing export and reconcile.
 
     Runs every ARROW_BILLING_CHECK_INTERVAL_HOURS (default: 6 hours).
-    Checks previous month and current month for billing data.
+    Checks the previous month; the current one is not final yet.
     """
     if not getattr(config, "ARROW_CONSUMPTION_SYNC_ENABLED", False):
         logger.info("Arrow consumption sync is disabled, skipping billing check")
@@ -494,10 +677,9 @@ def check_billing_export_scheduled():
         prev_year = today.year
         prev_month = today.month - 1
 
+    # Only the previous month: the current one is still being consumed, and
+    # finalizing it would stop the consumption sync from billing the rest.
     check_and_reconcile_billing.delay(year=prev_year, month=prev_month)
-
-    # Also check current month (may have partial data)
-    check_and_reconcile_billing.delay(year=today.year, month=today.month)
 
 
 @shared_task(name="waldur_mastermind.waldur_arrow.check_and_reconcile_billing")
@@ -514,7 +696,8 @@ def check_and_reconcile_billing(
         year: Year of the billing period
         month: Month of the billing period
         settings_uuid: Optional specific settings UUID to use
-        force_reconcile: If True, reconcile even if already reconciled
+        force_reconcile: Kept for API compatibility. Every run re-checks the
+            month's records; the running month is never reconciled.
     """
     if settings_uuid:
         settings = models.ArrowSettings.objects.filter(uuid=settings_uuid).first()
@@ -527,6 +710,11 @@ def check_and_reconcile_billing(
 
     period = f"{year:04d}-{month:02d}"
     billing_period = date(year, month, 1)
+    if not _period_has_ended(year, month):
+        # Finalizing a running month would stop the consumption sync from
+        # billing the rest of it, so not even a forced run does that.
+        logger.info(f"Not reconciling {period}: the month has not ended yet")
+        return {"status": "period_not_ended"}
     logger.info(f"Checking billing export for period {period}")
 
     credentials = ArrowCredentials(
@@ -554,14 +742,11 @@ def check_and_reconcile_billing(
     logger.info(f"Found {len(billing_lines)} billing lines")
 
     # Find consumption records to reconcile
-    records_filter = Q(
-        billing_period=billing_period,
-        finalized_at__isnull=True,
-    )
-    if not force_reconcile:
-        records_filter &= Q(reconciled_at__isnull=True)
-
-    records = models.ArrowConsumptionRecord.objects.filter(records_filter)
+    # Every record of the month: a settled one is re-checked so that a late
+    # change in the export still lands while its compensation item is pending.
+    records = models.ArrowConsumptionRecord.objects.filter(
+        billing_period=billing_period
+    ).select_related("invoice_item", "compensation_item__invoice")
 
     results = {
         "finalized": 0,
@@ -588,7 +773,6 @@ def check_and_reconcile_billing(
             compensation_created = _reconcile_consumption_record(
                 record=record,
                 billing_info=billing_info,
-                force=force_reconcile,
                 price_source=settings.invoice_price_source,
                 prefix=settings.invoice_item_prefix or "Arrow consumption",
             )
@@ -652,93 +836,104 @@ def _find_billing_by_license_ref(
 def _reconcile_consumption_record(
     record: models.ArrowConsumptionRecord,
     billing_info: dict,
-    force: bool = False,
     price_source: str = models.PriceSources.SELL,
     prefix: str = "Arrow consumption",
 ) -> bool:
     """
-    Reconcile a consumption record with finalized billing data.
+    Settle a consumption record against Arrow's final billing.
 
-    Creates compensation invoice item in CURRENT month if there's a difference.
+    The customer owes the final amount. Whatever was already charged for the
+    license-month, on any path and any invoice, is subtracted and the rest
+    goes on the current invoice as a compensation item. A pending
+    compensation is recomputed; once one is issued, a further difference
+    gets a new one. So every run converges on the final amount.
 
-    Args:
-        record: The consumption record to reconcile
-        billing_info: Dict with sell_total, buy_total from billing export
-        force: If True, reconcile even if already reconciled
-        price_source: Which price pair to use for adjustment ("sell" or "buy")
-        prefix: Prefix for invoice item name
-
-    Returns:
-        True if compensation item was created, False otherwise
+    Returns True if a compensation item was created, changed or removed.
     """
     final_sell = billing_info["sell_total"]
     final_buy = billing_info["buy_total"]
 
     with transaction.atomic():
-        # Lock the record
-        record = models.ArrowConsumptionRecord.objects.select_for_update().get(
-            pk=record.pk
+        record = (
+            # Lock only the record: its items are optional (outer joins).
+            models.ArrowConsumptionRecord.objects.select_for_update(of=("self",))
+            .select_related("invoice_item", "compensation_item__invoice")
+            .get(pk=record.pk)
         )
-
-        # Skip if already reconciled (unless forced)
-        if record.is_reconciled and not force:
-            logger.debug(f"Record {record.uuid} already reconciled, skipping")
-            return False
-
-        # Update final amounts
         record.final_sell = final_sell
         record.final_buy = final_buy
-        record.finalized_at = timezone.now()
-
-        # Calculate adjustment based on price source
-        if price_source == models.PriceSources.BUY:
-            adjustment = final_buy - record.consumed_buy
-        else:
-            adjustment = final_sell - record.consumed_sell
-
-        compensation_created = False
-
-        # Create compensation if significant difference (>= 0.01)
-        if abs(adjustment) >= Decimal("0.01"):
-            compensation_created = _create_compensation_item(
-                record, adjustment, prefix=prefix
-            )
-
+        record.finalized_at = record.finalized_at or timezone.now()
         record.reconciled_at = timezone.now()
+
+        compensation = record.compensation_item
+        pending = (
+            compensation
+            if compensation and _is_open_invoice(compensation.invoice)
+            else None
+        )
+        final = final_buy if price_source == models.PriceSources.BUY else final_sell
+        invoiced = _record_invoiced_amount(record, exclude=pending)
+        adjustment = final - invoiced
+        changed = False
+
+        if pending:
+            if abs(adjustment) < Decimal("0.01"):
+                invoice = pending.invoice
+                record.compensation_item = None
+                record.save()
+                pending.delete()
+                invoice.update_cache()
+                changed = True
+            elif pending.unit_price != adjustment:
+                pending.unit_price = adjustment
+                pending.name = _compensation_name(record, adjustment, prefix)
+                pending.details = _compensation_details(record, invoiced, adjustment)
+                pending.save(update_fields=["unit_price", "name", "details"])
+                pending.invoice.update_cache()
+                changed = True
+        elif abs(adjustment) >= Decimal("0.01"):
+            _create_compensation_item(record, invoiced, adjustment, prefix=prefix)
+            changed = True
+
         record.save()
 
-        # Update the original invoice item details
-        if record.invoice_item:
+        if record.invoice_item and _is_open_invoice(record.invoice_item.invoice):
             record.invoice_item.details = record.get_finalized_details()
             record.invoice_item.save(update_fields=["details"])
 
     logger.info(
-        f"Reconciled {record.uuid}: consumed={record.consumed_sell}, "
-        f"final={final_sell}, adjustment={adjustment}"
+        f"Reconciled {record.uuid}: invoiced={invoiced}, final={final}, "
+        f"adjustment={adjustment}"
     )
-    return compensation_created
+    return changed
+
+
+def _compensation_name(record, adjustment: Decimal, prefix: str) -> str:
+    kind = "additional charge" if adjustment > 0 else "credit"
+    return (
+        f"{prefix} adjustment: {record.resource.name} "
+        f"({kind} for {record.billing_period})"
+    )[:255]
+
+
+def _compensation_details(record, invoiced: Decimal, adjustment: Decimal) -> dict:
+    return {
+        **record.get_compensation_details(),
+        "invoiced": str(invoiced),
+        "adjustment": str(adjustment),
+    }
 
 
 def _create_compensation_item(
     record: models.ArrowConsumptionRecord,
+    invoiced: Decimal,
     adjustment: Decimal,
     prefix: str = "Arrow consumption",
 ) -> bool:
-    """
-    Create compensation invoice item in CURRENT month.
-
-    Args:
-        record: The consumption record
-        adjustment: The adjustment amount (positive = additional charge, negative = credit)
-        prefix: Prefix for invoice item name
-
-    Returns:
-        True if item was created
-    """
+    """Put the adjustment for a reconciled record on the current invoice."""
     resource = record.resource
     customer = resource.project.customer
 
-    # Get current month invoice
     today = date.today()
     current_invoice, _ = invoices_models.Invoice.objects.get_or_create(
         customer=customer,
@@ -746,31 +941,21 @@ def _create_compensation_item(
         month=today.month,
     )
 
-    # Determine description
-    if adjustment > 0:
-        desc = f"{prefix} adjustment: {resource.name} (additional charge for {record.billing_period})"
-    else:
-        desc = (
-            f"{prefix} adjustment: {resource.name} (credit for {record.billing_period})"
-        )
-
-    # Create compensation item
     compensation_item = invoices_models.InvoiceItem.objects.create(
         invoice=current_invoice,
         resource=resource,
         project=resource.project,
         project_name=resource.project.name,
         project_uuid=resource.project.uuid.hex,
-        name=desc[:255],
+        name=_compensation_name(record, adjustment, prefix),
         unit_price=adjustment,
         quantity=Decimal("1"),
         unit=invoices_models.InvoiceItem.Units.QUANTITY,
-        details=record.get_compensation_details(),
+        details=_compensation_details(record, invoiced, adjustment),
     )
 
     record.compensation_item = compensation_item
     record.save(update_fields=["compensation_item"])
-
     current_invoice.update_cache()
 
     logger.info(
@@ -850,7 +1035,9 @@ def sync_arrow_billing(
                 uuid=resource_uuid
             ).first()
             if resource and resource.backend_id:
-                target_license_ref = resource.backend_id
+                target_license_ref = (resource.attributes or {}).get(
+                    "arrow_license_reference"
+                ) or resource.backend_id
                 logger.info(
                     f"Filtering billing lines for resource {resource_uuid} "
                     f"(license ref: {target_license_ref})"
@@ -967,6 +1154,18 @@ def _process_customer_billing(
     total_buy = Decimal("0")
     total_sell = Decimal("0")
 
+    # Licenses billed by the consumption sync are only counted here.
+    consumption_billed = _consumption_billed_licenses(
+        (line.get("ARS Subscription ID") for line in lines), date(year, month, 1)
+    )
+    # A month whose invoice is already issued is billed on the current one.
+    target_invoice = invoice
+    if not _is_open_invoice(invoice):
+        today = date.today()
+        target_invoice, _ = invoices_models.Invoice.objects.get_or_create(
+            customer=customer, year=today.year, month=today.month
+        )
+
     with transaction.atomic():
         for line in lines:
             try:
@@ -1041,13 +1240,14 @@ def _process_customer_billing(
                             customer=customer,
                         ).first()
 
+                if license_ref_value and license_ref_value in consumption_billed:
+                    continue
+
                 if sync_item:
                     invoice_item = sync_item.invoice_item
-                    # An issued invoice stays as issued.
-                    if invoice_item.invoice.state in (
-                        invoices_models.Invoice.States.PENDING,
-                        invoices_models.Invoice.States.PENDING_FINALIZATION,
-                    ):
+                    # Keep a pending invoice current; an issued one is settled
+                    # by reconciliation against what it charged.
+                    if _is_open_invoice(invoice_item.invoice):
                         details = dict(invoice_item.details or {})
                         update_fields = []
                         # Follow Arrow's price only when Arrow changed it, so
@@ -1068,9 +1268,10 @@ def _process_customer_billing(
                             invoice_item.details = details
                             invoice_item.save(update_fields=list(set(update_fields)))
                 else:
-                    # Create invoice item
+                    if target_invoice is not invoice:
+                        description = f"{description} ({period})"
                     invoice_item = invoices_models.InvoiceItem.objects.create(
-                        invoice=invoice,
+                        invoice=target_invoice,
                         resource=resource,
                         project=project,
                         project_name=project.name if project else "",
@@ -1085,6 +1286,7 @@ def _process_customer_billing(
                         details={
                             "source": "arrow",
                             "arrow_line_reference": line_ref,
+                            "license_reference": license_ref_value,
                             "arrow_quantity": str(quantity),
                             "arrow_price": str(unit_price),
                             "vendor_name": vendor,
@@ -1124,7 +1326,7 @@ def _process_customer_billing(
         billing_sync.save()
 
         # Update invoice cache
-        invoice.update_cache()
+        target_invoice.update_cache()
 
     logger.info(
         f"Processed {len(lines)} billing lines for {mapping.arrow_reference}, "
@@ -1240,6 +1442,17 @@ def reconcile_arrow_billing(
         )
 
 
+def _sync_item_license(item: models.ArrowBillingSyncItem) -> str:
+    invoice_item = item.invoice_item
+    if not invoice_item:
+        return ""
+    return (invoice_item.details or {}).get("license_reference") or (
+        (invoice_item.resource.attributes or {}).get("arrow_license_reference", "")
+        if invoice_item.resource
+        else ""
+    )
+
+
 def _reconcile_sync(
     sync: models.ArrowBillingSync,
     current_prices: dict[str, Decimal],
@@ -1264,13 +1477,32 @@ def _reconcile_sync(
     compensations_created = 0
 
     with transaction.atomic():
-        for item in sync.items.filter(compensation_item__isnull=True):
+        year, month = map(int, sync.report_period.split("-"))
+        items = list(
+            sync.items.filter(compensation_item__isnull=True).select_related(
+                "invoice_item__resource"
+            )
+        )
+        consumption_billed = _consumption_billed_licenses(
+            (_sync_item_license(item) for item in items), date(year, month, 1)
+        )
+        for item in items:
+            # The consumption reconciliation counts this item already.
+            if _sync_item_license(item) in consumption_billed:
+                continue
             current_price = current_prices.get(item.arrow_line_reference)
             if current_price is None:
                 # Line no longer exists - might need credit
                 current_price = Decimal("0")
 
-            price_diff = current_price - item.original_price
+            # Compare with what the customer was invoiced: a re-sync may have
+            # raised a pending item after original_price was recorded.
+            invoiced = (
+                _invoiced_amount(item.invoice_item)
+                if item.invoice_item
+                else item.original_price
+            )
+            price_diff = current_price - invoiced
 
             if price_diff == Decimal("0"):
                 # No difference, skip
@@ -1304,6 +1536,7 @@ def _reconcile_sync(
                     "source": "arrow_reconciliation",
                     "original_line_reference": item.arrow_line_reference,
                     "original_price": str(item.original_price),
+                    "invoiced": str(invoiced),
                     "final_price": str(current_price),
                     "original_period": sync.report_period,
                 },
@@ -1313,9 +1546,15 @@ def _reconcile_sync(
             item.save(update_fields=["compensation_item"])
             compensations_created += 1
 
-        if compensations_created > 0:
+        # Every item has been settled (compensated, unchanged or left to the
+        # consumption side), so the sync is done. A forced run also covers
+        # syncs that were never validated.
+        if sync.state == models.ArrowBillingSync.States.SYNCED:
+            sync.mark_validated()
+        if sync.state == models.ArrowBillingSync.States.VALIDATED:
             sync.mark_reconciled()
             sync.save()
+        if compensations_created > 0:
             current_invoice.update_cache()
 
     logger.info(
@@ -1704,10 +1943,12 @@ def _ensure_arrow_plan(offering):
 
     component = offering.components.filter(type="cloud_cost").first()
     if component:
+        # Priced 0: the usage only records consumption; the Arrow consumption
+        # item is what bills it.
         marketplace_models.PlanComponent.objects.create(
             plan=plan,
             component=component,
-            price=1,
+            price=0,
             amount=0,
         )
 
@@ -2413,6 +2654,33 @@ def _get_or_create_customer_mapping(
     return mapping, True
 
 
+def _record_imported_consumption(resource, license_ref, sub_data, period, year, month):
+    """
+    Mark an imported month as settled for the consumption sync.
+
+    The import bills the month from the final billing export; without a
+    finalized record the consumption sync would bill it a second time.
+    """
+    sell = _parse_decimal(sub_data["sell"])
+    buy = _parse_decimal(sub_data["buy"])
+    now = timezone.now()
+    models.ArrowConsumptionRecord.objects.update_or_create(
+        resource=resource,
+        billing_period=date(year, month, 1),
+        license_reference=license_ref,
+        defaults={
+            "consumed_sell": sell,
+            "consumed_buy": buy,
+            "final_sell": sell,
+            "final_buy": buy,
+            "finalized_at": now,
+            "reconciled_at": now,
+            "last_sync_at": now,
+            "raw_data": {"source": "arrow_import", "period": period},
+        },
+    )
+
+
 def _create_invoices_for_customer(
     waldur_customer,
     mapping,
@@ -2435,6 +2703,7 @@ def _create_invoices_for_customer(
             periods[period].append(
                 {
                     "subscription_id": sub_id,
+                    "license_reference": sub_info.get("license_reference", ""),
                     "name": sub_info["name"],
                     "vendor": sub_info["vendor"],
                     "sell": period_data["sell"],
@@ -2451,6 +2720,10 @@ def _create_invoices_for_customer(
             logger.warning(f"Invalid period format: {period}")
             continue
 
+        # The running month is billed by the consumption sync.
+        if not _period_has_ended(year, month):
+            continue
+
         # Get or create invoice for this period
         invoice, invoice_created = invoices_models.Invoice.objects.get_or_create(
             customer=waldur_customer,
@@ -2459,15 +2732,50 @@ def _create_invoices_for_customer(
         )
         if invoice_created:
             results["invoices_created"] += 1
+        if not _is_open_invoice(invoice):
+            logger.info(
+                f"Not importing Arrow charges for {period}: invoice {invoice.uuid} "
+                f"is {invoice.state}"
+            )
+            continue
 
         # Create invoice items for each subscription in this period
         for sub_data in period_subs:
             # Look up resource by subscription ID (license reference)
-            resource = marketplace_models.Resource.objects.filter(
-                attributes__arrow_license_reference=sub_data["subscription_id"],
-                project__customer=waldur_customer,
-            ).first()
+            # Subscriptions are keyed by Vendor Subscription ID, which the
+            # resource sync stores as backend_id; consumption is keyed by the
+            # ARS license reference.
+            license_ref = sub_data["license_reference"]
+            resource = (
+                marketplace_models.Resource.objects.filter(
+                    project__customer=waldur_customer
+                )
+                .filter(
+                    Q(backend_id=sub_data["subscription_id"])
+                    | (
+                        Q(attributes__arrow_license_reference=license_ref)
+                        if license_ref
+                        else Q(pk__in=[])
+                    )
+                )
+                .first()
+            )
             project = resource.project if resource else None
+            if license_ref and (
+                models.ArrowConsumptionRecord.objects.filter(
+                    license_reference=license_ref, billing_period=date(year, month, 1)
+                ).exists()
+                or license_month_items(
+                    waldur_customer, license_ref, date(year, month, 1), resource
+                ).exists()
+            ):
+                # Already billed: by consumption, the billing sync, or an
+                # earlier import.
+                continue
+            if resource and license_ref:
+                _record_imported_consumption(
+                    resource, license_ref, sub_data, period, year, month
+                )
 
             for item in sub_data["items"]:
                 sell_price = _parse_decimal(item["sell"])
@@ -2483,7 +2791,7 @@ def _create_invoices_for_customer(
                     invoice=invoice,
                     details__source="arrow",
                     details__subscription_id=sub_data["subscription_id"],
-                    details__description=item["description"][:100],
+                    details__description=item["description"][:500],
                 ).first()
 
                 if existing_item:
@@ -2503,6 +2811,7 @@ def _create_invoices_for_customer(
                     details={
                         "source": "arrow",
                         "subscription_id": sub_data["subscription_id"],
+                        "license_reference": sub_data["license_reference"],
                         "subscription_name": sub_data["name"],
                         "vendor": sub_data["vendor"],
                         "description": item["description"][:500],
