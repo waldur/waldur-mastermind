@@ -609,7 +609,7 @@ class ArrowBillingChangesJob(core_models.UuidMixin, TimeStampedModel):
     error = models.TextField(blank=True)
 
     class Meta:
-        ordering = ("-created",)
+        ordering = ("-created", "-id")
 
     def __str__(self):
         return f"{self.action} {self.year}-{self.month:02d} ({self.state})"
