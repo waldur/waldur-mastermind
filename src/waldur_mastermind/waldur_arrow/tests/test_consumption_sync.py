@@ -342,7 +342,7 @@ class ReconcileConsumptionRecordTest(TestCase):
         self.assertEqual(record.final_buy, Decimal("76.00"))
         comp_item = record.compensation_item
         self.assertEqual(comp_item.unit_price, Decimal("-5.00"))
-        self.assertIn("credit", comp_item.name.lower())
+        self.assertTrue(comp_item.name.startswith("Arrow consumption adjustment for "))
         today = date.today()
         self.assertEqual(
             (comp_item.invoice.year, comp_item.invoice.month),
@@ -357,7 +357,11 @@ class ReconcileConsumptionRecordTest(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.final_sell, Decimal("110.00"))
         self.assertEqual(record.compensation_item.unit_price, Decimal("10.00"))
-        self.assertIn("additional charge", record.compensation_item.name.lower())
+        self.assertEqual(
+            record.compensation_item.name,
+            f"Arrow consumption adjustment for "
+            f"{record.billing_period.strftime('%B %Y')}",
+        )
 
     def test_no_compensation_when_amounts_match(self):
         record = self._billed_record()
@@ -440,7 +444,11 @@ class ReconcileConsumptionRecordTest(TestCase):
         record.refresh_from_db()
         self.assertEqual(record.final_buy, Decimal("70.00"))
         self.assertEqual(record.compensation_item.unit_price, Decimal("-10.00"))
-        self.assertIn("credit", record.compensation_item.name.lower())
+        self.assertTrue(
+            record.compensation_item.name.startswith(
+                "Arrow consumption adjustment for "
+            )
+        )
 
     def test_no_compensation_buy_price_when_buy_amounts_match(self):
         record = self._billed_record(price_source="buy")

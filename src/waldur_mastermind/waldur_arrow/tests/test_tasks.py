@@ -1,5 +1,6 @@
 """Tests for Arrow Celery tasks."""
 
+from datetime import date
 from decimal import Decimal
 from importlib import import_module
 from unittest import mock
@@ -322,6 +323,12 @@ class ReconcileArrowBillingTest(TestCase):
         sync_item = sync.items.first()
         self.assertIsNotNone(sync_item.compensation_item)
         self.assertEqual(sync_item.compensation_item.unit_price, Decimal("-5.00"))
+        self.assertTrue(
+            sync_item.compensation_item.name.startswith(
+                f"Arrow consumption adjustment for {tasks._month_name(sync.report_period)}"
+            ),
+            sync_item.compensation_item.name,
+        )
 
     @mock.patch(
         "waldur_mastermind.waldur_arrow.backend.ArrowClient.export_billing_all_pages"
@@ -446,3 +453,10 @@ class BillLineTotalsOnceMigrationTest(TestCase):
         self.assertEqual(open_invoice.total_price, Decimal("300.00"))
         self.assertEqual(issued.items.get().quantity, Decimal("3"))
         self.assertEqual(issued.total_price, Decimal("900.00"))
+
+
+class AdjustmentMonthNameTest(TestCase):
+    def test_month_name(self):
+        self.assertEqual(tasks._month_name(date(2026, 10, 1)), "October 2026")
+        self.assertEqual(tasks._month_name("2026-10"), "October 2026")
+        self.assertEqual(tasks._month_name("unknown"), "unknown")
