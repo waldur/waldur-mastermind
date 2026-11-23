@@ -100,7 +100,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             components_filter=components_filter,
             available_limits=AVAILABLE_LIMITS,
             can_update_limits=True,
-            limits_validator=utils.tenant_limits_validator,
+            limit_plan_validator=utils.tenant_limit_plan_validator,
             # map_limits_to_quotas casts to int before pushing: the OpenStack API
             # rejects a fractional quota, so a fraction would be truncated.
             max_limit_decimal_places=0,

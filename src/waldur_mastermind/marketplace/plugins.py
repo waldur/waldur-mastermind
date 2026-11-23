@@ -88,6 +88,9 @@ class PluginManager:
         :key available_limits: optional list of strings each of which corresponds to offering component type,
         which supports user-defined limits, such as VPC RAM and vCPU.
         :key limits_validator: optional function to validate limis.
+        :key limit_plan_validator: optional function taking the resource limits and
+        raising ValidationError when they cannot be billed by a limit plan. It runs
+        only when a resource switches to a plan that bills components by limit.
         :key max_limit_decimal_places: optional int capping how many decimal places a
         provider may allow on this plugin's component limits. Declare 0 for a backend
         that maps a limit onto an integer quota, so a fractional limit is rejected at
@@ -194,6 +197,12 @@ class PluginManager:
         Returns function to validate limis.
         """
         return self.backends.get(offering_type, {}).get("limits_validator")
+
+    def get_limit_plan_validator(self, offering_type):
+        """
+        Returns function to validate limits before a switch to a limit plan.
+        """
+        return self.backends.get(offering_type, {}).get("limit_plan_validator")
 
     def get_max_limit_decimal_places(self, offering_type):
         """

@@ -548,6 +548,12 @@ class HypervisorInventorySerializer(serializers.HyperlinkedModelSerializer):
 
 
 class OpenStackTenantQuotaSerializer(serializers.Serializer):
+    """Quotas a provider sets on an existing tenant.
+
+    Compute and storage quotas start at 1 here, while a tenant can be ordered
+    with zero limits (MarketplaceTenantCreateSerializer accepts 0).
+    """
+
     instances = serializers.IntegerField(min_value=1, required=False)
     volumes = serializers.IntegerField(min_value=1, required=False)
     snapshots = serializers.IntegerField(min_value=1, required=False)
