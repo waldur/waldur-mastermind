@@ -426,6 +426,64 @@ class EventSettingsSerializer(serializers.Serializer):
         return dict(super().to_internal_value(data))
 
 
+class StrictBooleanField(serializers.BooleanField):
+    """A boolean sent as one: "yes", 1 or "false" are refused, not coerced."""
+
+    def to_internal_value(self, data):
+        if not isinstance(data, bool):
+            self.fail("invalid", input=data)
+        return data
+
+
+# Agent settings whose change decides what the agent imports into Waldur,
+# renames, or leaves with access on the backend.
+TRUST_SENSITIVE_AGENT_SETTINGS = (
+    "resource_import_enabled",
+    "username_reconciliation_enabled",
+    "preserve_unmanaged_backend_users",
+)
+
+
+class AgentSettingsSerializer(serializers.Serializer):
+    """The agent's per-offering switches, written at the top of its offering.
+
+    The same names as in the agent's configuration file.
+    """
+
+    resource_import_enabled = StrictBooleanField(
+        required=False,
+        help_text=_("Import resources found on the backend into Waldur."),
+    )
+    username_reconciliation_enabled = StrictBooleanField(
+        required=False,
+        help_text=_("Periodically reconcile usernames from the backend."),
+    )
+    preserve_unmanaged_backend_users = StrictBooleanField(
+        required=False,
+        help_text=_(
+            "Membership sync keeps backend users Waldur has never known as "
+            "offering users, instead of removing every user not on the "
+            "resource team."
+        ),
+    )
+    omit_anomalous_usage_components = StrictBooleanField(
+        required=False,
+        help_text=_(
+            "Report usage without a decreasing component instead of withholding "
+            "the whole report."
+        ),
+    )
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            unknown = sorted(set(data) - set(self.fields))
+            if unknown:
+                raise serializers.ValidationError(
+                    {key: [_("Unknown agent setting.")] for key in unknown}
+                )
+        return dict(super().to_internal_value(data))
+
+
 class AgentConfigurationSerializer(serializers.Serializer):
     """The agent side of a site-agent offering, minus its secrets.
 
@@ -459,6 +517,7 @@ class AgentConfigurationSerializer(serializers.Serializer):
         child=serializers.DictField(), required=False
     )
     event_settings = EventSettingsSerializer(required=False)
+    agent_settings = AgentSettingsSerializer(required=False)
 
     def to_internal_value(self, data):
         # A key the agent would read but this serializer does not declare, such
@@ -822,12 +881,14 @@ def record_change(offering, user) -> None:
         reversion.set_comment(CHANGE_REVISION_COMMENT)
 
 
-# Parts of the configuration that decide which code the agent runs and where
-# its events come from. Changing them, a setting the catalogue marks sensitive,
+# Parts of the configuration that decide which code the agent runs, where its
+# events come from and what it imports or removes. Changing them, a setting the
+# catalogue marks sensitive,
 # or a backend setting the backends in use do not declare, needs
 # OFFERING.UPDATE_AGENT_CONFIGURATION.
 BACKEND_FIELDS = (*ROLE_FIELDS, "custom_backends")
-TRUST_SENSITIVE_FIELDS = (*BACKEND_FIELDS, "event_settings")
+# agent_settings only in part: TRUST_SENSITIVE_AGENT_SETTINGS.
+TRUST_SENSITIVE_FIELDS = (*BACKEND_FIELDS, "event_settings", "agent_settings")
 
 # Stands for a key that is not there, so that a value of "" or null is a change
 # from it: the agent reads an absent setting as its default, an empty one as is.
@@ -1007,11 +1068,26 @@ def _unset(value: Any) -> Any:
     return None if value in (None, "", [], {}) else value
 
 
-def _event_settings(value: Any) -> dict[str, Any]:
+def _set_values(value: Any) -> dict[str, Any]:
     # Rendered with null for a field that was never set, so null is unset.
     if not isinstance(value, dict):
         return {}
     return {key: item for key, item in value.items() if item is not None}
+
+
+def _changed_keys(
+    old: Any, new: Any, prefix: str, keys: Iterable[str] | None = None
+) -> set[str]:
+    """The keys of a settings block whose value is set, unset or changed."""
+    old_values, new_values = _set_values(old), _set_values(new)
+    compared = old_values.keys() | new_values.keys()
+    if keys is not None:
+        compared &= set(keys)
+    return {
+        f"{prefix}.{key}"
+        for key in compared
+        if old_values.get(key, _ABSENT) != new_values.get(key, _ABSENT)
+    }
 
 
 def trust_sensitive_changes(
@@ -1023,6 +1099,7 @@ def trust_sensitive_changes(
 
     - role backends and custom backends;
     - each event setting;
+    - each agent setting in TRUST_SENSITIVE_AGENT_SETTINGS;
     - each backend setting or component field at a path the plugin catalogue
       marks sensitive;
     - each backend setting that the plugins in use do not declare, at any
@@ -1036,12 +1113,14 @@ def trust_sensitive_changes(
         if _unset(old.get(field)) != _unset(new.get(field))
     }
 
-    old_events = _event_settings(old.get("event_settings"))
-    new_events = _event_settings(new.get("event_settings"))
-    changed.update(
-        f"event_settings.{key}"
-        for key in old_events.keys() | new_events.keys()
-        if old_events.get(key, _ABSENT) != new_events.get(key, _ABSENT)
+    changed |= _changed_keys(
+        old.get("event_settings"), new.get("event_settings"), "event_settings"
+    )
+    changed |= _changed_keys(
+        old.get("agent_settings"),
+        new.get("agent_settings"),
+        "agent_settings",
+        TRUST_SENSITIVE_AGENT_SETTINGS,
     )
 
     old_settings = old.get("backend_settings") or {}

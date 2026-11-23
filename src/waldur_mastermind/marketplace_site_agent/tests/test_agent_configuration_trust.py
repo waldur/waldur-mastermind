@@ -155,6 +155,42 @@ class TrustSensitiveChangesTest(test.APITestCase):
         new["event_settings"]["stomp_ws_port"] = 443
         self.assertEqual(self.changes(old, new), ["event_settings.stomp_ws_port"])
 
+    def test_agent_settings_that_decide_what_is_imported_or_removed(self):
+        for key in agent_configuration.TRUST_SENSITIVE_AGENT_SETTINGS:
+            with self.subTest(key=key):
+                for old, new in (
+                    ({}, {key: False}),
+                    ({key: False}, {key: True}),
+                    ({key: True}, {}),
+                ):
+                    self.assertEqual(
+                        self.changes(
+                            {**CONFIGURATION, "agent_settings": old},
+                            {**CONFIGURATION, "agent_settings": new},
+                        ),
+                        [f"agent_settings.{key}"],
+                    )
+
+    def test_omitting_anomalous_usage_only_affects_billing(self):
+        old = {**CONFIGURATION}
+        new = {
+            **CONFIGURATION,
+            "agent_settings": {"omit_anomalous_usage_components": True},
+        }
+
+        self.assertEqual(self.changes(old, new), [])
+
+    def test_an_unset_agent_setting_rendered_as_null_is_unchanged(self):
+        old = {"agent_settings": {"resource_import_enabled": True}}
+        new = {
+            "agent_settings": {
+                "resource_import_enabled": True,
+                "username_reconciliation_enabled": None,
+            }
+        }
+
+        self.assertEqual(self.changes(old, new), [])
+
     def test_an_empty_setting_is_not_an_absent_one(self):
         # The agent reads an absent setting as its default and an empty one as
         # is: project_directory.base_path "" puts directories under /.
@@ -524,6 +560,31 @@ class UpdateIntegrationTrustTest(AgentConfigurationTrustTestMixin, test.APITestC
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn("event_settings", str(response.data))
+
+    def test_agent_settings_that_import_or_remove_need_the_permission(self):
+        self.withdraw_from_offering_managers()
+        for key in agent_configuration.TRUST_SENSITIVE_AGENT_SETTINGS:
+            with self.subTest(key=key):
+                response = self.update(
+                    self.offering_manager,
+                    {**CONFIGURATION, "agent_settings": {key: True}},
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+                self.assertIn(f"agent_settings.{key}", str(response.data))
+                self.assertEqual(self.stored(), CONFIGURATION)
+
+    def test_omitting_anomalous_usage_needs_no_permission(self):
+        self.withdraw_from_offering_managers()
+        configuration = {
+            **CONFIGURATION,
+            "agent_settings": {"omit_anomalous_usage_components": True},
+        }
+
+        response = self.update(self.offering_manager, configuration)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.stored(), configuration)
 
     def test_other_settings_and_an_unchanged_configuration_are_saved(self):
         self.withdraw_from_offering_managers()

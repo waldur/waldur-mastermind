@@ -395,6 +395,61 @@ class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase
                     field, response.data["agent_configuration"]["event_settings"]
                 )
 
+    def test_agent_settings_are_stored_and_read_back(self):
+        agent_settings = {
+            "resource_import_enabled": True,
+            "username_reconciliation_enabled": False,
+            "preserve_unmanaged_backend_users": True,
+            "omit_anomalous_usage_components": False,
+        }
+        configuration = {**SLURM_WITH_DWDI, "agent_settings": agent_settings}
+
+        response = self.update(configuration)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.agent_configuration["agent_settings"], agent_settings
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        read = self.client.get(factories.OfferingFactory.get_url(self.offering))
+        self.assertEqual(read.data["agent_configuration"], configuration)
+
+    def test_unset_agent_settings_are_left_out(self):
+        configuration = {
+            **SLURM_WITH_DWDI,
+            "agent_settings": {"omit_anomalous_usage_components": True},
+        }
+
+        self.update(configuration)
+
+        self.client.force_authenticate(self.fixture.owner)
+        read = self.client.get(factories.OfferingFactory.get_url(self.offering))
+        self.assertEqual(read.data["agent_configuration"], configuration)
+
+    def test_invalid_agent_settings_are_refused(self):
+        for agent_settings, field in (
+            ({"verify_ssl": False}, "verify_ssl"),
+            ({"waldur_api_token": "x"}, "waldur_api_token"),
+            ({"resource_import_enabled": "true"}, "resource_import_enabled"),
+            ({"resource_import_enabled": 1}, "resource_import_enabled"),
+            (
+                {"preserve_unmanaged_backend_users": None},
+                "preserve_unmanaged_backend_users",
+            ),
+        ):
+            with self.subTest(agent_settings=agent_settings):
+                response = self.update(
+                    {**SLURM_WITH_DWDI, "agent_settings": agent_settings}
+                )
+
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn(
+                    field, response.data["agent_configuration"]["agent_settings"]
+                )
+        self.offering.refresh_from_db()
+        self.assertNotIn("agent_settings", self.offering.agent_configuration)
+
     def test_component_named_like_a_credential_is_accepted(self):
         factories.OfferingComponentFactory(offering=self.offering, type="license_key")
         configuration = {
@@ -1055,6 +1110,28 @@ class ImportValidationTest(test.APITestCase):
         response = self.import_offering(document)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_agent_settings_are_imported_and_validated(self):
+        configuration = {
+            **SLURM_WITH_DWDI,
+            "agent_settings": {"resource_import_enabled": True},
+        }
+        response = self.import_offering(
+            self.document(agent_configuration=configuration)
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = marketplace_models.Offering.objects.get(name="Imported cluster")
+        self.assertEqual(offering.agent_configuration, configuration)
+
+        document = self.document(
+            agent_configuration={
+                **SLURM_WITH_DWDI,
+                "agent_settings": {"verify_ssl": False},
+            }
+        )
+        document["offering"]["name"] = "Second cluster"
+        response = self.import_offering(document)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_configuration_of_another_offering_type_is_skipped(self):
         document = self.document(agent_configuration=SLURM_WITH_DWDI)
         document["offering"]["type"] = BASIC_OFFERING
@@ -1260,6 +1337,16 @@ class AgentConfigurationExportTest(AgentConfigurationTestMixin, test.APITestCase
 
     def test_exported_to_who_may_see_the_integration(self):
         self.assertEqual(self.export()["agent_configuration"], SLURM_WITH_DWDI)
+
+    def test_agent_settings_are_exported(self):
+        configuration = {
+            **SLURM_WITH_DWDI,
+            "agent_settings": {"preserve_unmanaged_backend_users": True},
+        }
+        self.offering.agent_configuration = configuration
+        self.offering.save()
+
+        self.assertEqual(self.export()["agent_configuration"], configuration)
 
     def test_not_exported_without_the_integration_permission(self):
         CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
