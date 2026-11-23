@@ -2717,6 +2717,35 @@ def is_held_by_project_grace(resource) -> bool:
     )
 
 
+def pause_for_project_expiration(resource) -> bool:
+    """Keep an expired allocation blocked while termination is pending.
+
+    The same marker as a grace pause is intentional: extending the project
+    end date must release this *expiry-owned* hold without unpausing resources
+    that another policy or administrator has restricted. The site agent must
+    implement a submission-only pause for this offering; QoS-swapping pauses
+    are not safe for already queued SLURM jobs.
+    """
+    if resource.paused:
+        return False
+    resource.paused = True
+    resource.paused_by_grace_period = True
+    resource.save(update_fields=["paused", "paused_by_grace_period"])
+    logger.info(
+        "Resource %s paused because project %s expired, pending termination",
+        resource.uuid,
+        resource.project.uuid,
+    )
+    event_logger.emit(
+        "Resource {resource_name} has been paused because expired project "
+        "{project_name} is awaiting resource termination.",
+        event_type=EventType.MARKETPLACE_RESOURCE_PAUSED,
+        event_context={"resource": resource, "project": resource.project},
+        scopes=[resource, resource.project, resource.project.customer],
+    )
+    return True
+
+
 def pause_for_project_grace(resource) -> bool:
     """Pause ``resource`` because its project is in the grace period.
 
