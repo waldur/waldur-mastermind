@@ -1406,6 +1406,21 @@ def _ready_for_scheduled_termination_filter() -> Q:
     )
 
 
+def _pause_before_scheduled_termination(resources, pause=None):
+    """Pause resources that are about to be terminated for their project's end date.
+
+    A termination can fail and be retried the next day (a SLURM account with
+    jobs still running, say); meanwhile the resource is back in OK. The pause
+    keeps it closed to new work until the termination goes through, and
+    ``is_held_by_project_grace`` keeps anything else from lifting it.
+    """
+    pause = pause or utils.pause_for_project_end_date
+    for resource in resources.filter(
+        offering__plugin_options__supports_pausing=True, paused=False
+    ):
+        pause(resource)
+
+
 @shared_task(
     name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
@@ -1415,7 +1430,8 @@ def terminate_resources_if_project_end_date_has_been_reached():
     Also pauses resources for projects currently in the grace period,
     if the offering has supports_pausing=True in plugin_options, and lifts that
     pause from resources whose project has left the grace period without
-    expiring (its end date was extended or cleared).
+    expiring (its end date was extended or cleared). Resources are paused before
+    they are scheduled for termination too, and stay paused if it fails.
     """
     today = timezone.localdate()
 
@@ -1480,6 +1496,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
                 f"Project end date has been reached on {today}; "
                 "grace period disabled for this offering."
             )
+            _pause_before_scheduled_termination(grace_disabled_resources)
             utils.schedule_resources_termination(
                 grace_disabled_resources,
                 termination_comment=termination_comment,
@@ -1522,6 +1539,7 @@ def terminate_resources_if_project_end_date_has_been_reached():
         project.get_effective_end_date()
         grace_days = project.get_grace_period_days()
         termination_comment = f"Project effective end date (including {grace_days} day grace period) has been reached on {today}"
+        _pause_before_scheduled_termination(terminatable_resources)
         utils.schedule_resources_termination(
             terminatable_resources,
             termination_comment=termination_comment,
@@ -1825,6 +1843,9 @@ def terminate_expired_resources():
     logger.info(
         "About to terminate expired resources: %s",
         ",".join([f"{r.uuid}, {r.name}" for r in expired_resources]),
+    )
+    _pause_before_scheduled_termination(
+        expired_resources, pause=utils.pause_for_resource_end_date
     )
     utils.schedule_resources_termination(
         expired_resources,

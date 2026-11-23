@@ -399,6 +399,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.release_end_date_pause_when_resource_end_date_changes,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.release_end_date_pause_when_resource_end_date_changes",
+        )
+
+        signals.post_save.connect(
             handlers.process_invitations_and_orders_when_project_start_date_is_unset,
             sender=structure_models.Project,
             dispatch_uid="waldur_mastermind.marketplace.process_invitations_and_orders_when_project_start_date_is_unset",

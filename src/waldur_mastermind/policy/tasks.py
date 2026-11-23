@@ -199,7 +199,7 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
                             f"Resource {resource.uuid} paused due to {usage_percentage:.1f}% usage"
                         )
                     else:
-                        marketplace_utils.pause_for_project_grace(resource)
+                        marketplace_utils.pause_for_end_date_hold(resource)
                 elif not pause_for_usage:
                     # Usage alone would lift this pause, but the project grace
                     # period holds it; this policy lifts it once that ends.
