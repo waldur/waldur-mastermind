@@ -95,15 +95,14 @@ def revoke_at_provider(provider: str, refresh_token: str) -> bool:
             provider,
         )
         return False
+    data, auth = idp.get_client_auth(
+        {"token": refresh_token, "token_type_hint": "refresh_token"}
+    )
     try:
         response = requests.post(
             endpoint,
-            data={
-                "token": refresh_token,
-                "token_type_hint": "refresh_token",
-                "client_id": idp.client_id,
-                "client_secret": idp.client_secret,
-            },
+            data=data,
+            auth=auth,
             verify=idp.verify_ssl,
             timeout=REQUEST_TIMEOUT,
         )

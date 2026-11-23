@@ -242,15 +242,17 @@ def _refresh(oauth_token: OAuthToken) -> str:
         raise TokenUnavailable(
             f"Identity provider {oauth_token.provider} is not configured."
         )
+    data, auth = provider.get_client_auth(
+        {
+            "grant_type": "refresh_token",
+            "refresh_token": oauth_token.refresh_token,
+        }
+    )
     try:
         response = requests.post(
             provider.token_url,
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": oauth_token.refresh_token,
-                "client_id": provider.client_id,
-                "client_secret": provider.client_secret,
-            },
+            data=data,
+            auth=auth,
             verify=provider.verify_ssl,
             timeout=REQUEST_TIMEOUT,
         )
@@ -287,19 +289,21 @@ def _exchange(user, subject_token, audience, scope=None) -> str:
     )
     if not provider:
         raise TokenUnavailable(SIGN_IN_AGAIN, oauth_token and oauth_token.provider)
+    data, auth = provider.get_client_auth(
+        {
+            "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
+            "subject_token": subject_token,
+            "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+            "requested_token_type": "urn:ietf:params:oauth:token-type:access_token",
+            "audience": audience,
+            "scope": scope or audience,
+        }
+    )
     try:
         response = requests.post(
             provider.token_url,
-            data={
-                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange",
-                "subject_token": subject_token,
-                "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
-                "requested_token_type": "urn:ietf:params:oauth:token-type:access_token",
-                "audience": audience,
-                "scope": scope or audience,
-                "client_id": provider.client_id,
-                "client_secret": provider.client_secret,
-            },
+            data=data,
+            auth=auth,
             verify=provider.verify_ssl,
             timeout=REQUEST_TIMEOUT,
         )

@@ -492,21 +492,12 @@ class OAuthViewComplete(BaseOAuthView):
             if not code_verifier:
                 raise OAuthException(self.config.provider, "PKCE verification failed.")
             data["code_verifier"] = code_verifier
-        headers = None
-        if self.config.provider == ProviderChoices.TARA:
-            raw_token = f"{self.config.client_id}:{self.config.client_secret}"
-            auth_token = base64.b64encode(raw_token.encode("utf-8"))
-            headers = {"Authorization": b"Basic %s" % auth_token}
-        else:
-            data |= {
-                "client_id": self.config.client_id,
-                "client_secret": self.config.client_secret,
-            }
+        data, auth = self.config.get_client_auth(data)
         try:
             token_response = requests.post(
                 self.config.token_url,
                 data=data,
-                headers=headers,
+                auth=auth,
                 verify=self.config.verify_ssl,
             )
         except requests.exceptions.RequestException as e:

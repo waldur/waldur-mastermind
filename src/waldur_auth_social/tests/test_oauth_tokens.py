@@ -1,5 +1,7 @@
+import base64
 import time
 from unittest import mock
+from urllib.parse import parse_qs
 
 import jwt
 import responses
@@ -8,6 +10,7 @@ from django.db import connection
 from django.test import TestCase
 
 from waldur_auth_social import oauth_tokens, revocation, token_cache
+from waldur_auth_social.const import TokenEndpointAuthMethod
 from waldur_auth_social.models import IdentityProvider, OAuthToken
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import encryption
@@ -138,6 +141,38 @@ class RefreshTest(TokenTestBase):
         # The new access token is cached: no second refresh.
         self.assertEqual(oauth_tokens.get_access_token(self.user), fresh)
         self.assertEqual(len(responses.calls), 1)
+
+    @responses.activate
+    def test_refresh_sends_credentials_in_body_by_default(self):
+        self.store("refresh-1", access_token=make_token(expires_in=10))
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+
+        oauth_tokens.get_access_token(self.user)
+
+        request = responses.calls[0].request
+        self.assertNotIn("Authorization", request.headers)
+        body = parse_qs(request.body)
+        self.assertEqual(body["client_id"], ["waldur"])
+        self.assertEqual(body["client_secret"], ["client-secret"])
+
+    @responses.activate
+    def test_refresh_sends_credentials_as_basic_auth_when_configured(self):
+        self.provider.token_endpoint_auth_method = (
+            TokenEndpointAuthMethod.CLIENT_SECRET_BASIC
+        )
+        self.provider.save()
+        self.store("refresh-1", access_token=make_token(expires_in=10))
+        responses.post(TOKEN_URL, json={"access_token": make_token()})
+
+        oauth_tokens.get_access_token(self.user)
+
+        request = responses.calls[0].request
+        expected = base64.b64encode(b"waldur:client-secret").decode()
+        self.assertEqual(request.headers["Authorization"], f"Basic {expected}")
+        body = parse_qs(request.body)
+        self.assertNotIn("client_id", body)
+        self.assertNotIn("client_secret", body)
+        self.assertEqual(body["refresh_token"], ["refresh-1"])
 
     @responses.activate
     def test_token_refreshed_by_another_worker_meanwhile_is_reused(self):

@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 
+from waldur_auth_social.const import TokenEndpointAuthMethod
 from waldur_core.core.fields import EncryptedTextField
 
 
@@ -33,6 +34,14 @@ class IdentityProvider(models.Model):
     verify_ssl = models.BooleanField(default=True)
     enable_post_logout_redirect = models.BooleanField(default=True)
     enable_pkce = models.BooleanField(default=False)
+    token_endpoint_auth_method = models.CharField(
+        max_length=32,
+        choices=TokenEndpointAuthMethod.CHOICES,
+        default=TokenEndpointAuthMethod.CLIENT_SECRET_POST,
+        help_text="How client credentials are sent to the token endpoint: "
+        "in the request body (client_secret_post) or "
+        "as an HTTP Basic Authorization header (client_secret_basic).",
+    )
 
     # The following fields are cache of URL discovered.
     # They are stored locally in the database in order to avoid extra HTTP request.
@@ -120,3 +129,21 @@ class IdentityProvider(models.Model):
 
     def __str__(self):
         return f"{self.label}: {self.provider} / {self.is_active}"
+
+    def get_client_auth(self, data: dict) -> tuple[dict, tuple[str, str] | None]:
+        """Add client credentials to a token endpoint request.
+
+        Returns the request body and the ``auth`` argument for ``requests``:
+        with ``client_secret_basic`` the credentials go in the Authorization
+        header and only ``client_id`` stays out of the body; with
+        ``client_secret_post`` both go in the body.
+        """
+        if (
+            self.token_endpoint_auth_method
+            == TokenEndpointAuthMethod.CLIENT_SECRET_BASIC
+        ):
+            return data, (self.client_id, self.client_secret)
+        return data | {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+        }, None

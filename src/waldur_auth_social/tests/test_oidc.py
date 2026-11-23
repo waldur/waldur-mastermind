@@ -1,3 +1,4 @@
+import base64
 from datetime import timedelta
 from unittest import mock
 from urllib.parse import parse_qs, urlparse
@@ -12,7 +13,11 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
 
 from waldur_auth_social import models, views
-from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
+from waldur_auth_social.const import (
+    PROVIDER_DEFAULTS,
+    ProviderChoices,
+    TokenEndpointAuthMethod,
+)
 from waldur_auth_social.serializers import IdentityProviderSerializer
 from waldur_auth_social.tests.oidc_helpers import mock_token_endpoint
 from waldur_auth_social.utils import (
@@ -347,6 +352,41 @@ class OAuthViewCompleteTest(test.APITestCase):
 
         token_key = exchange_response.data["token"]
         self.assertTrue(Token.objects.filter(user=user, key=token_key).exists())
+
+    def test_token_request_sends_credentials_in_body_by_default(self):
+        self._mock_token_request()
+        self._mock_userinfo_request({"sub": "test_sub", "email": "t@example.com"})
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        request = responses.calls[0].request
+        self.assertEqual(request.url, self.provider.token_url)
+        self.assertNotIn("Authorization", request.headers)
+        body = parse_qs(request.body)
+        self.assertEqual(body["client_id"], ["test_client_id"])
+        self.assertEqual(body["client_secret"], ["test_client_secret"])
+
+    def test_token_request_sends_credentials_as_basic_auth_when_configured(self):
+        self.provider.token_endpoint_auth_method = (
+            TokenEndpointAuthMethod.CLIENT_SECRET_BASIC
+        )
+        self.provider.save()
+        self._mock_token_request()
+        self._mock_userinfo_request({"sub": "test_sub", "email": "t@example.com"})
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username="test_sub").exists())
+        request = responses.calls[0].request
+        self.assertEqual(request.url, self.provider.token_url)
+        expected = base64.b64encode(b"test_client_id:test_client_secret").decode()
+        self.assertEqual(request.headers["Authorization"], f"Basic {expected}")
+        body = parse_qs(request.body)
+        self.assertNotIn("client_id", body)
+        self.assertNotIn("client_secret", body)
+        self.assertEqual(body["code"], [self.code])
 
     @override_config(AUTO_APPROVE_USER_TOS=True)
     def test_auto_approved_terms_are_logged_as_auto_approved(self):

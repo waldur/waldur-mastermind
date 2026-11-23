@@ -7,6 +7,21 @@ class ProviderChoices:
     CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
 
 
+class TokenEndpointAuthMethod:
+    """How client credentials are sent to the token and revocation endpoints.
+
+    Values follow the OIDC ``token_endpoint_auth_method`` client metadata.
+    """
+
+    CLIENT_SECRET_POST = "client_secret_post"
+    CLIENT_SECRET_BASIC = "client_secret_basic"
+
+    CHOICES = (
+        (CLIENT_SECRET_POST, "Client secret in request body"),
+        (CLIENT_SECRET_BASIC, "Client secret in HTTP Basic auth header"),
+    )
+
+
 WRITABLE_USER_FIELDS = (
     "first_name",
     "last_name",
@@ -52,6 +67,7 @@ PROVIDER_DEFAULTS = {
             "civil_number": "sub",
         },
         "extra_fields": "amr profile_attributes_translit",
+        "token_endpoint_auth_method": TokenEndpointAuthMethod.CLIENT_SECRET_BASIC,
     },
     ProviderChoices.EDUTEAMS: {
         "user_field": "username",
