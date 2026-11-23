@@ -498,6 +498,9 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_image = serializers.ImageField(source="user.image", read_only=True)
+    user_is_service_account = serializers.BooleanField(
+        source="user.is_service_account", read_only=True
+    )
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(read_only=True, source="created_by.uuid")
     source = serializers.CharField(read_only=True)
@@ -516,6 +519,7 @@ class UserRoleDetailsSerializer(serializers.ModelSerializer):
             "user_username",
             "user_uuid",
             "user_image",
+            "user_is_service_account",
             "created_by_full_name",
             "created_by_uuid",
             "source",
@@ -529,6 +533,9 @@ class PermissionSerializer(serializers.ModelSerializer):
     user_slug = serializers.CharField(read_only=True, source="user.slug")
     user_username = serializers.CharField(read_only=True, source="user.username")
     user_email = serializers.CharField(read_only=True, source="user.email")
+    user_is_service_account = serializers.BooleanField(
+        read_only=True, source="user.is_service_account"
+    )
     created_by_full_name = serializers.CharField(
         read_only=True, source="created_by.full_name"
     )
@@ -564,6 +571,7 @@ class PermissionSerializer(serializers.ModelSerializer):
             "user_slug",
             "user_username",
             "user_email",
+            "user_is_service_account",
             "created",
             "expiration_time",
             "is_active",

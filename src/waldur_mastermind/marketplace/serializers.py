@@ -12090,6 +12090,7 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
             PermissionEnum.SET_RESOURCE_USAGE,
             resource.offering,
             PROVIDER_USAGE_SOURCES,
+            binding_on_path=True,
         ):
             return value
 
@@ -12508,6 +12509,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 PermissionEnum.SET_RESOURCE_USAGE,
                 resource.offering,
                 PROVIDER_USAGE_SOURCES,
+                binding_on_path=True,
             ):
                 # Check if date is in the current billing period
                 current_billing_period = core_utils.month_start(timezone.now())
@@ -12593,6 +12595,7 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             PermissionEnum.SET_RESOURCE_USAGE,
             resource.offering,
             PROVIDER_USAGE_SOURCES,
+            binding_on_path=True,
         ) and has_mutable_invoice_for_period(resource, day)
 
     def _validate_monthly_usages_have_no_days(self, attrs, resource, daily_usages):
@@ -13651,10 +13654,12 @@ class OfferingUserSerializer(
         request = self.context["request"]
         offering = instance.offering
 
-        if not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
-        ) and not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.UPDATE_OFFERING_USER,
+            offering,
+            ["*", "customer"],
+            binding_on_path=True,
         ):
             raise rf_exceptions.PermissionDenied()
 
@@ -14119,10 +14124,12 @@ class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
         request = self.context["request"]
         offering_user = self.instance
         offering = offering_user.offering
-        if not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
-        ) and not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.UPDATE_OFFERING_USER,
+            offering,
+            ["*", "customer"],
+            binding_on_path=True,
         ):
             raise rf_exceptions.PermissionDenied()
         return attrs
@@ -14148,10 +14155,12 @@ class OfferingUserUpdateRuntimeStateSerializer(serializers.Serializer):
         request = self.context["request"]
         offering_user = self.instance
         offering = offering_user.offering
-        if not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
-        ) and not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.UPDATE_OFFERING_USER,
+            offering,
+            ["*", "customer"],
+            binding_on_path=True,
         ):
             raise rf_exceptions.PermissionDenied()
         if offering_user.state == OfferingUserStates.DELETED:
@@ -14178,10 +14187,12 @@ class OfferingUserStateTransitionSerializer(serializers.Serializer):
         offering_user = self.instance
         offering = offering_user.offering
 
-        if not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
-        ) and not has_permission(
-            request, PermissionEnum.UPDATE_OFFERING_USER, offering
+        if not has_permission_on_any_source(
+            request,
+            PermissionEnum.UPDATE_OFFERING_USER,
+            offering,
+            ["*", "customer"],
+            binding_on_path=True,
         ):
             raise rf_exceptions.PermissionDenied()
 

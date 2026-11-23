@@ -39,7 +39,7 @@ from waldur_core.configuration.models import (
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
-from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
+from waldur_core.core.models import PersonalAccessToken, User, UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
 from waldur_core.core.validators import (
     normalize_network_acl,
@@ -2193,6 +2193,41 @@ class PersonalAccessTokenCreateSerializer(
         return pat
 
 
+class DedicatedUserTokenCreateSerializer(
+    NetworkAclValidationMixin, serializers.Serializer
+):
+    """Staff: a new user for one integration target, and its token."""
+
+    template = serializers.CharField()
+    target_type = serializers.CharField()
+    target_uuid = serializers.UUIDField()
+    username = serializers.RegexField(
+        r"^[0-9a-z_.@+-]+$",
+        max_length=128,
+        required=False,
+        help_text="Of the new user; derived from the target when left out.",
+    )
+    features = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text="Keys of the template's optional features to add.",
+    )
+    name = serializers.CharField(max_length=150)
+    expires_at = serializers.DateTimeField()
+    allowed_networks = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+
+    def validate_expires_at(self, value):
+        return PersonalAccessTokenCreateSerializer.validate_expires_at(self, value)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is taken.")
+        return value
+
+
 class PersonalAccessTokenCreatedSerializer(serializers.Serializer):
     """Returned once at creation — includes the plaintext token."""
 
@@ -2204,6 +2239,11 @@ class PersonalAccessTokenCreatedSerializer(serializers.Serializer):
     allowed_networks = serializers.ListField(child=serializers.CharField())
     expires_at = serializers.DateTimeField()
     created = serializers.DateTimeField()
+
+
+class DedicatedUserTokenCreatedSerializer(PersonalAccessTokenCreatedSerializer):
+    user_uuid = serializers.UUIDField(help_text="The new user the token is for.")
+    username = serializers.CharField()
 
 
 class PersonalAccessTokenSerializer(serializers.Serializer):
@@ -2245,6 +2285,102 @@ class AvailableBindingTargetSerializer(serializers.Serializer):
 
     permission = serializers.CharField()
     types = serializers.ListField(child=serializers.CharField())
+
+
+class PatTemplateFeatureSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    scopes = serializers.ListField(child=serializers.CharField())
+
+
+class PatTemplateSerializer(serializers.Serializer):
+    """A suggested set of scopes for a known integration."""
+
+    key = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    required_scopes = serializers.ListField(child=serializers.CharField())
+    optional_features = PatTemplateFeatureSerializer(many=True)
+    binding_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Entity types a token from this template is bound to.",
+    )
+    default_lifetime_days = serializers.IntegerField(
+        help_text="Suggested lifetime, capped by the site's maximum token lifetime."
+    )
+    dedicated_user_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text=(
+            "Target types staff can create a dedicated user for, whose token is "
+            "restricted to the target (agent_user)."
+        ),
+    )
+
+
+class BindableEntitySerializer(serializers.Serializer):
+    """An entity the caller can restrict a token to."""
+
+    type = serializers.CharField()
+    uuid = serializers.UUIDField(source="instance.uuid")
+    name = serializers.CharField()
+    context = serializers.CharField(
+        help_text="Where the entity belongs, such as its organization."
+    )
+
+
+class PatTemplateBindingSerializer(serializers.Serializer):
+    type = serializers.SerializerMethodField()
+    uuid = serializers.UUIDField()
+
+    def get_type(self, obj) -> str:
+        return TYPE_KEY_BY_CT[(obj._meta.app_label, obj._meta.model_name)]
+
+
+class PatTemplateTargetSerializer(serializers.Serializer):
+    """An entity a token from a template can be bound to and still work."""
+
+    type = serializers.CharField()
+    uuid = serializers.UUIDField(source="instance.uuid")
+    name = serializers.CharField(source="instance.name")
+    context = serializers.CharField(
+        help_text="Where the entity belongs, such as an offering's organization."
+    )
+    features = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Optional features of the template the caller can add here.",
+    )
+    suggested_username = serializers.SerializerMethodField(
+        help_text=(
+            "Staff only, where the template takes a dedicated user for this "
+            "type of target: the username agent_user gives one when none is "
+            "chosen. Empty otherwise."
+        )
+    )
+    staff_access = serializers.BooleanField(
+        help_text=(
+            "Staff only: the caller holds no role that would do here, so the "
+            "token works only with STAFF.ACCESS added to its scopes. Such a "
+            "token cannot be restricted: bindings is empty, and it can do "
+            "everything the caller can as staff."
+        )
+    )
+    bindings = PatTemplateBindingSerializer(
+        many=True,
+        help_text=(
+            "What to bind the token to (its allowed_scopes) for it to work "
+            "on this target."
+        ),
+    )
+
+    def get_suggested_username(self, obj) -> str:
+        suggest = self.context.get("dedicated_username")
+        if not suggest:
+            return ""
+        template = obj.template
+        if template is None or obj.type not in template.dedicated_user_role:
+            return ""
+        return suggest(obj.instance)
 
 
 class DetailSerializer(serializers.Serializer):

@@ -50,6 +50,10 @@ Base URL: `/api/personal-access-tokens/`
 | POST | `/api/personal-access-tokens/{uuid}/rotate/` | Atomic rotation: creates new token, revokes old |
 | POST | `/api/personal-access-tokens/{uuid}/set_network_acl/` | Replace the token's source-network allowlist |
 | GET | `/api/personal-access-tokens/available_scopes/` | Lists all delegatable permission enum values |
+| GET | `/api/personal-access-tokens/templates/` | Token templates the caller can use, such as the site agent's |
+| GET | `/api/personal-access-tokens/template_targets/?template=<key>` | Entities a template's token can be bound to |
+| GET | `/api/personal-access-tokens/available_binding_entities/?type=<type>&query=<text>` | Entities the caller can restrict a token to (first 50 matches) |
+| POST | `/api/personal-access-tokens/agent_user/` | Staff: create a dedicated user for a template target and its restricted token |
 
 PUT and PATCH are disabled -- tokens are immutable after creation.
 
@@ -82,6 +86,109 @@ Response (201, with `Cache-Control: no-store` header):
 }
 ```
 
+### Templates
+
+A template names the scopes a known integration needs, so its token carries
+those and nothing more. It is a suggestion only: the token is still created
+through `POST /api/personal-access-tokens/` with explicit scopes, and the create
+checks apply as usual. Neither endpoint accepts a personal access token.
+
+`site_agent` is the first template. Its required scopes are what the site
+agent's own calls are checked against:
+
+| Scope | Agent calls |
+|-------|-------------|
+| `ORDER.APPROVE` | `approve_by_provider`, `set_state_done`, `set_state_erred` on orders |
+| `ORDER.REJECT` | `reject_by_provider` on orders |
+| `RESOURCE.SET_BACKEND_ID` | `set_backend_id` on orders and provider resources |
+| `RESOURCE.SET_STATE` | `set_as_ok`, `set_as_erred`, `refresh_last_sync`, `set_limits` |
+| `RESOURCE.SET_BACKEND_METADATA` | `set_backend_metadata`, `set_endpoints`, `set_membership_sync_statuses` |
+| `RESOURCE.SET_USAGE` | `set_usage`, `set_user_usage`, `set_user_usages` |
+| `OFFERING.UPDATE_USER` | offering user state transitions |
+| `OFFERING.MANAGE_AGENT` | agent identity, service and queue registration; offering `set_backend_metadata` and `check_unique_backend_id`; SLURM policy `report-command-result` |
+
+Optional features add `OFFERING.UPDATE_COMPONENTS` (component sync),
+`OFFERING.MANAGE_BACKEND_RESOURCES` (backend resource import),
+`SERVICE_PROVIDER.LIST_KEYS` (the SSH keys of the offering's users) and
+`RESOURCE.MANAGE_API_KEY` (resource API keys).
+
+`SERVICE_PROVIDER.LIST_KEYS` held on an offering (`OFFERING.MANAGER` has it)
+lets `/api/marketplace-service-providers/<uuid>/keys/` list the keys of the
+users of that offering's resources; held on the provider's organization it
+lists the keys of all the provider's users, as before.
+
+**Where it is bound: one offering.** A site-agent token is bound to the
+offering it serves:
+
+- Its user holds the template's scopes on the offering (`OFFERING.MANAGER`) or
+  on the offering's organization (`CUSTOMER.OWNER`). The agent's checks accept
+  a role above the binding (`binding_on_path`): a binding that names the
+  offering counts for the orders, resources, offering users, usage and agent
+  registration of that offering, whether the role is held on the offering or
+  on its organization. The token reaches nothing outside that offering.
+- An organization binding is not offered. A token bound to the organization
+  (and its service provider, to see the resources it sells) would reach the
+  organization's own purchases and the provider's account directory.
+- An offering binding lets the token list and retrieve the offering's service
+  provider record, which the agent looks up at startup. It does not reach the
+  provider's detail actions, such as its team.
+- What a token reads follows the user's roles, not the token's scopes. The
+  role must therefore also grant the template's `role_permissions`, which for
+  the site agent are `ORDER.LIST` (which orders it sees) and `OFFERING.UPDATE`
+  (a resource's team). The token does not carry them.
+
+`template_targets` lists the offerings where the caller's roles hold all of
+that, each with the `bindings` to create the token with and the optional
+features they can add there. Site-wide grants make no target. `templates`
+lists a template only when it has a target, and lists nothing to a user who
+may not create tokens.
+
+A staff user's token without `STAFF.ACCESS` acts as the user without staff. So
+staff get two kinds of target:
+
+- an offering where their own roles qualify, as anyone else (a scoped token);
+- every other offering, marked `staff_access`. There the token works only with
+  `STAFF.ACCESS` added to its scopes, and such a token cannot be restricted: its
+  `bindings` are empty and it can do everything the staff user can. The
+  offering only fills in the agent's configuration.
+
+Staff can instead create a dedicated user for the offering (`agent_user`, with
+the same re-authentication as creating a token). It creates a user with no
+usable password that only holds `OFFERING.MANAGER` on the offering (its
+username, unless one is chosen, is the template, the offering's name and the
+start of its UUID, such as `site-agent-slurm-hpc-cluster-f30000`, numbered
+`-2`, `-3`… while taken; `template_targets` shows staff that name as
+`suggested_username`), checks that
+this role grants what the template needs on this site, and returns a token for
+that user restricted to the offering, with the chosen optional features. Such
+a token passes no owner-only check and reaches no other offering. Everything is
+rolled back when any step is refused.
+
+The audit log records the creation in the user's and the creating staff
+user's event streams: `user_creation_succeeded`, `dedicated_user_created`
+(naming the staff user, the template and the offering), `role_granted` (with
+the reason "Dedicated Site agent user", initiated by the staff user) and
+`pat_created`.
+
+The dedicated user is marked `is_service_account` (read-only in the API). It has
+no usable password and normally authenticates with its token. Single sign-on
+still finds it by username like any account and may sign in to it, for a team
+that logs in to it on purpose; every such sign-in (OIDC token, OIDC/OAuth login,
+identity bridge) is logged at WARNING and recorded as a
+`service_account_signed_in` event, since a username collision looks the same.
+
+Which rows a token can read still follows the user's roles, not the token's
+scopes, so the template carries no `*.LIST` permissions.
+
+### Restricting a token by hand
+
+`available_binding_entities` lists, for one entity type, the entities the
+create endpoint accepts as a binding: those the caller holds an active role on,
+directly or on an ancestor (an organization's projects, offerings and
+resources, a project's resources, an offering's resources). Staff and holders
+of a site-wide grant get any entity. Whether the role grants one of the token's
+permissions there is checked when the token is created.
+
 ### Rotate Token
 
 **POST** `/api/personal-access-tokens/{uuid}/rotate/`
@@ -95,6 +202,25 @@ Atomically revokes the old token and creates a new one with the same name, scope
 Sets `is_active=False` on the token (soft delete). Returns 204.
 
 ## Scope Enforcement
+
+**Restricted tokens and role checks.** Some actions check only that the user
+holds a role (`is_owner`, `is_service_manager`, `is_administrator`,
+`is_offering_manager`), not a permission, so a token's scopes do not narrow
+them; its bindings do. A token passes such a check within its bindings with its
+user's roles, whatever scopes it carries. This is what lets an owner's token
+bound to a project manage that project's credit, policies or ports.
+
+It also means an organization owner's site-agent token, bound to one offering,
+can perform the owner-only actions on that offering: update or delete its
+policies, edit its tags, organization groups and user attribute
+configuration. An offering manager's token cannot, as those checks want the
+owner role.
+
+An owner's token bound to one offering also cannot complete an offering user's
+deletion (`set_deleted`, `request_deletion`) or set POSIX attributes: those
+act on the provider account and identities shared by the provider's offerings,
+so they need a binding that covers the organization. Where either matters, give
+the agent its own user with only the `OFFERING.MANAGER` role on the offering.
 
 PAT scopes follow an intersection model: the effective permission at request time is the intersection of the PAT's scopes and the user's current roles.
 

@@ -13,6 +13,7 @@ from waldur_core.core.enums import ReauthenticationAction
 from waldur_core.core.models import PersonalAccessToken, User
 from waldur_core.core.tests.helpers import reauthenticated
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.utils import get_global_role_scope
 from waldur_core.structure.tests import fixtures
 
@@ -1214,6 +1215,27 @@ class PersonalAccessTokenAvailableBindingTargetsTest(test.APITestCase):
         by_perm = {row["permission"]: row["types"] for row in response.data}
         self.assertIn(PermissionEnum.LIST_PROJECTS.value, by_perm)
         self.assertIn("customer", by_perm[PermissionEnum.LIST_PROJECTS.value])
+
+    def test_owner_sees_the_types_below_the_organization(self):
+        # The create serializer accepts a binding below the role, so an
+        # owner can restrict a token to one of the organization's projects.
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.get(f"{PAT_URL}available_binding_targets/")
+        types = {row["permission"]: set(row["types"]) for row in response.data}[
+            PermissionEnum.LIST_PROJECTS.value
+        ]
+        self.assertTrue({"customer", "project", "offering", "resource"} <= types, types)
+
+    def test_project_member_does_not_see_the_organization(self):
+        ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_ORDERS)
+        self.client.force_authenticate(user=self.fixture.member)
+        response = self.client.get(f"{PAT_URL}available_binding_targets/")
+        types = {row["permission"]: set(row["types"]) for row in response.data}[
+            PermissionEnum.LIST_ORDERS.value
+        ]
+        self.assertIn("project", types)
+        self.assertIn("resource", types)
+        self.assertNotIn("customer", types)
 
     def test_staff_sees_all_types(self):
         self.client.force_authenticate(user=self.fixture.staff)

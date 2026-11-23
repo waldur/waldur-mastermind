@@ -34,6 +34,7 @@ import waldur_core.logging.middleware
 from waldur_core.configuration import config
 from waldur_core.core import models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.service_accounts import note_service_account_sign_in
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -726,6 +727,11 @@ class OIDCAuthentication(BaseAuthentication):
 
         if existing.registration_method != registration_method:
             self._adopt_local_account(existing, parsed_token, registration_method)
+        note_service_account_sign_in(
+            existing,
+            via=f"OIDC token ({registration_method})",
+            identity=f"sub={parsed_token.get('sub')!r} iss={parsed_token.get('iss')!r}",
+        )
 
         return existing
 

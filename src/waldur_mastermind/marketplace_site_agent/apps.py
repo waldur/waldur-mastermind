@@ -18,9 +18,12 @@ class MarketplaceSlurmConfig(AppConfig):
             executors,
             handlers,
             models,
+            pat_templates,
             processor,
             utils,
         )
+
+        pat_templates.register_templates()
 
         manager.register(
             SITE_AGENT_OFFERING,

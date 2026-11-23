@@ -25,12 +25,14 @@ from waldur_core.permissions.utils import _pat_allowed_pairs, _pat_entity_check
 
 # Builders return None when no binding matches the model — the caller
 # should treat that as ``queryset.none()`` to deny everything.
-FilterBuilder = Callable[[dict[str, set[int]]], Q | None]
+FilterBuilder = Callable[..., Q | None]
 
 _FILTER_BUILDERS: dict[type, FilterBuilder] = {}
+# Builders that also take the view, for a rule that differs by action.
+_VIEW_AWARE_BUILDERS: set[type] = set()
 
 
-def register_pat_filter(model):
+def register_pat_filter(model, view_aware=False):
     """Register a filter builder for a model.
 
     The builder receives a dict mapping TYPE_MAP keys to sets of object
@@ -41,6 +43,8 @@ def register_pat_filter(model):
 
     def decorator(fn: FilterBuilder) -> FilterBuilder:
         _FILTER_BUILDERS[model] = fn
+        if view_aware:
+            _VIEW_AWARE_BUILDERS.add(model)
         return fn
 
     return decorator
@@ -110,7 +114,10 @@ class PATScopeListFilter(BaseFilterBackend):
             # No rule registered for this model — pass through unfiltered.
             return queryset
 
-        q = builder(_bindings_by_type(auth))
+        if queryset.model in _VIEW_AWARE_BUILDERS:
+            q = builder(_bindings_by_type(auth), view)
+        else:
+            q = builder(_bindings_by_type(auth))
         if q is None:
             return queryset.none()
         return queryset.filter(q).distinct()
@@ -216,11 +223,29 @@ def _register_rules() -> None:
             ),
         )
 
-    @register_pat_filter(marketplace_models.ServiceProvider)
-    def _service_provider(ids):
+    @register_pat_filter(marketplace_models.ServiceProvider, view_aware=True)
+    def _service_provider(ids, view=None):
+        # A token bound to an offering may list and retrieve the record of the
+        # provider selling it: the site agent looks it up before anything
+        # else. Only those two actions: a detail action such as list_users
+        # finds the provider through this same filter and checks only the
+        # user's roles, so it must not reach the provider from an offering
+        # binding.
+        offering_ids = (
+            ids.get("offering")
+            if getattr(view, "action", None) in ("list", "retrieve")
+            else None
+        )
         return _or(
             _ids_q("id", ids.get("service_provider")),
             _ids_q("customer_id", ids.get("customer")),
+            Q(
+                customer_id__in=marketplace_models.Offering.objects.filter(
+                    id__in=offering_ids
+                ).values("customer_id")
+            )
+            if offering_ids
+            else None,
         )
 
     @register_pat_filter(proposal_models.CallManagingOrganisation)

@@ -9,7 +9,11 @@ from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.utils import has_permission, holds_global_permission
+from waldur_core.permissions.utils import (
+    has_permission,
+    has_permission_on_any_source,
+    holds_global_permission,
+)
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -256,9 +260,10 @@ def push_user_role_sync_message(project: structure_models.Project) -> None:
 # What resolve_offering_agent_authorization lets through, for the API schema.
 # Change them together.
 _OFFERING_AGENT_MANAGERS = (
-    "Staff, who holds OFFERING.CREATE on the offering's organization or "
-    "OFFERING.UPDATE on the offering, or an identity manager with managed ISDs "
-    "for an offering in an ISD-allowed state"
+    "Staff, who holds OFFERING.CREATE or OFFERING.MANAGE_AGENT on the "
+    "offering's organization or OFFERING.UPDATE or OFFERING.MANAGE_AGENT on the "
+    "offering, or an identity manager with managed ISDs for an offering in an "
+    "ISD-allowed state"
 )
 #: Creating an agent identity for the offering the request names.
 MANAGES_OFFERING_AGENT = access.custom(
@@ -293,6 +298,19 @@ def resolve_offering_agent_authorization(request, offering, agent_identity=None)
         return logging_enums.ConsumerAuthorization.CUSTOMER_OWNER
     if has_permission(request, PermissionEnum.UPDATE_OFFERING, offering):
         return logging_enums.ConsumerAuthorization.OFFERING_MANAGER
+    # OFFERING.MANAGE_AGENT is what a site agent's own token carries, bound to
+    # the offering. The role may be the offering's or its organization's: the
+    # binding names the offering, on the way to either (binding_on_path).
+    if has_permission(request, PermissionEnum.MANAGE_OFFERING_AGENT, offering):
+        return logging_enums.ConsumerAuthorization.OFFERING_MANAGER
+    if has_permission_on_any_source(
+        request,
+        PermissionEnum.MANAGE_OFFERING_AGENT,
+        offering,
+        ["customer"],
+        binding_on_path=True,
+    ):
+        return logging_enums.ConsumerAuthorization.CUSTOMER_OWNER
     if user.is_identity_manager and user.managed_isds:
         if offering.state not in marketplace_enums.OfferingStates.ISD_ALLOWED_STATES:
             return None

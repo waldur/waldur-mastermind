@@ -26,6 +26,8 @@ from reversion.models import Version
 from waldur_core.configuration import config
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import User
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 
 VALID_PAYLOAD = {"exp": 9999999999, "username": "victim", "sub": "att-sub"}
 VALID_TOKEN = jwt.encode(VALID_PAYLOAD, "any-key")
@@ -244,3 +246,62 @@ class OidcConfiguredRegistrationMethodTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         user.refresh_from_db()
         self.assertEqual(user.registration_method, config.OIDC_REGISTRATION_METHOD)
+
+
+@override_config(
+    OIDC_INTROSPECTION_URL="http://oidc.example.com/introspect",
+    OIDC_CLIENT_ID="test-client",
+    OIDC_CLIENT_SECRET="test-secret",
+    OIDC_USER_FIELD="username",
+)
+class OidcServiceAccountSignInTest(APITestCase):
+    """Single sign-on may adopt a service account, but never quietly."""
+
+    def tearDown(self):
+        cache.clear()
+
+    def sign_in(self, username):
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": username}
+            )
+        )
+        token = jwt.encode({**VALID_PAYLOAD, "username": username}, "any-key")
+        return self.client.get("/api/users/me/", HTTP_AUTHORIZATION=f"Bearer {token}")
+
+    @respx.mock
+    def test_adopting_a_service_account_is_allowed_and_recorded(self):
+        agent = User.objects.create(
+            username="site-agent-cluster",
+            registration_method="dedicated_token_user",
+            is_service_account=True,
+        )
+        with self.assertLogs(
+            "waldur_core.core.service_accounts", level="WARNING"
+        ) as logs:
+            response = self.sign_in("site-agent-cluster")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any("Service account 'site-agent-cluster'" in m for m in logs.output),
+            logs.output,
+        )
+        self.assertTrue(
+            Event.objects.filter(
+                event_type=EventType.SERVICE_ACCOUNT_SIGNED_IN,
+                context__affected_user_username="site-agent-cluster",
+            ).exists()
+        )
+        agent.refresh_from_db()
+        self.assertTrue(agent.is_service_account)
+
+    @respx.mock
+    def test_an_ordinary_account_records_nothing(self):
+        User.objects.create(username="person", registration_method="default")
+        response = self.sign_in("person")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(
+            Event.objects.filter(
+                event_type=EventType.SERVICE_ACCOUNT_SIGNED_IN
+            ).exists()
+        )

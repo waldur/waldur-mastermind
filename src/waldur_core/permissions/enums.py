@@ -145,6 +145,10 @@ class PermissionEnum(StrEnum):
     # backends, custom backends, event settings and the backend settings the
     # plugin catalogue marks sensitive. Held as well as UPDATE_INTEGRATION.
     UPDATE_OFFERING_AGENT_CONFIGURATION = "OFFERING.UPDATE_AGENT_CONFIGURATION"
+    # Act as the offering's site agent: register its identity, services and
+    # queues, and report what it ran. Narrower than OFFERING.UPDATE, so an
+    # agent's token need not be able to edit the offering.
+    MANAGE_OFFERING_AGENT = "OFFERING.MANAGE_AGENT"
     ADD_OFFERING_ENDPOINT = "OFFERING.ADD_ENDPOINT"
     UPDATE_OFFERING_ENDPOINT = "OFFERING.UPDATE_ENDPOINT"
     DELETE_OFFERING_ENDPOINT = "OFFERING.DELETE_ENDPOINT"
@@ -567,6 +571,19 @@ PERMISSION_LABELS = {
     PermissionEnum.REVEAL_RESOURCE_API_KEY.value: (
         "Reveal the shared API keys of resources used by the project or organization"
     ),
+    PermissionEnum.MANAGE_OFFERING_AGENT.value: (
+        "Run the offering's site agent: register it and report what it ran"
+    ),
+}
+
+
+# A permission split out of broader ones later. When permissions-override.yaml
+# drops a broader one and the role holds none of them any more, the narrower one
+# goes too, so a drop list written before the split keeps its effect after an
+# upgrade adds it.
+NARROWER_PERMISSIONS = {
+    PermissionEnum.CREATE_OFFERING.value: (PermissionEnum.MANAGE_OFFERING_AGENT.value,),
+    PermissionEnum.UPDATE_OFFERING.value: (PermissionEnum.MANAGE_OFFERING_AGENT.value,),
 }
 
 

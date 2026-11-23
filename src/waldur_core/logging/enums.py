@@ -539,6 +539,8 @@ class EventType(StrEnum):
     PAT_USED_FROM_NEW_IP = "pat_used_from_new_ip"
     PAT_ACCESS_DENIED_FROM_IP = "pat_access_denied_from_ip"
     PAT_NETWORK_ACL_UPDATED = "pat_network_acl_updated"
+    DEDICATED_USER_CREATED = "dedicated_user_created"
+    SERVICE_ACCOUNT_SIGNED_IN = "service_account_signed_in"
     PAT_AUTHENTICATION_REJECTED = "pat_authentication_rejected"
     OAUTH_CONSENT_GRANTED = "oauth_consent_granted"
     OAUTH_CONSENT_DENIED = "oauth_consent_denied"
@@ -637,6 +639,8 @@ EVENT_GROUP_MAPPING = {
         EventType.PAT_USED_FROM_NEW_IP,
         EventType.PAT_ACCESS_DENIED_FROM_IP,
         EventType.PAT_NETWORK_ACL_UPDATED,
+        EventType.DEDICATED_USER_CREATED,
+        EventType.SERVICE_ACCOUNT_SIGNED_IN,
         EventType.PAT_AUTHENTICATION_REJECTED,
         EventType.OAUTH_CONSENT_GRANTED,
         EventType.OAUTH_CONSENT_DENIED,

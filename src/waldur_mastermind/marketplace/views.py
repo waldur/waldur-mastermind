@@ -211,6 +211,7 @@ from waldur_mastermind.marketplace.managers import (
     filter_offering_permissions,
     filter_orders_for_user,
     get_connected_offerings,
+    get_connected_offerings_by_permission,
     get_connected_serviceproviders,
     get_user_resource_project_ids,
 )
@@ -1608,27 +1609,58 @@ class ServiceProviderKeysViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewS
     # What get_service_provider checks. Change the two together.
     access_declarations = {
         "list": [
-            on_url_service_provider(
-                PermissionEnum.LIST_SERVICE_PROVIDER_KEYS, ["customer"]
+            access.any_of(
+                on_url_service_provider(
+                    PermissionEnum.LIST_SERVICE_PROVIDER_KEYS, ["customer"]
+                ),
+                access.custom(
+                    f"{PermissionEnum.LIST_SERVICE_PROVIDER_KEYS.value} on one "
+                    "of the provider's offerings, for the keys of that "
+                    "offering's users only."
+                ),
             )
         ]
     }
 
     def get_service_provider(self):
+        """The provider, and the offerings whose users' keys the caller may
+        list: None for every offering of the provider."""
         service_provider = get_object_or_404(
             models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
-        if not has_permission(
-            self.request,
-            PermissionEnum.LIST_SERVICE_PROVIDER_KEYS,
-            service_provider.customer,
-        ):
+        permission = PermissionEnum.LIST_SERVICE_PROVIDER_KEYS
+        if has_permission(self.request, permission, service_provider.customer):
+            return service_provider, None
+        # An offering manager runs the offering's site agent, which looks up
+        # the keys of the offering's users.
+        # A token bound to one offering reaches that offering's users only,
+        # whether the role is on the offering or on its organization.
+        offerings = models.Offering.objects.filter(customer=service_provider.customer)
+        if not has_permission(self.request.user, permission, service_provider.customer):
+            offerings = offerings.filter(
+                id__in=get_connected_offerings_by_permission(
+                    self.request.user, permission
+                )
+            )
+        offering_ids = [
+            offering.id
+            for offering in offerings
+            if has_permission_on_any_source(
+                self.request,
+                permission,
+                offering,
+                ["*", "customer"],
+                binding_on_path=True,
+            )
+        ]
+        if not offering_ids:
             raise PermissionDenied()
-        return service_provider
+        return service_provider, offering_ids
 
     def get_queryset(self):
+        service_provider, offering_ids = self.get_service_provider()
         user_ids = utils.get_service_provider_user_ids(
-            self.request.user, self.get_service_provider()
+            self.request.user, service_provider, offering_ids=offering_ids
         )
         return self.queryset.filter(user_id__in=user_ids).select_related("user")
 
@@ -5091,6 +5123,7 @@ class ProviderOfferingViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
             ["*", "customer", "customer.serviceprovider"],
+            binding_on_path=True,
         )
     ]
     update_offering_component_validators = [
@@ -5374,6 +5407,7 @@ class ProviderOfferingViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_COMPONENTS,
             ["*", "customer", "customer.serviceprovider"],
+            binding_on_path=True,
         )
     ]
     create_offering_component_validators = [
@@ -5447,10 +5481,19 @@ class ProviderOfferingViewSet(
         serializers.OfferingBackendMetadataSerializer
     )
 
+    # The site agent calls this; its token carries OFFERING.MANAGE_AGENT, not
+    # OFFERING.UPDATE.
     set_backend_metadata_permissions = [
-        permission_factory(
-            PermissionEnum.UPDATE_OFFERING,
-            ["*", "customer", "customer.serviceprovider"],
+        any_permission(
+            permission_factory(
+                PermissionEnum.UPDATE_OFFERING,
+                ["*", "customer", "customer.serviceprovider"],
+            ),
+            permission_factory(
+                PermissionEnum.MANAGE_OFFERING_AGENT,
+                ["*", "customer"],
+                binding_on_path=True,
+            ),
         )
     ]
 
@@ -6251,10 +6294,19 @@ class ProviderOfferingViewSet(
         serializers.CheckUniqueBackendIDSerializer
     )
 
+    # The site agent calls this; its token carries OFFERING.MANAGE_AGENT, not
+    # OFFERING.UPDATE.
     check_unique_backend_id_permissions = [
-        permission_factory(
-            PermissionEnum.UPDATE_OFFERING,
-            ["*", "customer", "customer.serviceprovider"],
+        any_permission(
+            permission_factory(
+                PermissionEnum.UPDATE_OFFERING,
+                ["*", "customer", "customer.serviceprovider"],
+            ),
+            permission_factory(
+                PermissionEnum.MANAGE_OFFERING_AGENT,
+                ["*", "customer"],
+                binding_on_path=True,
+            ),
         )
     ]
 
@@ -9043,6 +9095,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
     approve_by_provider_serializer_class = serializers.OrderApproveByProviderSerializer
@@ -9186,6 +9239,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
     set_provider_info_serializer_class = serializers.OrderProviderInfoSerializer
@@ -9331,6 +9385,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.REJECT_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -9406,6 +9461,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -9434,6 +9490,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -9467,6 +9524,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -9535,6 +9593,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -9765,6 +9824,7 @@ class OrderViewSet(
         permission_factory(
             PermissionEnum.SET_RESOURCE_BACKEND_ID,
             ORDER_PROVIDER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -12961,6 +13021,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
             PermissionEnum.SET_RESOURCE_USAGE,
             resource.offering,
             USAGE_REPORTER_SOURCES,
+            binding_on_path=True,
         ):
             raise PermissionDenied()
         serializer.save()
@@ -13052,6 +13113,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_USAGE,
             USER_USAGE_REPORTER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -13150,6 +13212,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         permission_factory(
             PermissionEnum.SET_RESOURCE_USAGE,
             USER_USAGE_REPORTER_SOURCES,
+            binding_on_path=True,
         )
     ]
 
@@ -13693,12 +13756,14 @@ class OfferingUsersViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer", "offering"],
+            binding_on_path=True,
         )
     ]
     completion_review_status_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer", "offering"],
+            binding_on_path=True,
         )
     ]
 
@@ -13832,6 +13897,7 @@ class OfferingUsersViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer", "offering"],
+            binding_on_path=True,
         )
     ]
 
@@ -14228,6 +14294,7 @@ class OfferingUsersViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer", "offering"],
+            binding_on_path=True,
         )
     ]
 
@@ -14319,6 +14386,7 @@ class OfferingUsersViewSet(
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
             ["offering.customer", "offering"],
+            binding_on_path=True,
         )
     ]
 
@@ -18019,6 +18087,7 @@ def check_provider_api_key_permissions(request, view, obj=None):
         PermissionEnum.MANAGE_RESOURCE_API_KEY,
         resource,
         PROVIDER_API_KEY_SOURCES,
+        binding_on_path=True,
     ):
         raise PermissionDenied()
 
@@ -18841,6 +18910,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         permission_factory(
             PermissionEnum.MANAGE_RESOURCE_API_KEY,
             [f"resource.{source}" for source in PROVIDER_API_KEY_SOURCES],
+            binding_on_path=True,
         )
     ]
     set_key_serializer_class = serializers.ResourceApiKeySetKeySerializer
@@ -19676,12 +19746,12 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
         if not offering:
             raise PermissionDenied()
 
-        if has_permission(
-            request, PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES, offering
-        ) or has_permission(
+        if has_permission_on_any_source(
             request,
             PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
-            offering.customer,
+            offering,
+            ["*", "customer"],
+            binding_on_path=True,
         ):
             return
 
@@ -19935,6 +20005,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         permission_factory(
             PermissionEnum.MANAGE_OFFERING_BACKEND_RESOURCES,
             ["offering", "offering.customer"],
+            binding_on_path=True,
         )
     ]
 
