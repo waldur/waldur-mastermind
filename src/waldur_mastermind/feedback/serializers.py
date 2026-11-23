@@ -1,3 +1,4 @@
+from django.db import transaction
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -9,18 +10,18 @@ from waldur_core.structure.serializers import ProjectMetadataAnswerSerializer
 from waldur_mastermind.notifications import serializers as notifications_serializers
 
 from . import models
+from .questions import (
+    SurveyQuestionSetField,
+    create_question_set,
+    replace_question_set,
+    validate_question_set,
+)
+from .utils import QUESTIONNAIRE_LOCKED
 
 
 class FeedbackSurveySerializer(
     core_serializers.AugmentedSerializerMixin, serializers.ModelSerializer
 ):
-    checklist = serializers.SlugRelatedField(
-        slug_field="uuid",
-        queryset=checklist_models.Checklist.objects.filter(
-            checklist_type=checklist_enums.ChecklistTypes.FEEDBACK
-        ),
-    )
-    checklist_name = serializers.ReadOnlyField(source="checklist.name")
     audience = notifications_serializers.QueryOutputSerializer(read_only=True)
     audience_query = notifications_serializers.BroadcastMessageQuerySerializer(
         write_only=True
@@ -34,8 +35,6 @@ class FeedbackSurveySerializer(
             "created",
             "name",
             "intro",
-            "checklist",
-            "checklist_name",
             "starts_at",
             "ends_at",
             "is_active",
@@ -56,18 +55,6 @@ class FeedbackSurveySerializer(
             )
         return query
 
-    def validate_checklist(self, checklist):
-        # Answers belong to the survey's checklist; switching it would orphan them.
-        if (
-            self.instance
-            and checklist != self.instance.checklist
-            and self.instance.requests.exists()
-        ):
-            raise serializers.ValidationError(
-                "The questionnaire can't be changed once users have been prompted."
-            )
-        return checklist
-
     def validate(self, attrs):
         starts_at = attrs.get("starts_at", getattr(self.instance, "starts_at", None))
         ends_at = attrs.get("ends_at", getattr(self.instance, "ends_at", None))
@@ -78,6 +65,61 @@ class FeedbackSurveySerializer(
                 attrs.pop("audience_query")
             )
         return attrs
+
+
+class FeedbackSurveyDetailSerializer(FeedbackSurveySerializer):
+    questions = SurveyQuestionSetField(required=False)
+
+    class Meta(FeedbackSurveySerializer.Meta):
+        fields = FeedbackSurveySerializer.Meta.fields + ("questions",)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance:
+            # Homeport leaves the questions out once the survey is locked, so
+            # any value here is an attempt to change them.
+            if "questions" in attrs and self.instance.requests.exists():
+                raise serializers.ValidationError({"questions": [QUESTIONNAIRE_LOCKED]})
+        elif "questions" not in attrs:
+            # Required on create only: the field stays optional in the schema
+            # because create and update share it, and an update may leave the
+            # questions out.
+            raise serializers.ValidationError(
+                {"questions": [serializers.Field.default_error_messages["required"]]}
+            )
+        if "questions" in attrs:
+            validate_question_set(attrs["questions"])
+        return attrs
+
+    @transaction.atomic
+    def create(self, validated_data):
+        # Each survey owns its checklist, so editing its questions never
+        # reaches another survey.
+        validated_data["checklist"] = self._create_checklist(
+            validated_data["name"], validated_data.pop("questions")
+        )
+        return super().create(validated_data)
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        question_set = validated_data.pop("questions", None)
+        if question_set is not None:
+            # A prompt inserting a request must wait for this row lock, so no
+            # one is prompted between the check and the new questions.
+            locked = models.FeedbackSurvey.objects.select_for_update().get(
+                pk=instance.pk
+            )
+            if models.FeedbackRequest.objects.filter(survey=locked).exists():
+                raise serializers.ValidationError({"questions": [QUESTIONNAIRE_LOCKED]})
+            replace_question_set(instance.checklist, question_set)
+        return super().update(instance, validated_data)
+
+    def _create_checklist(self, name, question_set):
+        checklist = checklist_models.Checklist.objects.create(
+            name=name, checklist_type=checklist_enums.ChecklistTypes.FEEDBACK
+        )
+        create_question_set(checklist, question_set)
+        return checklist
 
 
 class FeedbackSurveyPublicSerializer(serializers.ModelSerializer):

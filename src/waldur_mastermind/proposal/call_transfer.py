@@ -36,6 +36,7 @@ from rest_framework import serializers
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import serializers as checklist_serializers
+from waldur_core.checklist.utils import SELECT_QUESTION_TYPES, map_option_references
 from waldur_core.permissions import models as permissions_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -201,41 +202,23 @@ def _checklist_ref(checklist, call=None):
     }
 
 
-# A select question's answers, conditions and review triggers name its options
-# by UUID; the document names them by label.
-_SELECT_TYPES = frozenset(
-    {
-        checklist_enums.QuestionTypes.SINGLE_SELECT,
-        checklist_enums.QuestionTypes.MULTI_SELECT,
-    }
-)
 # Question fields holding an answer value, as a dependency's
 # required_answer_value does.
 _ANSWER_VALUE_FIELDS = ("review_answer_value", "guidance_answer_value")
 
 
-def _map_options(value, mapping):
-    """``value`` -- one option reference or a list of them -- through ``mapping``.
-
-    A reference ``mapping`` does not know raises ``KeyError``.
-    """
-    if value is None:
-        return None
-    if isinstance(value, list):
-        return [mapping[str(item)] for item in value]
-    return mapping[str(value)]
-
-
+# A select question's answers, conditions and review triggers name its options
+# by UUID; the document names them by label.
 def _option_labels(question, value):
     """``value`` with the options of a select ``question`` named by label."""
-    if question.question_type not in _SELECT_TYPES:
+    if question.question_type not in SELECT_QUESTION_TYPES:
         return value
     labels = {}
     for option in question.question_options.all():
         labels[option.uuid.hex] = option.label
         labels[str(uuid.UUID(option.uuid.hex))] = option.label
     try:
-        return _map_options(value, labels)
+        return map_option_references(value, labels)
     except KeyError:
         # A stale reference to a deleted option; it matches nothing either way.
         return value
@@ -1346,11 +1329,11 @@ class _Importer:
 
     def _option_uuids(self, question, value, context):
         """``value`` with the options of a select ``question`` named by UUID."""
-        if question.question_type not in _SELECT_TYPES or value is None:
+        if question.question_type not in SELECT_QUESTION_TYPES or value is None:
             return value
         uuids = {o.label: o.uuid.hex for o in question.question_options.all()}
         try:
-            return _map_options(value, uuids)
+            return map_option_references(value, uuids)
         except KeyError as e:
             raise serializers.ValidationError(
                 {context: f"The question has no option {e.args[0]!r}."}

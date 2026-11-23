@@ -1,5 +1,5 @@
 from django.db import transaction
-from django.db.models import Prefetch
+from django.db.models import Prefetch, ProtectedError
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
@@ -45,12 +45,14 @@ def lock_pending(feedback_request):
 
 class FeedbackSurveyViewSet(ActionsViewSet):
     queryset = models.FeedbackSurvey.objects.select_related("checklist")
-    serializer_class = serializers.FeedbackSurveySerializer
+    serializer_class = serializers.FeedbackSurveyDetailSerializer
+    # The question set stays out of the list, to keep it light.
+    list_serializer_class = serializers.FeedbackSurveySerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.FeedbackSurveyFilterSet
     lookup_field = "uuid"
     safe_methods_permissions = [structure_permissions.is_staff_or_support]
-    unsafe_methods_permissions = [structure_permissions.is_staff]
+    unsafe_methods_permissions = [structure_permissions.is_staff_or_support]
 
     @extend_schema(
         description="Return the survey to show the current user now, if any, "
@@ -72,6 +74,19 @@ class FeedbackSurveyViewSet(ActionsViewSet):
     access_declarations = {
         "prompt": [access.owned("The caller's own pending feedback request, if any.")]
     }
+
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        checklist = instance.checklist
+        instance.delete()
+        # Something outside feedback, such as a proposal workflow step, may
+        # still protect it; the savepoint keeps that refusal from undoing the
+        # survey delete, and the checklist stays with its other user.
+        try:
+            with transaction.atomic():
+                checklist.delete()
+        except ProtectedError:
+            pass
 
     @extend_schema(responses=serializers.FeedbackSurveySummarySerializer)
     @decorators.action(detail=True, methods=["get"])

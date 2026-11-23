@@ -2,8 +2,10 @@ import collections
 import uuid
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
+from rest_framework import exceptions as rf_exceptions
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
@@ -16,6 +18,29 @@ from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 
 from . import models
+
+# Answers belong to the questions they were given to; changing the
+# questionnaire under them would orphan or misread them.
+QUESTIONNAIRE_LOCKED = (
+    "The questionnaire can't be changed once users have been prompted."
+)
+
+
+def refuse_prompted_survey_checklist(checklist) -> None:
+    """Checklist edit guard: a survey's questions are fixed once anyone has been prompted."""
+    # Locking the surveys makes a prompt creating a request wait for this
+    # transaction, so no one is prompted between this check and the edit.
+    # Inside the request transaction this is a savepoint and the lock lasts
+    # until the edit commits; without one (USE_ATOMIC_TRANSACTION off)
+    # select_for_update would raise, so the guard opens its own.
+    with transaction.atomic():
+        list(
+            models.FeedbackSurvey.objects.select_for_update()
+            .filter(checklist=checklist)
+            .values_list("pk", flat=True)
+        )
+        if models.FeedbackRequest.objects.filter(survey__checklist=checklist).exists():
+            raise rf_exceptions.ValidationError(QUESTIONNAIRE_LOCKED)
 
 
 def get_user_customer_ids(user) -> set[int]:

@@ -195,6 +195,10 @@ SPECTACULAR_SETTINGS = {
         "ResourceApiKeyAction": ResourceApiKeyActions.CHOICES,
         "RobotAccountStates": RobotAccountStates.VALUES,
         "ChecklistOperators": checklist_enums.OPERATORS,
+        # A survey question takes every type but the file ones; naming both
+        # sets keeps the full one from losing its name to a hash-suffixed one.
+        "QuestionTypeEnum": checklist_enums.QuestionTypes.CHOICES,
+        "SurveyQuestionTypeEnum": "waldur_mastermind.feedback.questions.SURVEY_QUESTION_TYPES",
         "ServiceAccountState": ServiceAccountState.VALUES,
         "OfferingUserState": OfferingUserStates.VALUES,
         # Where a user's account lives: the ServiceProvider column and the
