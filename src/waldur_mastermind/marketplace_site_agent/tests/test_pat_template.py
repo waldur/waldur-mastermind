@@ -475,6 +475,52 @@ class SiteAgentTokenTest(SiteAgentFixtureMixin, test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
+    @data("offering_manager", "owner_as_manager", "offering_owner")
+    def test_reads_its_configuration(self, user_role):
+        # An agent with configuration_source: waldur loads it at startup
+        # (waldur/waldur-site-agent#80).
+        self.use_template_token(user_role)
+        response = self.client.get(
+            marketplace_factories.OfferingFactory.get_url(
+                self.offering, "site_agent_config"
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIn("version", response.data)
+
+    @data("offering_manager", "offering_owner")
+    def test_cannot_read_its_configuration_without_manage_agent(self, user_role):
+        # Bound to its own offering, so the request reaches the permission
+        # check: neither MANAGE_AGENT nor UPDATE_INTEGRATION is in the token.
+        user = self.user(user_role)
+        bindings = self.template_bindings(user)
+        scopes = [
+            scope
+            for scope in REQUIRED
+            if scope != PermissionEnum.MANAGE_OFFERING_AGENT.value
+        ]
+        use_pat(self.client, user, *scopes, bindings=bindings)
+        response = self.client.get(
+            marketplace_factories.OfferingFactory.get_url(
+                self.offering, "site_agent_config"
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_cannot_read_a_sibling_offerings_configuration(self):
+        other = marketplace_factories.OfferingFactory(
+            customer=self.offering.customer,
+            type=marketplace_enums.SITE_AGENT_OFFERING,
+        )
+        other.add_user(self.fixture.offering_manager, OfferingRole.MANAGER)
+        self.use_template_token("offering_manager")
+        response = self.client.get(
+            marketplace_factories.OfferingFactory.get_url(other, "site_agent_config")
+        )
+        # The token's binding keeps the sibling out of the queryset, before
+        # any permission check.
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     @data("offering_manager", "offering_owner")
     def test_reports_policy_commands(self, user_role):
         policy = SlurmPeriodicUsagePolicyFactory(scope=self.offering)

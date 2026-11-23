@@ -572,7 +572,8 @@ PERMISSION_LABELS = {
         "Reveal the shared API keys of resources used by the project or organization"
     ),
     PermissionEnum.MANAGE_OFFERING_AGENT.value: (
-        "Run the offering's site agent: register it and report what it ran"
+        "Run the offering's site agent: register it, read its configuration "
+        "and report what it ran"
     ),
 }
 

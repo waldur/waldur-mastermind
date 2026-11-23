@@ -438,7 +438,7 @@ can_update_projects = get_connected_projects_by_permission(
 | `OFFERING.DELETE` | Delete offerings |
 | `OFFERING.PAUSE/UNPAUSE` | Control offering availability |
 | `OFFERING.MANAGE_USER_GROUP` | Manage offering user groups |
-| `OFFERING.MANAGE_AGENT` | Run the offering's site agent: register it, its services and queues, and report SLURM policy commands, without being able to edit the offering |
+| `OFFERING.MANAGE_AGENT` | Run the offering's site agent: register it, its services and queues, read its configuration, and report SLURM policy commands, without being able to edit the offering |
 
 `OFFERING.MANAGE_AGENT` was split out of `OFFERING.CREATE` (on the organization)
 and `OFFERING.UPDATE` (on the offering). When `permissions-override.yaml` drops

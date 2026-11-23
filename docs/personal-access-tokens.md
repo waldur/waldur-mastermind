@@ -105,7 +105,7 @@ agent's own calls are checked against:
 | `RESOURCE.SET_BACKEND_METADATA` | `set_backend_metadata`, `set_endpoints`, `set_membership_sync_statuses` |
 | `RESOURCE.SET_USAGE` | `set_usage`, `set_user_usage`, `set_user_usages` |
 | `OFFERING.UPDATE_USER` | offering user state transitions |
-| `OFFERING.MANAGE_AGENT` | agent identity, service and queue registration; offering `set_backend_metadata` and `check_unique_backend_id`; SLURM policy `report-command-result` |
+| `OFFERING.MANAGE_AGENT` | agent identity, service and queue registration; offering `set_backend_metadata`, `check_unique_backend_id` and `site_agent_config`; SLURM policy `report-command-result` |
 
 Optional features add `OFFERING.UPDATE_COMPONENTS` (component sync),
 `OFFERING.MANAGE_BACKEND_RESOURCES` (backend resource import),

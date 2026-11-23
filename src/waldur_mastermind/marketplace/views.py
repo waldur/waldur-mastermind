@@ -4174,13 +4174,20 @@ class ProviderOfferingViewSet(
         # describes it: offering must stay the generator's block key for key.
         return Response(config_builder.offering_agent_config(offering))
 
-    # As can_see_secret_options shows agent_configuration on the offering.
-    # waldur/waldur-mastermind#1276 adds OFFERING.MANAGE_AGENT, which must be
-    # enough here too, and lists this endpoint in the site_agent token template.
+    # Who may update the offering's integration, or the site agent itself,
+    # whose token carries OFFERING.MANAGE_AGENT and loads this at startup
+    # (waldur/waldur-site-agent#80). Nothing secret is returned.
     site_agent_config_permissions = [
-        permission_factory(
-            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
-            marketplace_permissions.OFFERING_ADMIN_SOURCES,
+        any_permission(
+            permission_factory(
+                PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+                marketplace_permissions.OFFERING_ADMIN_SOURCES,
+            ),
+            permission_factory(
+                PermissionEnum.MANAGE_OFFERING_AGENT,
+                ["*", "customer"],
+                binding_on_path=True,
+            ),
         )
     ]
 
