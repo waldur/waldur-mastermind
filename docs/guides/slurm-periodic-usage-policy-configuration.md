@@ -89,6 +89,15 @@ the grace limit, and a pause the policy set itself is lifted by the next
 evaluation as usual. When the grace period runs out instead, the resources stay
 paused until they are terminated.
 
+Resources are also paused right before they are terminated for an end date:
+once the project has expired (with no grace period, on the end date itself); on
+offerings with `disable_grace_period`, on the project's raw end date; and on a
+resource's own end date. A termination can fail -- slurmdbd refuses to remove
+an account while it still counts a job as running -- and is retried by the next
+daily run. Until it succeeds the resource stays paused, and neither the policy
+nor a usage-limit reset lifts it, so the account takes no new jobs meanwhile.
+Extending the end date lifts the pause.
+
 Outside the grace period the policy lifts a pause once usage is below the grace
 limit, except while a usage-limit restriction or a firing cost policy with
 `request_pausing` still holds the resource. A pause set manually by staff is not

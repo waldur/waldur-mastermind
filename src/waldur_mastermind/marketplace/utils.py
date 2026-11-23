@@ -1694,14 +1694,19 @@ def terminate_resource(
         )
         return
 
+    # At most one attempt per local day. A rolling 24-hour window skipped every
+    # other run of the daily sweep: the order fails a few minutes after the
+    # sweep places it, so the next day's sweep found it 23-and-a-bit hours old.
     if models.Order.objects.filter(
         resource=resource,
         state=OrderStates.ERRED,
         type=OrderTypes.TERMINATE,
-        modified__gte=timezone.now() - datetime.timedelta(days=1),
+        modified__gte=timezone.localtime().replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ),
     ).exists():
         logger.info(
-            "Skipping terminate for resource %s — recent ERRED terminate order exists.",
+            "Skipping terminate for resource %s — ERRED terminate order exists today.",
             resource,
         )
         return
@@ -2701,20 +2706,58 @@ def _automatic_pause_holds(resource, flag) -> bool:
 
 
 def is_held_by_project_grace(resource) -> bool:
-    """Whether the project grace period keeps ``resource`` paused.
+    """Whether its project's end date keeps ``resource`` paused.
 
-    A project past its end date but still inside its grace period has its
-    resources paused, on offerings that support pausing and do not opt out of
-    the grace period (those are terminated on the raw end date instead). Every
-    mechanism that lifts a pause automatically must leave such a resource
-    paused, whoever set the flag first.
+    On offerings that support pausing, a resource is held paused from the day
+    its project's end date is reached until the resource is terminated:
+
+    - inside the grace period, unless the offering opts out of it;
+    - once the project has expired (end date plus grace period);
+    - from the raw end date on offerings that disable the grace period, which
+      are terminated on that date;
+    - from the resource's own end date, on which it is terminated.
+
+    The last three cover the time a termination takes, including failed attempts
+    and their retries: without the hold, a resource whose termination failed is
+    back in OK and open to new work, such as SLURM jobs that keep the account
+    from ever being removed. Every mechanism that lifts a pause automatically
+    must leave such a resource paused, whoever set the flag first.
     """
     plugin_options = resource.offering.plugin_options or {}
-    return bool(
-        plugin_options.get("supports_pausing")
-        and not plugin_options.get("disable_grace_period")
-        and resource.project.is_in_grace_period
+    if not plugin_options.get("supports_pausing"):
+        return False
+    today = timezone.localdate()
+    if resource.end_date and resource.end_date <= today:
+        return True
+    project = resource.project
+    if plugin_options.get("disable_grace_period"):
+        return bool(project.end_date and project.end_date <= today)
+    return bool(project.is_in_grace_period or project.is_expired)
+
+
+def _pause_held_resource(resource, reason) -> bool:
+    """Pause ``resource`` and mark the pause as the end-date hold's own.
+
+    ``reason`` completes "has been paused because ..." and may name the project
+    as ``{project_name}``.
+    """
+    if resource.paused:
+        return False
+    resource.paused = True
+    resource.paused_by_grace_period = True
+    resource.save(update_fields=["paused", "paused_by_grace_period"])
+    logger.info(
+        "Resource %s paused because %s",
+        resource.uuid,
+        reason.format(project_name=resource.project.uuid),
     )
+    event_logger.emit(
+        f"Resource {{resource_name}} has been paused because {reason}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_PAUSED,
+        event_context={"resource": resource, "project": resource.project},
+        scopes=[resource, resource.project, resource.project.customer],
+    )
+    return True
 
 
 def pause_for_project_grace(resource) -> bool:
@@ -2725,24 +2768,40 @@ def pause_for_project_grace(resource) -> bool:
     already paused is left alone and not claimed: that pause belongs to whoever
     set it. Returns True if the resource was paused.
     """
-    if resource.paused:
-        return False
-    resource.paused = True
-    resource.paused_by_grace_period = True
-    resource.save(update_fields=["paused", "paused_by_grace_period"])
-    logger.info(
-        "Resource %s paused due to project %s entering grace period",
-        resource.uuid,
-        resource.project.uuid,
+    return _pause_held_resource(
+        resource, "project {project_name} has entered the grace period"
     )
-    event_logger.emit(
-        "Resource {resource_name} has been paused because "
-        "project {project_name} has entered the grace period.",
-        event_type=EventType.MARKETPLACE_RESOURCE_PAUSED,
-        event_context={"resource": resource, "project": resource.project},
-        scopes=[resource, resource.project, resource.project.customer],
+
+
+def pause_for_project_end_date(resource) -> bool:
+    """Pause ``resource`` before it is terminated for its project's end date.
+
+    The pause stops new work while the termination runs and stays through
+    failed attempts (see ``is_held_by_project_grace``). It is marked like a
+    grace-period pause, so it is lifted the same way if the end date is
+    extended. Returns True if the resource was paused.
+    """
+    return _pause_held_resource(
+        resource, "project {project_name} has reached its end date"
     )
-    return True
+
+
+def pause_for_resource_end_date(resource) -> bool:
+    """Pause ``resource`` before it is terminated for its own end date.
+
+    Like ``pause_for_project_end_date``: held until the termination succeeds,
+    lifted if the end date is extended. Returns True if the resource was paused.
+    """
+    return _pause_held_resource(resource, "it has reached its end date")
+
+
+def pause_for_end_date_hold(resource) -> bool:
+    """Pause a resource ``is_held_by_project_grace`` holds, naming the right reason."""
+    if resource.end_date and resource.end_date <= timezone.localdate():
+        return pause_for_resource_end_date(resource)
+    if resource.project.is_in_grace_period:
+        return pause_for_project_grace(resource)
+    return pause_for_project_end_date(resource)
 
 
 # Events after which a pause can no longer be attributed to the grace period: a
@@ -2766,7 +2825,7 @@ def adopt_grace_period_pauses() -> int:
     """Mark grace-period pauses that do not carry ``paused_by_grace_period``.
 
     A resource still paused whose last pause-related change is the grace-period
-    pause event (only ``pause_for_project_grace`` emits it) was paused by the
+    pause event (only the end-date hold's pause helpers emit it) was paused by the
     grace period, even if the marker is missing -- pauses from before the marker
     existed, or a marker lost on the way. Marking them lets
     ``release_project_grace_pauses`` lift them once their project leaves the
@@ -2889,13 +2948,14 @@ def release_project_grace_pauses(resources) -> list:
 
     for resource in unpaused:
         logger.info(
-            "Resource %s unpaused because project %s is no longer in grace period",
+            "Resource %s unpaused: the end date of project %s or of the resource "
+            "no longer holds it paused",
             resource.uuid,
             resource.project.uuid,
         )
         event_logger.emit(
-            "Resource {resource_name} has been unpaused because "
-            "project {project_name} is no longer in the grace period.",
+            "Resource {resource_name} has been unpaused because its end date, "
+            "or that of project {project_name}, no longer holds it paused.",
             event_type=EventType.RESET_PAUSING,
             event_context={"resource": resource, "project": resource.project},
             scopes=[resource, resource.project, resource.project.customer],

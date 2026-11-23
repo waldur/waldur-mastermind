@@ -1530,22 +1530,47 @@ class TestGracePeriodPolicyInteraction(TestCase):
     def test_policy_unpauses_when_grace_period_ends_and_usage_low(
         self, mock_apply_policy_actions
     ):
-        """Resource should be unpaused when grace period ends and usage is below threshold."""
+        """Resource should be unpaused when grace period ends and usage is below threshold.
+
+        The grace period ends because the end date was extended; a project
+        whose grace period ran out instead is expired and stays paused until
+        its resources are terminated (see the test below).
+        """
         mock_apply_policy_actions.return_value = True
         self.resource.paused = True
         self.resource.save()
+        self.project.end_date = timezone.localdate() + datetime.timedelta(days=30)
+        self.project.save()
 
-        with patch.object(
-            type(self.project),
-            "is_in_grace_period",
-            new_callable=lambda: property(lambda self: False),
-        ):
-            tasks.evaluate_resource_against_policy(
-                str(self.resource.uuid), str(self.policy.uuid)
-            )
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
 
         self.resource.refresh_from_db()
         self.assertFalse(self.resource.paused)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_policy_keeps_expired_project_resource_paused(
+        self, mock_apply_policy_actions
+    ):
+        """Low usage does not reopen a resource whose project has expired.
+
+        It is about to be terminated, and a termination that fails is retried;
+        reopening it meanwhile would let new work keep it alive (gh-109).
+        """
+        mock_apply_policy_actions.return_value = True
+        self.resource.paused = True
+        self.resource.save()
+        self.assertTrue(self.project.is_expired)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
 
     @patch(
         "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
@@ -1597,10 +1622,14 @@ class TestGracePeriodPolicyInteraction(TestCase):
     @patch(
         "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
     )
-    def test_grace_disabled_offering_allows_unpause_during_grace_period(
+    def test_grace_disabled_offering_is_held_once_end_date_reached(
         self, mock_apply_policy_actions
     ):
-        """An offering opting out of the grace period is not held paused by it."""
+        """An offering opting out of the grace period is terminated on the end date.
+
+        From then on it is held paused like an expired project's resource, even
+        while the project itself is still inside its grace period.
+        """
         mock_apply_policy_actions.return_value = True
         self.offering.plugin_options = {
             "supports_pausing": True,
@@ -1620,4 +1649,4 @@ class TestGracePeriodPolicyInteraction(TestCase):
             )
 
         self.resource.refresh_from_db()
-        self.assertFalse(self.resource.paused)
+        self.assertTrue(self.resource.paused)

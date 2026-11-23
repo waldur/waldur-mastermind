@@ -444,9 +444,10 @@ class GracePeriodDisableTest(test.APITestCase):
         )
 
     @freeze_time("2020-01-15")
-    def test_grace_disabled_resource_is_terminated_not_paused(self):
+    def test_grace_disabled_resource_is_terminated_not_grace_paused(self):
         # supports_pausing would normally pause during grace; disable_grace_period
-        # takes precedence and the resource is terminated instead.
+        # takes precedence and the resource is terminated instead. It is still
+        # paused first, so it takes no new work while the termination runs.
         self.fixture.offering.plugin_options = {
             "supports_pausing": True,
             "disable_grace_period": True,
@@ -456,7 +457,7 @@ class GracePeriodDisableTest(test.APITestCase):
         tasks.terminate_resources_if_project_end_date_has_been_reached()
 
         self.fixture.resource.refresh_from_db()
-        self.assertFalse(self.fixture.resource.paused)
+        self.assertTrue(self.fixture.resource.paused)
         self.assertTrue(
             models.Order.objects.filter(
                 resource=self.fixture.resource,

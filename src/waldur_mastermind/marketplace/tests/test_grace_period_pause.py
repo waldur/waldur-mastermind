@@ -8,7 +8,13 @@ from rest_framework import status, test
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models, tasks, utils
-from waldur_mastermind.marketplace.enums import BillingTypes, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    SITE_AGENT_OFFERING,
+    BillingTypes,
+    OrderStates,
+    OrderTypes,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.policy import models as policy_models
 from waldur_mastermind.policy import policy_actions
@@ -93,7 +99,9 @@ class GracePeriodPauseTaskTest(GracePeriodPauseBaseTest):
         self.assertTrue(self.resource.paused)
         self.assertFalse(self.resource.paused_by_grace_period)
 
-    def test_grace_disabled_offering_is_not_held(self):
+    def test_grace_disabled_offering_is_held_from_raw_end_date(self):
+        # Such an offering skips the grace period and is terminated on the end
+        # date; it is held paused from then until the termination succeeds.
         self.offering.plugin_options = {
             "supports_pausing": True,
             "disable_grace_period": True,
@@ -101,7 +109,9 @@ class GracePeriodPauseTaskTest(GracePeriodPauseBaseTest):
         self.offering.save()
         self.resource.refresh_from_db()
 
-        self.assertFalse(utils.is_held_by_project_grace(self.resource))
+        self.assertTrue(utils.is_held_by_project_grace(self.resource))
+        with freeze_time(END_DATE - datetime.timedelta(days=1)):
+            self.assertFalse(utils.is_held_by_project_grace(self.resource))
 
 
 @freeze_time(IN_GRACE)
@@ -682,3 +692,199 @@ class UsageLimitUnderAutomaticPauseTest(GracePeriodPauseBaseTest):
 
         self.assertTrue(self.resource.paused)
         self.assertEqual(self.resource.usage_limit_restriction, "")
+
+
+class ProjectEndDatePauseTest(GracePeriodPauseBaseTest):
+    """A resource terminated for its project's end date is paused first.
+
+    The pause stays while the termination fails and is retried, so a SLURM
+    account whose removal is refused ("Job(s) active, cancel job(s) before
+    remove") does not take new jobs meanwhile (gh-109).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.offering.type = SITE_AGENT_OFFERING
+        self.offering.save()
+        self.project.grace_period_days = 0
+        self.project.save()
+
+    def sweep(self):
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+        self.resource.refresh_from_db()
+
+    def terminate_orders(self):
+        return models.Order.objects.filter(
+            resource=self.resource, type=OrderTypes.TERMINATE
+        ).order_by("created")
+
+    def fail_termination(self):
+        # The site agent reports a failed termination through this endpoint;
+        # it puts the resource back to OK.
+        order = self.terminate_orders().last()
+        order.set_state_executing()
+        order.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            f"/api/marketplace-orders/{order.uuid.hex}/set_state_erred/",
+            {
+                "error_message": "Job(s) active, cancel job(s) before remove",
+                "error_traceback": "",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+
+    @freeze_time("2020-01-01 01:40")
+    def test_expired_resource_is_paused_before_termination(self):
+        self.sweep()
+
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+        self.assertEqual(self.terminate_orders().count(), 1)
+
+    def test_failed_termination_keeps_resource_paused(self):
+        with freeze_time("2020-01-01 01:40"):
+            self.sweep()
+        with freeze_time("2020-01-01 01:45"):
+            self.fail_termination()
+
+            self.assertEqual(self.resource.state, ResourceStates.OK)
+            self.assertTrue(self.resource.paused)
+
+    def test_termination_is_retried_the_next_day(self):
+        with freeze_time("2020-01-01 01:40"):
+            self.sweep()
+        with freeze_time("2020-01-01 01:45"):
+            self.fail_termination()
+        with freeze_time("2020-01-01 13:40"):
+            self.sweep()
+            self.assertEqual(self.terminate_orders().count(), 1)
+
+        with freeze_time("2020-01-02 01:40"):
+            self.sweep()
+
+        orders = self.terminate_orders()
+        self.assertEqual(orders.count(), 2)
+        self.assertEqual(orders.last().state, OrderStates.PENDING_PROVIDER)
+        self.assertTrue(self.resource.paused)
+
+    def test_slurm_policy_does_not_unpause_expired_resource(self):
+        with freeze_time("2020-01-01 01:40"):
+            self.sweep()
+        with freeze_time("2020-01-01 01:45"):
+            self.fail_termination()
+            policy = policy_models.SlurmPeriodicUsagePolicy.objects.create(
+                scope=self.offering,
+                actions="request_slurm_resource_pausing",
+                apply_to_all=True,
+                grace_ratio=0.2,
+            )
+            with mock.patch.object(
+                policy_models.SlurmPeriodicUsagePolicy,
+                "get_resource_usage_percentage",
+                return_value=10,
+            ):
+                policy_actions.request_slurm_resource_pausing(policy)
+
+            self.resource.refresh_from_db()
+            self.assertTrue(self.resource.paused)
+
+    def test_extending_end_date_lifts_the_pause(self):
+        with freeze_time("2020-01-01 01:40"):
+            self.sweep()
+        with freeze_time("2020-01-01 01:45"):
+            self.fail_termination()
+
+            self.extend_end_date()
+
+            self.assertFalse(self.resource.paused)
+            self.assertFalse(self.resource.paused_by_grace_period)
+
+    @freeze_time("2020-01-01 01:40")
+    def test_grace_disabled_offering_is_paused_on_end_date(self):
+        self.project.grace_period_days = 30
+        self.project.save()
+        self.offering.plugin_options = {
+            "supports_pausing": True,
+            "disable_grace_period": True,
+        }
+        self.offering.save()
+
+        self.sweep()
+        self.assertTrue(self.resource.paused)
+        self.assertEqual(self.terminate_orders().count(), 1)
+
+        self.fail_termination()
+        utils.release_project_grace_pauses(models.Resource.objects.all())
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.OK)
+        self.assertTrue(self.resource.paused)
+
+    @freeze_time("2020-01-01 01:40")
+    def test_offering_without_pausing_is_not_paused(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+
+        self.sweep()
+
+        self.assertFalse(self.resource.paused)
+        self.assertEqual(self.terminate_orders().count(), 1)
+
+    @freeze_time("2020-01-01 01:40")
+    def test_existing_pause_is_not_claimed(self):
+        self.resource.paused = True
+        self.resource.save()
+
+        self.sweep()
+
+        self.assertTrue(self.resource.paused)
+        self.assertFalse(self.resource.paused_by_grace_period)
+
+    def pause_message(self):
+        with mock.patch("waldur_mastermind.marketplace.utils.event_logger") as logger:
+            utils.pause_for_end_date_hold(self.resource)
+        return logger.emit.call_args.args[0]
+
+    @freeze_time("2020-01-01 01:40")
+    def test_hold_pause_names_the_project_end_date_once_expired(self):
+        self.assertIn(
+            "project {project_name} has reached its end date", self.pause_message()
+        )
+
+    @freeze_time("2020-01-15")
+    def test_hold_pause_names_the_grace_period_inside_it(self):
+        self.project.grace_period_days = 30
+        self.project.save()
+
+        self.assertIn("has entered the grace period", self.pause_message())
+
+
+class ResourceEndDatePauseTest(ProjectEndDatePauseTest):
+    """A resource terminated for its own end date is held paused the same way."""
+
+    def setUp(self):
+        super().setUp()
+        self.project.end_date = None
+        self.project.save()
+        self.resource.end_date = END_DATE
+        self.resource.save()
+
+    def sweep(self):
+        tasks.terminate_expired_resources()
+        self.resource.refresh_from_db()
+
+    def extend_end_date(self, end_date=datetime.date(2020, 3, 1)):
+        with self.captureOnCommitCallbacks(execute=True):
+            self.resource.end_date = end_date
+            self.resource.save()
+        self.resource.refresh_from_db()
+
+    # The project-specific cases do not apply to a resource's own end date.
+    test_grace_disabled_offering_is_paused_on_end_date = None
+    test_hold_pause_names_the_grace_period_inside_it = None
+
+    @freeze_time("2020-01-01 01:40")
+    def test_hold_pause_names_the_project_end_date_once_expired(self):
+        self.assertIn("it has reached its end date", self.pause_message())
