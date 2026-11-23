@@ -682,3 +682,58 @@ class UsageLimitUnderAutomaticPauseTest(GracePeriodPauseBaseTest):
 
         self.assertTrue(self.resource.paused)
         self.assertEqual(self.resource.usage_limit_restriction, "")
+
+
+
+@freeze_time("2020-02-01")
+class ExpiredProjectSubmissionBlockTest(GracePeriodPauseBaseTest):
+    def setUp(self):
+        super().setUp()
+        self.project.grace_period_days = 0
+        self.project.save()
+        self.offering.plugin_options = {
+            "supports_pausing": True,
+            "block_new_submissions_on_expiry": True,
+        }
+        self.offering.save()
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.utils.schedule_resources_termination")
+    def test_expired_project_blocks_submissions_before_termination(self, schedule):
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+        schedule.assert_called_once()
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.utils.schedule_resources_termination")
+    def test_failed_termination_retry_does_not_lift_expiry_pause(self, schedule):
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+        self.assertEqual(schedule.call_count, 2)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.utils.schedule_resources_termination")
+    def test_non_opted_in_offering_is_unchanged(self, schedule):
+        self.offering.plugin_options = {"supports_pausing": True}
+        self.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.paused)
+        schedule.assert_called_once()
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.utils.schedule_resources_termination")
+    def test_extension_releases_expiry_owned_block(self, schedule):
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+
+        self.extend_end_date(end_date=datetime.date(2020, 3, 1))
+
+        self.assertFalse(self.resource.paused)
+        self.assertFalse(self.resource.paused_by_grace_period)
