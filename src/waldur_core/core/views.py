@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Any
 from urllib.parse import urlencode
+from uuid import UUID
 
 import requests
 import reversion
@@ -92,6 +93,7 @@ from waldur_core.core.permissions import (
     IsStaffWriterOrSupportReader,
     PATScopeAwareIsAdminUser,
     can_read_constance_secrets,
+    has_staff_access,
 )
 from waldur_core.core.serializers import (
     EXPORT_PDF_MAX_CELLS,
@@ -103,14 +105,19 @@ from waldur_core.core.serializers import (
     AuthTokenChallengeSerializer,
     AvailableBindingTargetSerializer,
     AvailableScopeSerializer,
+    BindableEntitySerializer,
     CeleryStatsResponseSerializer,
     ConstanceSettingsSerializer,
     CoreAuthTokenSerializer,
     DatabaseStatsResponseSerializer,
+    DedicatedUserTokenCreatedSerializer,
+    DedicatedUserTokenCreateSerializer,
     EmptySerializer,
     ExportPdfSerializer,
     LogoutSerializer,
     ObtainAuthTokenSerializer,
+    PatTemplateSerializer,
+    PatTemplateTargetSerializer,
     PersonalAccessTokenCreatedSerializer,
     PersonalAccessTokenCreateSerializer,
     PersonalAccessTokenNetworkAclSerializer,
@@ -139,6 +146,7 @@ from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.passkeys import models as passkey_models
 from waldur_core.passkeys import policy as passkey_policy
 from waldur_core.passkeys import services as passkey_services
+from waldur_core.permissions import binding_entities, pat_templates
 from waldur_core.permissions.enums import (
     BINDABLE_TYPE_MAP,
     CREATE_PERMISSIONS,
@@ -2691,6 +2699,37 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 "permission; every type for staff."
             )
         ],
+        "agent_user": [
+            access.custom(
+                "Staff only, from a re-authenticated session (passkey-verified "
+                "under enforcement); not with a personal access token. Creates "
+                "a user with the template's role on the target and a token for "
+                "it restricted to the target."
+            )
+        ],
+        "available_binding_entities": [
+            access.owned(
+                "Entities the caller can restrict a token to: those below an "
+                "entity the caller's own roles are on; any entity for staff "
+                "and holders of a site-wide grant. Not with a personal access "
+                "token."
+            )
+        ],
+        "templates": [
+            access.owned(
+                "Token templates the caller can bind somewhere a token from "
+                "them works: where the caller's own roles, or site-wide grants, "
+                "hold every scope the template requires. Not with a personal "
+                "access token."
+            )
+        ],
+        "template_targets": [
+            access.owned(
+                "The entities where the caller's own roles, or site-wide "
+                "grants, hold every scope the template requires. Not with a "
+                "personal access token."
+            )
+        ],
     }
 
     @access.shows("The caller's own personal access tokens.")
@@ -2702,7 +2741,18 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     def initial(self, request, *args, **kwargs):
         super().initial(request, *args, **kwargs)
         # Block PAT-via-PAT for management endpoints
-        if self.action in ("create", "destroy", "rotate", "set_network_acl"):
+        # Templates only help to create one, and listing their targets
+        # would show a bound token entities outside its binding.
+        if self.action in (
+            "create",
+            "destroy",
+            "rotate",
+            "set_network_acl",
+            "templates",
+            "template_targets",
+            "available_binding_entities",
+            "agent_user",
+        ):
             auth = getattr(request, "auth", None)
             if auth and hasattr(auth, "token_hash"):
                 raise exceptions.PermissionDenied(
@@ -2713,7 +2763,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         # to a session that satisfied a passkey. Reading and revoking stay
         # open: neither creates access, and locking revocation behind the
         # factor would strand a user who has lost their authenticator.
-        if self.action in ("create", "rotate"):
+        if self.action in ("create", "rotate", "agent_user"):
             if passkey_policy.is_enforced_for(
                 request.user
             ) and not passkey_models.is_session_verified(
@@ -2998,9 +3048,10 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
 
         Drives the create-PAT frontend's type picker. For staff users every
         type is offered for every permission (they bypass UserRole checks).
-        For other users we return only types where they hold an active role
-        granting the permission directly (the binding then inherits to
-        descendants at request time).
+        For other users, the type a role granting the permission is held on
+        and the types below it (an organization's projects, offerings and
+        resources, say), as the create serializer accepts a binding below the
+        role; every type for a permission held site-wide.
         """
         user = request.user
         perm_to_types: dict[str, set[str]] = defaultdict(set)
@@ -3024,11 +3075,314 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 if not perm_value:
                     continue
                 type_key = TYPE_KEY_BY_CT.get((app_label, model_name))
-                if type_key in BINDABLE_TYPE_MAP:
-                    perm_to_types[perm_value].add(type_key)
+                if type_key == "global":
+                    perm_to_types[perm_value] |= set(BINDABLE_TYPE_MAP)
+                elif type_key in BINDABLE_TYPE_MAP:
+                    perm_to_types[perm_value] |= binding_entities.descendant_types(
+                        type_key
+                    )
+            for perm in (PermissionEnum.STAFF_ACCESS, PermissionEnum.SUPPORT_ACCESS):
+                perm_to_types.pop(perm.value, None)
 
         result = [
             {"permission": perm, "types": sorted(types)}
             for perm, types in sorted(perm_to_types.items())
         ]
         return Response(AvailableBindingTargetSerializer(result, many=True).data)
+
+    @extend_schema(
+        summary="List entities the caller can restrict a token to",
+        parameters=[
+            OpenApiParameter(
+                "type",
+                str,
+                required=True,
+                enum=sorted(BINDABLE_TYPE_MAP),
+                description="Entity type.",
+            ),
+            OpenApiParameter("query", str, description="Part of the name to match."),
+        ],
+        responses={200: BindableEntitySerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], pagination_class=None)
+    def available_binding_entities(self, request):
+        """The first matches, for a search-as-you-type picker: entities the
+        create endpoint would accept as a binding, before the token's
+        permissions are known."""
+        type_key = request.query_params.get("type", "")
+        if type_key not in BINDABLE_TYPE_MAP:
+            raise exceptions.ValidationError({"type": f"Unknown type {type_key!r}."})
+        entities = binding_entities.bindable_entities(
+            request.user, type_key, request.query_params.get("query", "")
+        )
+        return Response(BindableEntitySerializer(entities, many=True).data)
+
+    @extend_schema(
+        summary="Create a dedicated user and its token for a template target",
+        request=DedicatedUserTokenCreateSerializer,
+        responses={
+            201: DedicatedUserTokenCreatedSerializer,
+            **reauthentication.CHALLENGE_RESPONSES,
+        },
+        parameters=[reauthentication.GRANT_PARAMETER],
+    )
+    @action(detail=False, methods=["post"])
+    def agent_user(self, request):
+        """Staff: create a user that only holds the template's role on the
+        target (an offering's manager, for a site agent), and a token for it
+        with the template's scopes, restricted to the target.
+
+        Unlike a staff user's own token, which works there only with
+        STAFF.ACCESS and then reaches everything, this one reaches the target
+        alone. The user has no usable password; it exists for the token.
+        """
+        if not has_staff_access(request):
+            raise exceptions.PermissionDenied()
+        serializer = DedicatedUserTokenCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        template = pat_templates.get_template(data["template"])
+        if template is None:
+            raise exceptions.ValidationError({"template": "Unknown template."})
+        role_for = template.dedicated_user_role.get(data["target_type"])
+        if role_for is None:
+            raise exceptions.ValidationError(
+                {"target_type": "No dedicated user for this type of target."}
+            )
+        target = (
+            template.binding_targets[data["target_type"]]()
+            .filter(uuid=data["target_uuid"])
+            .first()
+        )
+        if target is None:
+            raise exceptions.ValidationError({"target_uuid": "Unknown target."})
+        unknown = set(data["features"]) - {f.key for f in template.optional_features}
+        if unknown:
+            raise exceptions.ValidationError(
+                {"features": f"Unknown features: {', '.join(sorted(unknown))}."}
+            )
+        username = data.get("username") or pat_templates.dedicated_username(
+            template, target
+        )
+
+        with (
+            reauthentication.guarded(
+                request, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+            ),
+            transaction.atomic(),
+        ):
+            user = models.User(
+                username=username,
+                first_name=template.name,
+                last_name=getattr(target, "name", "")[:150],
+                registration_method="dedicated_token_user",
+                can_use_personal_access_tokens=True,
+                is_service_account=True,
+            )
+            # Before the first save, so the audit log does not record a
+            # password change for an account that never had one.
+            user.set_unusable_password()
+            user.save()
+            target.add_user(
+                user,
+                role_for(),
+                created_by=request.user,
+                reason=f"Dedicated {template.name} user",
+            )
+
+            # The role is whatever this deployment made of it: refuse rather
+            # than hand out a token that would not work.
+            (eligible,) = [
+                t
+                for t in pat_templates.get_targets(template, user, uuid=target.uuid.hex)
+                if not t.staff_access
+            ] or [None]
+            if eligible is None:
+                raise exceptions.ValidationError(
+                    "The role given to a dedicated user does not grant what "
+                    "this template needs on this site."
+                )
+            missing = set(data["features"]) - set(eligible.features)
+            if missing:
+                raise exceptions.ValidationError(
+                    {
+                        "features": "Not granted by the dedicated user's role: "
+                        + ", ".join(sorted(missing))
+                    }
+                )
+            scopes = [scope.value for scope in template.required_scopes] + [
+                scope.value
+                for feature in template.optional_features
+                if feature.key in data["features"]
+                for scope in feature.scopes
+            ]
+            full_token, prefix, token_hash = models.PersonalAccessToken.generate_token(
+                data["expires_at"]
+            )
+            pat = models.PersonalAccessToken.objects.create(
+                user=user,
+                name=data["name"],
+                token_prefix=prefix,
+                token_hash=token_hash,
+                scopes=scopes,
+                allowed_scopes=[
+                    {
+                        "content_type_id": ContentType.objects.get_for_model(
+                            type(binding)
+                        ).id,
+                        "object_id": binding.id,
+                    }
+                    for binding in eligible.bindings
+                ],
+                allowed_networks=data["allowed_networks"],
+                expires_at=data["expires_at"],
+            )
+
+        event_logger.emit(
+            "Service account {affected_user_username} has been created by "
+            "{creator_username} for {template_name} on {target_name}.",
+            event_type=EventType.DEDICATED_USER_CREATED,
+            event_context={
+                "affected_user": user,
+                "creator_username": request.user.username,
+                "template_name": template.name,
+                "target_name": getattr(target, "name", ""),
+                "target_type": data["target_type"],
+                "target_uuid": target.uuid.hex,
+            },
+            scopes=[user, request.user],
+        )
+        event_logger.emit(
+            "Personal access token {pat_name} has been created for user "
+            "{affected_user_username} by {creator_username}.",
+            event_type=EventType.PAT_CREATED,
+            event_context={
+                "affected_user": user,
+                "pat_name": pat.name,
+                "creator_username": request.user.username,
+            },
+            scopes=[user, request.user],
+        )
+        response = Response(
+            DedicatedUserTokenCreatedSerializer(
+                {
+                    "uuid": pat.uuid,
+                    "name": pat.name,
+                    "token": full_token,
+                    "scopes": pat.scopes,
+                    "allowed_scopes": _serialize_allowed_scopes(pat.allowed_scopes),
+                    "allowed_networks": pat.allowed_networks,
+                    "expires_at": pat.expires_at,
+                    "created": pat.created,
+                    "user_uuid": user.uuid,
+                    "username": user.username,
+                }
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+        response["Cache-Control"] = "no-store"
+        return response
+
+    def _can_create_tokens(self, user) -> bool:
+        return bool(config.PAT_ENABLED and user.can_use_personal_access_tokens)
+
+    @extend_schema(
+        summary="List token templates the caller can use",
+        responses={200: PatTemplateSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], pagination_class=None)
+    def templates(self, request):
+        """Suggested scopes for known integrations, such as the site agent.
+
+        A template is listed only when the caller can bind a token from it to
+        an entity where it would work. A token is still created with explicit
+        scopes; a template grants nothing by itself.
+        """
+        max_days = config.PAT_MAX_LIFETIME_DAYS
+        result = [
+            {
+                "key": template.key,
+                "name": template.name,
+                "description": template.description,
+                "required_scopes": [s.value for s in template.required_scopes],
+                "optional_features": [
+                    {
+                        "key": feature.key,
+                        "name": feature.name,
+                        "description": feature.description,
+                        "scopes": [s.value for s in feature.scopes],
+                    }
+                    for feature in template.optional_features
+                ],
+                "binding_types": template.binding_types,
+                "default_lifetime_days": min(template.default_lifetime_days, max_days),
+                "dedicated_user_types": sorted(template.dedicated_user_role),
+            }
+            for template in pat_templates.get_templates()
+            if self._can_create_tokens(request.user)
+            and pat_templates.has_targets(template, request.user)
+        ]
+        return Response(PatTemplateSerializer(result, many=True).data)
+
+    @extend_schema(
+        summary="List the entities a template's token can be bound to",
+        parameters=[
+            OpenApiParameter(
+                "template",
+                str,
+                required=True,
+                description="Key of the template.",
+            ),
+            OpenApiParameter(
+                "name", str, description="Part of the entity's name to match."
+            ),
+            OpenApiParameter(
+                "uuid",
+                OpenApiTypes.UUID,
+                description="Only the entity with this UUID, of any type.",
+            ),
+        ],
+        responses={200: PatTemplateTargetSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def template_targets(self, request):
+        """Entities where the caller holds every scope the template requires,
+        with the optional features they can add on each."""
+        key = request.query_params.get("template", "")
+        template = pat_templates.get_template(key)
+        if template is None:
+            raise exceptions.ValidationError({"template": f"Unknown template {key!r}."})
+        target_uuid = request.query_params.get("uuid", "")
+        if target_uuid:
+            try:
+                target_uuid = UUID(target_uuid).hex
+            except ValueError:
+                raise exceptions.ValidationError({"uuid": "Not a valid UUID."})
+        if not self._can_create_tokens(request.user):
+            targets = []
+        else:
+            targets = pat_templates.get_targets(
+                template,
+                request.user,
+                request.query_params.get("name", ""),
+                target_uuid,
+            )
+        # Staff are shown the username a dedicated user would get.
+        target_context = {
+            "dedicated_username": (
+                (lambda target: pat_templates.dedicated_username(template, target))
+                if request.user.is_staff
+                else None
+            )
+        }
+        page = self.paginate_queryset(targets)
+        if page is not None:
+            return self.get_paginated_response(
+                PatTemplateTargetSerializer(
+                    page, many=True, context=target_context
+                ).data
+            )
+        return Response(
+            PatTemplateTargetSerializer(targets, many=True, context=target_context).data
+        )

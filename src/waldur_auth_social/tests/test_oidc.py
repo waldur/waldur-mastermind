@@ -3205,3 +3205,37 @@ class ExtraFieldsWithdrawalTest(test.APITestCase):
             {"sub": "bob", "email": "bob@example.com", "roles": ["acme-owner"]},
         )
         self.assertEqual(user.details, {})
+
+
+class CreateOrUpdateOauthUserServiceAccountTest(test.APITestCase):
+    """A login matched to a service account goes through, and is recorded."""
+
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
+    def test_service_account_sign_in_is_recorded(self):
+        agent = structure_factories.UserFactory(
+            username="site-agent-cluster",
+            email="",
+            registration_method="dedicated_token_user",
+            is_service_account=True,
+        )
+        idp = models.IdentityProvider(
+            provider=ProviderChoices.EDUTEAMS,
+            **PROVIDER_DEFAULTS[ProviderChoices.EDUTEAMS],
+        )
+
+        with self.assertLogs(
+            "waldur_core.core.service_accounts", level="WARNING"
+        ) as logs:
+            synced, created = create_or_update_oauth_user(
+                idp, {"sub": "site-agent-cluster", "email": "team@example.com"}
+            )
+
+        self.assertFalse(created)
+        self.assertEqual(synced.pk, agent.pk)
+        self.assertTrue(any("site-agent-cluster" in m for m in logs.output))
+        self.assertTrue(
+            Event.objects.filter(
+                event_type=EventType.SERVICE_ACCOUNT_SIGNED_IN,
+                context__affected_user_username="site-agent-cluster",
+            ).exists()
+        )

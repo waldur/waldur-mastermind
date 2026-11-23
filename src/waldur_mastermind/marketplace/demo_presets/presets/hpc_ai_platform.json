@@ -11612,6 +11612,10 @@
     },
     {
       "role_name": "CUSTOMER.OWNER",
+      "permission": "OFFERING.MANAGE_AGENT"
+    },
+    {
+      "role_name": "CUSTOMER.OWNER",
       "permission": "OFFERING.UPDATE_LOCATION"
     },
     {

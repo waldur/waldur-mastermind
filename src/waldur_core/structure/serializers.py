@@ -2872,6 +2872,7 @@ class UserSerializer(
             # POSIX identity from the identity provider (read-only)
             "uid_number",
             "primary_gid",
+            "is_service_account",
             # Identity Bridge fields (staff-only, see get_fields)
             "is_identity_manager",
             "can_use_personal_access_tokens",
@@ -2884,6 +2885,7 @@ class UserSerializer(
             "details",
         )
         read_only_fields = (
+            "is_service_account",
             "uuid",
             "civil_number",
             "registration_method",

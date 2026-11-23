@@ -30,6 +30,7 @@ from waldur_core.configuration import config
 from waldur_core.core import signals as core_signals
 from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.models import SshPublicKey, User
+from waldur_core.core.service_accounts import note_service_account_sign_in
 from waldur_core.core.user_attributes import (
     get_enabled_idp_sync_fields,
     get_federated_identity_sync_allowed_fields,
@@ -601,6 +602,11 @@ def create_or_update_oauth_user(
 
         created = False
         update_fields = set()
+        note_service_account_sign_in(
+            user,
+            via=f"{identity_provider.provider} login",
+            identity=str(get_lookup_value(identity_provider, backend_user)),
+        )
 
         # If matched via email failover, update the primary lookup field
         if email_matched:
@@ -1101,6 +1107,9 @@ def create_or_update_bridge_user(
 
         if not user.is_active:
             raise ParseError(f"User {username} is deactivated.")
+        note_service_account_sign_in(
+            user, via=f"identity bridge ({source})", identity=username
+        )
 
         updated_fields = update_user_attributes_from_source(
             user, attributes, source, allowed_fields=allowed_fields

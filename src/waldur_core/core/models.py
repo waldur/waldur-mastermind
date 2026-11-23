@@ -351,6 +351,15 @@ class User(
         default=False,
         help_text=_("Designates whether the user is a global support user."),
     )
+    is_service_account = models.BooleanField(
+        _("service account"),
+        default=False,
+        help_text=_(
+            "Created for an integration, such as a site agent, to hold a role "
+            "and authenticate with its token. Signing in to it through single "
+            "sign-on is allowed and recorded as an event."
+        ),
+    )
     is_identity_manager = models.BooleanField(
         default=False,
         help_text=_(

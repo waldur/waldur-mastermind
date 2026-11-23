@@ -481,6 +481,7 @@ def may_lower_increase_only_limits(
         PermissionEnum.APPROVE_ORDER,
         resource,
         ORDER_PROVIDER_SOURCES,
+        binding_on_path=True,
     )
 
 

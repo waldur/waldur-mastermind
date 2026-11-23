@@ -27,6 +27,7 @@
 - auth_login_failed_with_saml2
 - auth_login_failed_with_username
 - auth_login_failed_with_valimo
+- dedicated_user_created
 - event_consumer_registered_with_broad_credential
 - event_consumer_resync_requested
 - event_consumer_webhook_updated
@@ -54,6 +55,7 @@
 - reauthentication_granted
 - reauthentication_refused
 - reauthentication_waived
+- service_account_signed_in
 - token_created
 - token_lifetime_updated
 - token_viewed
@@ -618,6 +620,7 @@
 - auth_login_failed_with_saml2
 - auth_login_failed_with_username
 - auth_login_failed_with_valimo
+- dedicated_user_created
 - event_consumer_registered_with_broad_credential
 - event_consumer_resync_requested
 - event_consumer_webhook_updated
@@ -657,6 +660,7 @@
 - reauthentication_granted
 - reauthentication_refused
 - reauthentication_waived
+- service_account_signed_in
 - ssh_key_creation_succeeded
 - ssh_key_deletion_succeeded
 - token_created

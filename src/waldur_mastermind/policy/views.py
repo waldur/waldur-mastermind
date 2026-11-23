@@ -19,9 +19,16 @@ from waldur_core.core.views import (
 )
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.pat_filtering import PATScopeListFilter
+from waldur_core.permissions.utils import holds_global_permission, permission_factory
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure.managers import get_connected_customers_by_permission
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.managers import (
+    get_connected_offerings_by_permission,
+)
 
 from . import (
     filters,
@@ -311,7 +318,43 @@ class SlurmPeriodicUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
     # preview_impact is a non-detail action (no specific object), so we use is_staff
     # instead of is_owner which requires an object to check ownership against
     preview_impact_permissions = [structure_permissions.is_staff]
-    report_command_result_permissions = [structure_permissions.is_staff]
+    # The offering's site agent reports here what it ran for the policy, with
+    # a token that carries OFFERING.MANAGE_AGENT. Staff pass has_permission.
+    report_command_result_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_OFFERING_AGENT,
+            ["scope", "scope.customer"],
+            binding_on_path=True,
+        )
+    ]
+
+    def filter_queryset(self, queryset):
+        # The role filter shows a policy to its organization only, which would
+        # hide it from an offering manager running the offering's agent. For
+        # report_command_result the lookup instead finds the policies of the
+        # offerings where the caller holds the permission above, so anyone
+        # else gets the 404 a missing policy gets. The permission check then
+        # applies a personal access token's scopes and binding.
+        if self.action == "report_command_result":
+            return self._agent_policies(queryset)
+        return super().filter_queryset(queryset)
+
+    def _agent_policies(self, queryset):
+        user = self.request.user
+        permission = PermissionEnum.MANAGE_OFFERING_AGENT
+        if not (user.is_staff or holds_global_permission(user, permission)):
+            queryset = queryset.filter(
+                Q(scope_id__in=get_connected_offerings_by_permission(user, permission))
+                | Q(
+                    scope__customer_id__in=get_connected_customers_by_permission(
+                        user, permission
+                    )
+                )
+            )
+        # Applied by the method this one overrides; no rule is registered for
+        # policies today, so it changes nothing yet, but a future one applies.
+        return PATScopeListFilter().filter_queryset(self.request, queryset, self)
+
     evaluation_logs_permissions = [structure_permissions.is_owner]
     command_history_list_permissions = [structure_permissions.is_owner]
     dry_run_permissions = [structure_permissions.is_staff]
@@ -585,8 +628,13 @@ class SlurmPeriodicUsagePolicyViewSet(PolicyEventsMixin, ActionsViewSet):
         mode = data.get("mode", "production")
         commands_executed = data.get("commands_executed", [])
 
+        # Only a resource of the policy's offering: the caller's right covers
+        # that offering, and another offering's resource must not be told
+        # apart from a missing one.
         try:
-            resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
+            resource = marketplace_models.Resource.objects.get(
+                uuid=resource_uuid, offering_id=policy.scope_id
+            )
         except marketplace_models.Resource.DoesNotExist:
             raise ValidationError({"resource_uuid": "Resource not found."})
 

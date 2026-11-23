@@ -1855,16 +1855,19 @@ def get_service_provider_customer_ids(service_provider):
     )
 
 
-def get_service_provider_project_ids(service_provider):
-    return (
-        get_service_provider_resources(service_provider)
-        .values_list("project_id", flat=True)
-        .distinct()
-    )
+def get_service_provider_project_ids(service_provider, offering_ids=None):
+    resources = get_service_provider_resources(service_provider)
+    if offering_ids is not None:
+        resources = resources.filter(offering_id__in=offering_ids)
+    return resources.values_list("project_id", flat=True).distinct()
 
 
-def get_service_provider_user_ids(user, service_provider, customer=None):
-    project_ids = get_service_provider_project_ids(service_provider)
+def get_service_provider_user_ids(
+    user, service_provider, customer=None, offering_ids=None
+):
+    """Users with a role in a project that uses the provider's offerings, or
+    only ``offering_ids`` among them when given."""
+    project_ids = get_service_provider_project_ids(service_provider, offering_ids)
     if customer:
         customer_projects = structure_models.Project.available_objects.filter(
             customer=customer
