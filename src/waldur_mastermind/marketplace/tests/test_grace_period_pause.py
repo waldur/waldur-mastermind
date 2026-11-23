@@ -737,3 +737,28 @@ class ExpiredProjectSubmissionBlockTest(GracePeriodPauseBaseTest):
 
         self.assertFalse(self.resource.paused)
         self.assertFalse(self.resource.paused_by_grace_period)
+
+
+@freeze_time("2020-01-05")
+class ExpiredProjectWithDisabledGraceTest(GracePeriodPauseBaseTest):
+    @mock.patch("waldur_mastermind.marketplace.tasks.utils.schedule_resources_termination")
+    def test_raw_end_date_blocks_submission_but_retains_existing_grace(self, schedule):
+        self.offering.plugin_options = {
+            "supports_pausing": True,
+            "disable_grace_period": True,
+            "block_new_submissions_on_expiry": True,
+        }
+        self.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        self.assertTrue(self.resource.paused_by_grace_period)
+        schedule.assert_called_once()
+
+        # Do not accidentally lift the gate while the project is still
+        # technically within its ordinary grace period.
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
