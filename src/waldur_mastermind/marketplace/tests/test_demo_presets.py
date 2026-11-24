@@ -33,7 +33,12 @@ from waldur_mastermind.marketplace.demo_presets.manifest import (
 from waldur_mastermind.marketplace.demo_presets.time_shift import (
     rebase_to_current_month,
 )
-from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
+from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    OrderStates,
+    OrderTypes,
+    ResourceStates,
+)
 from waldur_mastermind.marketplace.models import (
     Offering,
     Order,
@@ -249,6 +254,30 @@ class DemoPresetManagerTest(TestCase):
             visit(payload, "$")
 
         self.assertEqual(offenders, [], "\n".join(offenders[:20]))
+
+    def test_every_prepaid_preset_component_is_one_time(self):
+        """A preset may only make one-time components prepaid.
+
+        The offering component API refuses any other billing type for a prepaid
+        component, but presets are loaded without it. A limit-based prepaid
+        component hides the order form's termination date without offering a
+        subscription period, so such an offering cannot be ordered at all.
+        """
+        offenders = []
+        for metadata in DemoPresetManager.list_presets():
+            path = DemoPresetManager.get_preset_path(metadata.name)
+            payload = json.loads(pathlib.Path(path).read_text())
+            for component in payload.get("offering_components", []):
+                if (
+                    component.get("is_prepaid")
+                    and component.get("billing_type") != BillingTypes.ONE_TIME
+                ):
+                    offenders.append(
+                        f"{metadata.name}: {component.get('type')} "
+                        f"({component.get('billing_type')})"
+                    )
+
+        self.assertEqual(offenders, [], "\n".join(offenders))
 
     def test_hpc_ai_platform_usage_rows_reference_real_component_usages(self):
         """component_user_usages must point at component_usages that exist.
