@@ -205,7 +205,7 @@
       "type": "cpu_hours",
       "name": "CPU Hours",
       "description": "CPU compute hours allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "hours",
       "is_prepaid": true
     },
@@ -215,7 +215,7 @@
       "type": "gpu_hours",
       "name": "GPU Hours",
       "description": "GPU compute hours allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "hours",
       "is_prepaid": true
     },
@@ -225,7 +225,7 @@
       "type": "scratch_storage",
       "name": "Scratch Storage",
       "description": "High-speed temporary storage",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "GB",
       "is_prepaid": true
     },
@@ -235,7 +235,7 @@
       "type": "desktop_hours",
       "name": "Desktop Hours",
       "description": "Virtual desktop usage hours",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "hours",
       "is_prepaid": true
     },
@@ -245,7 +245,7 @@
       "type": "storage",
       "name": "Desktop Storage",
       "description": "User data storage allocation",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "GB",
       "is_prepaid": true
     },
@@ -255,7 +255,7 @@
       "type": "data_storage",
       "name": "Data Storage",
       "description": "REDCap project data storage",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "GB",
       "is_prepaid": true
     },
@@ -265,7 +265,7 @@
       "type": "active_projects",
       "name": "Active Projects",
       "description": "Number of active REDCap projects",
-      "billing_type": "limit",
+      "billing_type": "one",
       "measured_unit": "projects",
       "is_prepaid": true
     }
