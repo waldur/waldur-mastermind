@@ -11679,11 +11679,10 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         # If new limits are not provided, use the resource's current limits for the new period.
         final_limits = new_limits or resource.limits
 
-        # Calculate the new end_date for the resource.
-        # It's safest to calculate from the current end_date, or from today if expired.
-        current_end_date = resource.end_date or timezone.now().date()
-        if current_end_date < timezone.now().date():
-            current_end_date = timezone.now().date()
+        # Extend from the current end date, or from today if it has passed. Today
+        # is the local date, as for the end-date sweeps and the estimate.
+        today = timezone.localdate()
+        current_end_date = max(resource.end_date or today, today)
 
         new_end_date = current_end_date + relativedelta(months=extension_months)
 
