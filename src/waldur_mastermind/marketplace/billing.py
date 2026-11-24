@@ -289,6 +289,20 @@ class MarketplaceBillingService:
         return invoice, created
 
     @classmethod
+    def bill_resource(cls, resource, invoice, start, end, **kwargs):
+        """Bill ``resource`` into ``invoice`` for ``start``..``end``, the way a
+        monthly invoice bills it. Used by the billing simulation."""
+        cls._process_resource(resource, invoice=invoice, start=start, end=end, **kwargs)
+
+    @classmethod
+    def bill_component(cls, resource, plan_component, invoice, start, end, order_type):
+        """Bill one fixed, one-time or plan-switch component as an order of
+        ``order_type`` would. Used by the billing simulation."""
+        cls._process_simple_billing_component(
+            resource, plan_component, invoice, start, end, order_type
+        )
+
+    @classmethod
     def _register(cls, resource: marketplace_models.Resource, now=None, **kwargs):
         """
         Initializes billing for a resource, creating invoice items for the current billing period.

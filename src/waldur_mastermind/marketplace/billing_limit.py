@@ -28,6 +28,15 @@ from waldur_mastermind.marketplace.enums import (
 logger = logging.getLogger(__name__)
 
 
+def _in_year(moment: datetime.datetime, year: int) -> datetime.datetime:
+    """``moment`` in another year. A 29 February falls on the 28th in a year
+    that has none, so a resource created on a leap day keeps an anniversary."""
+    try:
+        return moment.replace(year=year)
+    except ValueError:
+        return moment.replace(year=year, day=28)
+
+
 class LimitPeriodProcessor:
     """
     Billing behavior varies by limit period for limit-based components:
@@ -115,6 +124,14 @@ class LimitPeriodProcessor:
                 resource, invoice, component_type, new_quantity, old_limit
             )
 
+    @classmethod
+    def bill_period(cls, resource, plan_component, invoice, date):
+        """Bill a limit for the whole period that contains ``date``, whatever
+        month the period starts in. Used by the billing simulation."""
+        limit_period = cls._limit_period_for(plan_component.component, resource)
+        start, end = cls._get_billing_period(limit_period, date, resource)
+        cls._create_invoice_item(resource, plan_component, invoice, start, end)
+
     # -- Private methods --
 
     @staticmethod
@@ -142,12 +159,14 @@ class LimitPeriodProcessor:
             return core_utils.get_quarter_start(date), core_utils.get_quarter_end(date)
         if limit_period == LimitPeriods.ANNUAL and resource:
             # Anniversary-based annual billing: 12-month cycle from resource creation
-            anniversary_this_year = resource.created.replace(year=date.year)
+            anniversary_this_year = _in_year(resource.created, date.year)
             if anniversary_this_year > date:
-                start = resource.created.replace(year=date.year - 1)
+                start = _in_year(resource.created, date.year - 1)
             else:
                 start = anniversary_this_year
-            end = start.replace(year=start.year + 1) - datetime.timedelta(seconds=1)
+            end = _in_year(resource.created, start.year + 1) - datetime.timedelta(
+                seconds=1
+            )
             return start, end
         # Default to monthly boundaries for MONTH and other recurring limit types.
         return core_utils.month_start(date), core_utils.month_end(date)

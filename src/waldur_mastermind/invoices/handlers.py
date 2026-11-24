@@ -15,7 +15,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.logging.middleware import get_event_context
 from waldur_core.media.validators import parse_email_list
 from waldur_core.structure.models import Project
-from waldur_mastermind.invoices import ledger, lots, models, tasks, vat
+from waldur_mastermind.invoices import ledger, lots, models, simulation, tasks, vat
 from waldur_mastermind.invoices import signals as cost_signals
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
@@ -254,7 +254,9 @@ def create_carried_over_usage_if_invoice_has_been_created(
     The policy is copied onto the new row so the behaviour survives beyond a
     single month.
     """
-    if not created:
+    # A simulated invoice is rolled back, and usage is not part of what it
+    # estimates: carrying usage over for it would only write rows to discard.
+    if not created or simulation.is_active():
         return
 
     invoice = instance
