@@ -1048,7 +1048,10 @@ def invite_user_to_project(project, email, role, send_email: bool = True):
     """
     Invite a user to the project with the specified email and role.
     If a matching pending invitation already exists, do nothing.
-    If send_email is True, send an invitation email.
+    If send_email is True, send an invitation email when the invitation is
+    pending. An invitation held for a future project start date stays
+    PENDING_PROJECT; process_pending_project_invitations sends it once the
+    project is active and the invitation can be accepted.
     """
     if not isinstance(project, structure_models.Project):
         raise TypeError("project must be an instance of Project")
@@ -1086,7 +1089,11 @@ def invite_user_to_project(project, email, role, send_email: bool = True):
         f"Created invitation {invitation} for user {email} to project {project} with role {role}"
     )
 
-    if send_email:
+    # Accept rejects PENDING_PROJECT ("Only pending invitations can be
+    # accepted"). Mailing now would hand the recipient a link they cannot
+    # use, and the beat task would send a second email once the project
+    # starts. The API create and resend actions already skip this send.
+    if send_email and invitation.state == InvitationState.PENDING:
         user_tasks.process_invitation.delay(invitation.uuid.hex, "OpenPortal")
 
 

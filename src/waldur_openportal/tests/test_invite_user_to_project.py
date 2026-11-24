@@ -4,10 +4,12 @@ Openportal sync calls this every tick. Without a duplicate guard a single
 unaccepted invite turns into N rows over time.
 """
 
+from datetime import timedelta
 from unittest import mock
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -116,6 +118,52 @@ class InviteUserToProjectTest(TestCase):
             ).count(),
             1,
         )
+
+    def test_sends_email_for_a_pending_invitation(self):
+        with mock.patch(
+            "waldur_openportal.utils.user_tasks.process_invitation.delay"
+        ) as mock_send:
+            utils.invite_user_to_project(
+                self.project, self.email, self.role, send_email=True
+            )
+
+        invitation = self._pending().get()
+        mock_send.assert_called_once_with(invitation.uuid.hex, "OpenPortal")
+
+    def test_project_starting_today_sends_email(self):
+        self.project.start_date = timezone.now().date()
+        self.project.save()
+
+        with mock.patch(
+            "waldur_openportal.utils.user_tasks.process_invitation.delay"
+        ) as mock_send:
+            utils.invite_user_to_project(
+                self.project, self.email, self.role, send_email=True
+            )
+
+        invitation = self._pending().get()
+        mock_send.assert_called_once_with(invitation.uuid.hex, "OpenPortal")
+
+    def test_future_project_start_does_not_send_email(self):
+        self.project.start_date = timezone.now().date() + timedelta(days=7)
+        self.project.save()
+
+        with mock.patch(
+            "waldur_openportal.utils.user_tasks.process_invitation.delay"
+        ) as mock_send:
+            utils.invite_user_to_project(
+                self.project, self.email, self.role, send_email=True
+            )
+
+        project_ct = ContentType.objects.get_for_model(self.project)
+        invitation = Invitation.objects.get(
+            email__iexact=self.email,
+            role=self.role,
+            content_type=project_ct,
+            object_id=self.project.id,
+        )
+        self.assertEqual(invitation.state, InvitationState.PENDING_PROJECT)
+        mock_send.assert_not_called()
 
     def test_accepted_invitation_does_not_block_new_one(self):
         # The duplicate guard only matches pending states; an accepted

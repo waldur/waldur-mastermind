@@ -12,6 +12,8 @@ from waldur_core.logging.models import Event
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.utils import move_project
+from waldur_core.users.enums import InvitationState
+from waldur_core.users.tests import factories as user_factories
 from waldur_mastermind.marketplace import models, tasks
 from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -202,6 +204,47 @@ class ProjectMoveTest(test.APITestCase):
         service_settings.refresh_from_db()
         self.assertEqual(private_offering.customer, self.new_customer)
         self.assertEqual(service_settings.customer, self.new_customer)
+
+
+class ClearingProjectStartDateSendsEachInvitationTest(test.APITestCase):
+    def test_each_invitation_is_sent(self):
+        project = structure_factories.ProjectFactory(
+            start_date=timezone.now().date() + datetime.timedelta(days=7)
+        )
+        ada = structure_factories.UserFactory(first_name="Ada", last_name="Lovelace")
+        alan = structure_factories.UserFactory(first_name="Alan", last_name="Turing")
+        first = user_factories.ProjectInvitationFactory(
+            scope=project,
+            email="ada@example.com",
+            state=InvitationState.PENDING_PROJECT,
+            created_by=ada,
+        )
+        second = user_factories.ProjectInvitationFactory(
+            scope=project,
+            email="alan@example.com",
+            state=InvitationState.PENDING_PROJECT,
+            created_by=alan,
+        )
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.handlers.process_invitation"
+        ) as process:
+            with self.captureOnCommitCallbacks(execute=True):
+                project.start_date = None
+                project.save()
+
+        process.delay.assert_has_calls(
+            [
+                mock.call(first.uuid.hex, ada.full_name),
+                mock.call(second.uuid.hex, alan.full_name),
+            ],
+            any_order=True,
+        )
+        self.assertEqual(process.delay.call_count, 2)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.state, InvitationState.PENDING)
+        self.assertEqual(second.state, InvitationState.PENDING)
 
 
 class ProjectStartDateTest(test.APITestCase):

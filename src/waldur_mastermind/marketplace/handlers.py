@@ -440,8 +440,13 @@ def process_invitations_and_orders_when_project_start_date_is_unset(
         sender = invitation.created_by and (
             invitation.created_by.full_name or invitation.created_by.username
         )
+        # Bind the values now. The lambda runs after the loop when the
+        # project save is inside a transaction, and would otherwise mail
+        # the last invitation once per row.
         transaction.on_commit(
-            lambda: process_invitation.delay(invitation.uuid.hex, sender)
+            lambda invitation_uuid=invitation.uuid.hex, sender=sender: (
+                process_invitation.delay(invitation_uuid, sender)
+            )
         )
 
     orders = models.Order.objects.filter(
