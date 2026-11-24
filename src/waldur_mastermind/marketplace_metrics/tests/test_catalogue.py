@@ -1,3 +1,7 @@
+import datetime
+from unittest import mock
+
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -10,7 +14,13 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.marketplace_metrics import enums, handlers, models
+from waldur_mastermind.marketplace_metrics import (
+    enums,
+    handlers,
+    ingest,
+    models,
+    serializers,
+)
 
 from . import factories
 
@@ -278,6 +288,63 @@ class OfferingMetricTest(test.APITestCase):
         offering_metric.state = enums.OfferingMetricStates.ARCHIVED
         offering_metric.save()
         self.assertEqual(len(self.client.get(OFFERING_METRICS).data), 0)
+
+    def test_who_sees_the_metric_sees_when_it_last_took_data(self):
+        reported_at = timezone.now() - datetime.timedelta(hours=3)
+        provider_offering = marketplace_factories.OfferingFactory()
+        factories.OfferingMetricFactory(
+            offering=provider_offering, last_reported_at=reported_at
+        )
+        marketplace_factories.ResourceFactory(
+            offering=provider_offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        self.client.force_authenticate(self.fixture.member)
+
+        [item] = self.client.get(OFFERING_METRICS).data
+
+        self.assertEqual(item["last_reported_at"], reported_at)
+
+    def test_last_reported_at_cannot_be_written(self):
+        offering_metric = factories.OfferingMetricFactory(offering=self.offering)
+        self.client.force_authenticate(self.fixture.owner)
+
+        response = self.client.patch(
+            factories.OfferingMetricFactory.get_url(offering_metric),
+            {"last_reported_at": timezone.now().isoformat()},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertIsNone(response.data["last_reported_at"])
+        offering_metric.refresh_from_db()
+        self.assertIsNone(offering_metric.last_reported_at)
+
+    def test_an_edit_does_not_undo_a_stamp_made_while_it_was_in_flight(self):
+        offering_metric = factories.OfferingMetricFactory(offering=self.offering)
+        stamped = timezone.now()
+        validate = serializers.OfferingMetricSerializer.validate
+
+        def stamp_then_validate(serializer, attrs):
+            # Another request commits points after the edit read the row.
+            ingest._mark_reported({offering_metric.pk}, stamped)
+            return validate(serializer, attrs)
+
+        self.client.force_authenticate(self.fixture.owner)
+        with mock.patch.object(
+            serializers.OfferingMetricSerializer, "validate", stamp_then_validate
+        ):
+            response = self.client.patch(
+                factories.OfferingMetricFactory.get_url(offering_metric),
+                {"display_name": "Completions"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        offering_metric.refresh_from_db()
+        self.assertEqual(offering_metric.display_name, "Completions")
+        self.assertEqual(offering_metric.last_reported_at, stamped)
 
 
 class CatalogueIntegrityTest(test.APITestCase):

@@ -174,6 +174,14 @@ class OfferingMetric(core_models.UuidMixin, TimeStampedModel):
         choices=enums.OfferingMetricStates.CHOICES,
         default=enums.OfferingMetricStates.ACTIVE,
     )
+    last_reported_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=_(
+            "When a point for this metric was last accepted, to within a minute; empty if none ever was."
+        ),
+    )
 
     class Permissions:
         customer_path = "offering__customer"
@@ -188,6 +196,22 @@ class OfferingMetric(core_models.UuidMixin, TimeStampedModel):
     @property
     def name(self):
         return self.display_name or self.definition.name
+
+    def save(self, *args, **kwargs):
+        """Leave last_reported_at to ingestion when saving an existing row.
+
+        A full save writes back every column as it was read. Ingestion stamps
+        the row on every request, so a PATCH or admin edit in between would
+        put back an older time, or none at all. Only ingestion's update, or
+        a save naming the field in update_fields, writes it.
+        """
+        if not self._state.adding and kwargs.get("update_fields") is None:
+            kwargs["update_fields"] = [
+                field.name
+                for field in self._meta.concrete_fields
+                if not field.primary_key and field.name != "last_reported_at"
+            ]
+        super().save(*args, **kwargs)
 
 
 class MetricSeries(TimeStampedModel):

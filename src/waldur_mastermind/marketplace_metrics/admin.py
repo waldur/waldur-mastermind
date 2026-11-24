@@ -18,6 +18,12 @@ class MetricDefinitionAdmin(admin.ModelAdmin):
 
 @admin.register(models.OfferingMetric)
 class OfferingMetricAdmin(admin.ModelAdmin):
-    list_display = ("offering", "definition", "project_aggregation", "state")
+    list_display = (
+        "offering",
+        "definition",
+        "project_aggregation",
+        "state",
+        "last_reported_at",
+    )
     list_filter = ("state",)
     raw_id_fields = ("offering", "definition")
