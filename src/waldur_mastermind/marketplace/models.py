@@ -2083,7 +2083,7 @@ class ResourceDetailsMixin(
         null=True,
         blank=True,
         help_text=_(
-            "The date is inclusive. Once reached, a resource will be scheduled for termination."
+            "The resource is scheduled for termination on this date, so the day before is the last full day of use."
         ),
     )
     end_date_requested_by = models.ForeignKey[core_models.User](

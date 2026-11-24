@@ -1064,7 +1064,9 @@ class Project(
         null=True,
         blank=True,
         help_text=_(
-            "The date is inclusive. Once reached, all project resource will be scheduled for termination."
+            "The project's resources are scheduled for termination on this date plus "
+            "the grace period, if one is configured. Offerings that disable the grace "
+            "period terminate them on this date."
         ),
     )
     end_date_requested_by = models.ForeignKey[core_models.User](
