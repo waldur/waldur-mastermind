@@ -910,6 +910,15 @@ def network_acl_widens(current: list[str], new: list[str]) -> bool:
     return False
 
 
+def can_use_personal_access_tokens(user) -> bool:
+    """Whether ``user`` may create and authenticate with personal access tokens.
+
+    PAT_ENABLED gives them to every user; while it is off, only users with the
+    can_use_personal_access_tokens flag have them. Staff are not special-cased.
+    """
+    return bool(config.PAT_ENABLED or user.can_use_personal_access_tokens)
+
+
 def normalize_ip_address(value: str | None) -> str | None:
     """Canonical string form of an IP address, or None if it does not parse.
 

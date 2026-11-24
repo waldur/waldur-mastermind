@@ -244,15 +244,14 @@ class PatKnownTokenRejectionAuditTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(self._rejections().get().context["reason"], "user_inactive")
 
-    def test_permission_revoked_token_use_is_audited(self):
+    @override_config(PAT_ENABLED=False)
+    def test_token_use_while_pats_are_off_is_audited(self):
         pat = create_pat(self.user)
         self.user.can_use_personal_access_tokens = False
         self.user.save(update_fields=["can_use_personal_access_tokens"])
         response = self._get(pat)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertEqual(
-            self._rejections().get().context["reason"], "permission_revoked"
-        )
+        self.assertEqual(self._rejections().get().context["reason"], "pats_disabled")
 
     def test_unknown_token_is_not_audited(self):
         # No token record -> nothing to debounce on -> must not be audited,

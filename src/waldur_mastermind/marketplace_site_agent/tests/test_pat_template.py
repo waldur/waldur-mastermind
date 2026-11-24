@@ -222,6 +222,18 @@ class SiteAgentTemplateVisibilityTest(SiteAgentFixtureMixin, test.APITestCase):
         self.offering.save()
         self.assertIsNone(self.site_agent_template(self.fixture.offering_manager))
 
+    def test_shown_to_a_user_without_the_flag_while_tokens_are_on(self):
+        user = self.fixture.offering_manager
+        self.assertFalse(user.can_use_personal_access_tokens)
+        self.client.force_authenticate(user)
+        keys = [t["key"] for t in self.client.get(TEMPLATES_URL).data]
+        self.assertIn(SITE_AGENT_TEMPLATE_KEY, keys)
+
+    @override_config(PAT_ENABLED=False)
+    def test_shown_to_a_flagged_user_while_tokens_are_off(self):
+        self.assertIsNotNone(self.site_agent_template(self.fixture.offering_manager))
+
+    @override_config(PAT_ENABLED=False)
     def test_hidden_from_who_cannot_create_tokens(self):
         user = self.fixture.offering_manager
         self.client.force_authenticate(user)
@@ -232,10 +244,6 @@ class SiteAgentTemplateVisibilityTest(SiteAgentFixtureMixin, test.APITestCase):
             self.client.get(TARGETS_URL, {"template": SITE_AGENT_TEMPLATE_KEY}).data,
             [],
         )
-
-    @override_config(PAT_ENABLED=False)
-    def test_hidden_when_tokens_are_off(self):
-        self.assertIsNone(self.site_agent_template(self.fixture.offering_manager))
 
     @override_config(PAT_MAX_LIFETIME_DAYS=30)
     def test_lifetime_is_capped_by_the_site_maximum(self):

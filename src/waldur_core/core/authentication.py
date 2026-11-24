@@ -317,9 +317,6 @@ class PATAuthentication(BaseAuthentication):
             core_utils.get_ip_address(request),
             authorize=lambda pat, client_ip: reject_impersonation_header(request),
         )
-        if result is None:
-            return None
-
         user, pat = result
         # A token without the staff or support scope acts as the user without
         # that role, for reads as well as writes: the request's user reads
@@ -340,7 +337,12 @@ class PATAuthentication(BaseAuthentication):
     _REJECTION_PHRASES = {
         "revoked": "the token has been revoked",
         "user_inactive": "the owner account is inactive",
-        "permission_revoked": "the owner may no longer use personal access tokens",
+        # The only refusal can_use_personal_access_tokens leaves: PAT_ENABLED
+        # is off and the owner lacks the flag. Older events carry
+        # "permission_revoked" for the same check; the frontend still labels it.
+        "pats_disabled": (
+            "personal access tokens are turned off and the owner is not allowed them"
+        ),
         "mcp_entity_bound": "the MCP server does not accept entity-bound tokens",
         "mcp_staff_access_missing": (
             "the MCP server requires STAFF.ACCESS on a staff account's token"
@@ -526,13 +528,13 @@ def authenticate_personal_access_token(
     raw_token: str,
     client_ip: str | None,
     authorize: Callable[[models.PersonalAccessToken, str | None], None] | None = None,
-) -> tuple[models.User, models.PersonalAccessToken] | None:
+) -> tuple[models.User, models.PersonalAccessToken]:
     """Validate a raw ``w_...`` token presented from ``client_ip``.
 
-    Returns ``(user, pat)``, or None while PATs are disabled. Raises
-    AuthenticationFailed for every rejection of the token itself. Needs no
-    request, so the MCP server shares the exact checks, audit events and usage
-    tracking of REST.
+    Returns ``(user, pat)``. Raises AuthenticationFailed for every rejection
+    of the token itself, including an owner who may not use tokens (neither
+    PAT_ENABLED nor their own flag). Needs no request, so the MCP server
+    shares the exact checks, audit events and usage tracking of REST.
 
     ``authorize(pat, client_ip)`` adds caller-specific checks. It runs before
     usage is recorded and rejects by raising an APIException, which propagates
@@ -547,10 +549,6 @@ def authenticate_personal_access_token(
                 raise AuthenticationFailed("Invalid token.")
         except (ValueError, OverflowError):
             pass
-
-    # Global kill-switch
-    if not config.PAT_ENABLED:
-        return None
 
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 
@@ -580,10 +578,10 @@ def authenticate_personal_access_token(
         PATAuthentication._emit_authentication_rejected(pat, "user_inactive", client_ip)
         raise AuthenticationFailed("Invalid token.")
 
-    if not pat.user.can_use_personal_access_tokens:
-        PATAuthentication._emit_authentication_rejected(
-            pat, "permission_revoked", client_ip
-        )
+    # PAT_ENABLED or the owner's own flag. Checked after the lookup:
+    # with PAT_ENABLED off, flagged users still authenticate.
+    if not core_utils.can_use_personal_access_tokens(pat.user):
+        PATAuthentication._emit_authentication_rejected(pat, "pats_disabled", client_ip)
         raise AuthenticationFailed("Invalid token.")
 
     if pat.is_expired:

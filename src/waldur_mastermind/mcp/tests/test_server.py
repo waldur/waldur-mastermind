@@ -215,7 +215,14 @@ class MCPServerTest(CorsAssertionsMixin, test.APITestCase):
         self.user.save(update_fields=["is_active"])
         self.assert_rejected(self.request_with(pat))
 
-    def test_user_without_pat_permission_is_rejected(self):
+    def test_user_without_flag_is_accepted_while_pats_are_on(self):
+        pat = create_pat(self.user)
+        self.user.can_use_personal_access_tokens = False
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
+        self.assertEqual(self.request_with(pat).status_code, 200)
+
+    @override_config(PAT_ENABLED=False)
+    def test_user_without_flag_is_rejected_while_pats_are_off(self):
         pat = create_pat(self.user)
         self.user.can_use_personal_access_tokens = False
         self.user.save(update_fields=["can_use_personal_access_tokens"])
@@ -285,9 +292,9 @@ class MCPServerTest(CorsAssertionsMixin, test.APITestCase):
         self.assert_rejected(self.request(authorization=f"Bearer {key}"))
 
     @override_config(PAT_ENABLED=False)
-    def test_pat_is_rejected_while_pats_are_disabled(self):
+    def test_flagged_user_is_accepted_while_pats_are_off(self):
         pat = create_pat(self.user)
-        self.assert_rejected(self.request_with(pat))
+        self.assertEqual(self.request_with(pat).status_code, 200)
 
     @override_config(MCP_ENABLED=False)
     def test_mcp_is_not_served_while_disabled(self):

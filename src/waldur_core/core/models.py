@@ -370,7 +370,8 @@ class User(
         default=False,
         help_text=_(
             "Designates whether the user is allowed to create and use "
-            "personal access tokens."
+            "personal access tokens while they are not enabled for every user "
+            "(PAT_ENABLED)."
         ),
     )
     deactivation_reason = models.CharField(

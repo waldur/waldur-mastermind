@@ -167,8 +167,6 @@ def verify_personal_access_token(
         )
     except AuthenticationFailed:
         return None
-    if result is None:
-        return None
 
     user, pat = result
     return AccessToken(
