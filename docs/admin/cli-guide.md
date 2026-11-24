@@ -561,6 +561,38 @@ options:
 
 ```
 
+## estimate_change
+
+Estimate what a change to a customer's resources would cost per month, by billing the next month with and without the change and rolling it back. Nothing is saved. The monthly, yearly and one-off figures are gross: before credit and excluding VAT. The month's credit, its total net of credit and its VAT are given next to them.
+
+```bash
+
+usage: waldur estimate_change [--month MONTH]
+                              [--resize RESOURCE_UUID [TYPE=VALUE ...]]
+                              [--switch RESOURCE_UUID PLAN_UUID]
+                              [--remove RESOURCE_UUID]
+                              [--add PLAN_UUID [PROJECT_UUID ...]] [--json]
+                              customer_uuid
+
+positional arguments:
+  customer_uuid
+
+options:
+  --month MONTH         Reference month as YYYY-MM; it must not be invoiced
+                        yet. Defaults to next month.
+  --resize RESOURCE_UUID [TYPE=VALUE ...]
+                        New limits for a resource, in the component's unit.
+  --switch RESOURCE_UUID PLAN_UUID
+  --remove RESOURCE_UUID
+  --add PLAN_UUID [PROJECT_UUID ...]
+                        A new resource: plan, project, then optional
+                        TYPE=VALUE limits and end_date=YYYY-MM-DD, when it
+                        ends; a prepaid component is estimated only with an
+                        end date.
+  --json
+
+```
+
 ## evaluate_slurm_policy
 
 Manually trigger SLURM periodic usage policy evaluation. Can evaluate a specific resource against a specific policy, or all resources for a policy.
@@ -1834,6 +1866,12 @@ options:
 ## sync_saml2_providers
 
 Synchronize SAML2 identity providers.
+
+## update_openstack_external_addresses
+
+Recompute the mapped public IPs of all floating IPs and the
+  addresses by which global search finds tenants and VMs. Run once after an
+  upgrade, and whenever mapped addresses look out of date.
 
 ## validate_openstack_billing
 

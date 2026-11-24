@@ -3929,7 +3929,7 @@ Public LiveKit signaling URL that browsers connect to for calls, e.g. wss://matr
 
 **Type:** bool
 
-Enable Personal Access Token authentication.
+Give personal access tokens to every user. While off, only users with the per-user personal access tokens flag can create and use them.
 
 #### PAT_MAX_LIFETIME_DAYS
 

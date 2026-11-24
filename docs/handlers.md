@@ -805,9 +805,18 @@ td:nth-child(4) {
 | `update_customer_of_offering_if_project_has_been_moved` | `Custom Signal (project_moved)` | `structure.Project` | Update the customer of an offering if the project has been moved. |
 | `update_daily_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | No description |
 | `update_estimate_when_invoice_is_created` | `Django Signal (post_save)` | `invoices.Invoice` | Update price estimates when new invoice is created for customer. |
+| `update_external_addresses_on_external_subnet_change` | `Django Signal (post_save)` | `openstack.ExternalSubnet` | No description |
+| `update_external_addresses_on_external_subnet_delete` | `Django Signal (post_delete)` | `openstack.ExternalSubnet` | No description |
 | `update_floating_ip_external_addresses` | `Django Signal (post_save)` | `openstack.FloatingIP` | No description |
 | `update_instances_ip_external_addresses` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `update_invoice_item_on_project_name_update` | `Django Signal (post_save)` | `structure.Project` | No description |
+| `update_ip_addresses_on_floating_ip_delete` | `Django Signal (post_delete)` | `openstack.FloatingIP` | No description |
+| `update_ip_addresses_on_load_balancer_change` | `Django Signal (post_save)` | `openstack.LoadBalancer` | No description |
+| `update_ip_addresses_on_load_balancer_delete` | `Django Signal (post_delete)` | `openstack.LoadBalancer` | No description |
+| `update_ip_addresses_on_port_change` | `Django Signal (post_save)` | `openstack.Port` | No description |
+| `update_ip_addresses_on_port_delete` | `Django Signal (post_delete)` | `openstack.Port` | No description |
+| `update_ip_addresses_on_router_change` | `Django Signal (post_save)` | `openstack.Router` | No description |
+| `update_ip_addresses_on_router_delete` | `Django Signal (post_delete)` | `openstack.Router` | No description |
 | `update_maintenance_announcement_on_offering_change` | `Django Signal (post_save)` | `marketplace.MaintenanceAnnouncementOffering` | Update AdminAnnouncement when affected offerings change. |
 | `update_maintenance_announcement_on_offering_change` | `Django Signal (post_delete)` | `marketplace.MaintenanceAnnouncementOffering` | Update AdminAnnouncement when affected offerings change. |
 | `update_marketplace_resource_limits_when_vm_is_updated` | `Custom Signal (vm_updated)` | `—` | No description |
@@ -902,7 +911,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 818
+Total unique handlers found: 827
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -910,7 +919,7 @@ Total unique handlers found: 818
 - **waldur_core**: 353 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 401 handlers
+- **waldur_mastermind**: 410 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
