@@ -573,10 +573,9 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
 
         # The only backend secret is that of SLURM's optional ldap block, which
         # is listed but not created.
-        self.assertIn(
-            "backend_settings.ldap.bind_password (slurm, required if its block is set)",
-            content,
-        )
+        unset_block = content.split("NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED")[1]
+        self.assertIn("backend_settings.ldap.bind_password (slurm)", unset_block)
+        self.assertNotIn("BACKEND SECRETS TO CONFIGURE", content)
         self.assertNotIn("ldap", offering_config["backend_settings"])
         self.assertEqual(
             list(offering_config["backend_settings"]),
@@ -1275,3 +1274,148 @@ class SiteAgentOfferingConfigTest(test.APITestCase):
         self.assertEqual(
             offering["backend_settings"]["hostname"], "slurm.test.example.com"
         )
+
+
+class SiteAgentBootstrapConfigGenerationTest(test.APITestCase):
+    """A file for offerings that take their configuration from Waldur."""
+
+    setUp = SiteAgentOfferingConfigTest.setUp
+    setUp_generator = SiteAgentOfferingConfigTest.setUp_generator
+    _use_dwdi_reporting = SiteAgentOfferingConfigTest._use_dwdi_reporting
+    _get = SiteAgentOfferingConfigTest._get
+    _config = SiteAgentOfferingConfigTest._config
+    _generated = SiteAgentOfferingConfigTest._generated
+    _configure_everything = SiteAgentOfferingConfigTest._configure_everything
+
+    # What the agent accepts in such an offering's block, besides its secrets.
+    BOOTSTRAP_KEYS = {
+        "name",
+        "configuration_source",
+        "waldur_api_url",
+        "waldur_api_token",
+        "waldur_offering_uuid",
+    }
+
+    def _bootstrap(self, **extra):
+        return self._generated(configuration_source="waldur", **extra)
+
+    def test_offering_holds_only_how_to_reach_waldur(self):
+        block, secrets = self._bootstrap()
+
+        self.assertEqual(set(block), self.BOOTSTRAP_KEYS)
+        self.assertEqual(block["configuration_source"], "waldur")
+        self.assertEqual(block["waldur_offering_uuid"], str(self.slurm_offering.uuid))
+        self.assertEqual(block["waldur_api_token"], "")
+        # SLURM's ldap block is not configured: its secret is only listed.
+        self.assertEqual(
+            [(s["field"], s["in_file"]) for s in secrets],
+            [
+                ("waldur_api_token", True),
+                ("backend_settings.ldap.bind_password", False),
+            ],
+        )
+
+    def test_secrets_of_configured_blocks_get_placeholders(self):
+        self._configure_everything()
+
+        block, secrets = self._bootstrap()
+
+        self.assertEqual(set(block), self.BOOTSTRAP_KEYS | {"backend_settings"})
+        self.assertEqual(
+            block["backend_settings"],
+            {"ldap": {"bind_password": ""}, "cscs_dwdi_client_secret": ""},
+        )
+        in_file = {s["field"]: s["in_file"] for s in secrets}
+        self.assertTrue(in_file["backend_settings.ldap.bind_password"])
+        self.assertTrue(in_file["backend_settings.cscs_dwdi_client_secret"])
+        # Optional: an empty placeholder would set it to "" in the agent.
+        self.assertFalse(in_file["backend_settings.ldap.welcome_email.smtp_password"])
+
+    def test_lists_the_secrets_waldur_serves(self):
+        self._configure_everything()
+
+        _, secrets = self._bootstrap()
+        config = self._config()
+
+        self.assertEqual(
+            sorted(
+                (s["field"], s["backend"], s["requirement"])
+                for s in secrets
+                if s["field"] != "waldur_api_token"
+            ),
+            sorted(
+                (s["field"], s["backend"], s["requirement"]) for s in config["secrets"]
+            ),
+        )
+
+    def test_env_format_references_a_variable_for_each_placeholder(self):
+        self._configure_everything()
+        self.slurm_offering.name = "Alpha HPC"
+        self.slurm_offering.save()
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            factories.ServiceProviderFactory.get_url(
+                self.service_provider, "generate_site_agent_config"
+            ),
+            {
+                "offering_uuids": [str(self.slurm_offering.uuid)],
+                "configuration_source": "waldur",
+                "secret_format": "env",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = response.content.decode()
+        self.assertIn("configuration_source: waldur", content)
+        self.assertIn("waldur_api_token: '${ALPHA_HPC_WALDUR_API_TOKEN}'", content)
+        self.assertIn("bind_password: '${ALPHA_HPC_LDAP_BIND_PASSWORD}'", content)
+        self.assertNotIn("backend_components", content)
+
+    def _bootstrap_content(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            factories.ServiceProviderFactory.get_url(
+                self.service_provider, "generate_site_agent_config"
+            ),
+            {
+                "offering_uuids": [str(self.slurm_offering.uuid)],
+                "configuration_source": "waldur",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.content.decode()
+
+    def test_header_keeps_secrets_of_unset_blocks_apart(self):
+        content = self._bootstrap_content()
+
+        to_add, unset_block = content.split(
+            "NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED"
+        )
+        # The agent refuses a secret whose block Waldur does not serve.
+        self.assertNotIn("ldap.bind_password", to_add)
+        self.assertIn("backend_settings.ldap.bind_password (slurm)", unset_block)
+
+    def test_header_lists_secrets_of_set_blocks_to_add(self):
+        self._configure_everything()
+
+        content = self._bootstrap_content()
+
+        self.assertNotIn("NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED", content)
+        to_add = content.split("BACKEND SECRETS TO CONFIGURE")[1]
+        self.assertIn("backend_settings.ldap.bind_password (slurm)", to_add)
+        # Optional ones stay listed with the others.
+        self.assertIn(
+            "backend_settings.ldap.welcome_email.smtp_password (ldap, optional)",
+            to_add,
+        )
+
+    def test_default_source_is_unchanged(self):
+        block, _ = self._generated()
+        local, _ = self._generated(configuration_source="local")
+
+        self.assertEqual(block, local)
+        self.assertIn("backend_settings", block)
+        self.assertNotIn("configuration_source", block)

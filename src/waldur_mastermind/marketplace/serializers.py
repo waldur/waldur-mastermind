@@ -19613,6 +19613,17 @@ class SiteAgentConfigGenerationSerializer(serializers.Serializer):
             "the earlier placeholders in 'comment' format."
         ),
     )
+    configuration_source = serializers.ChoiceField(
+        choices=["local", "waldur"],
+        default="local",
+        help_text=(
+            "Where the agent takes each offering's configuration from. 'local': "
+            "the file holds all of it. 'waldur': the file holds only how to reach "
+            "Waldur and the secrets, and the agent reads the rest from the "
+            "offering's site_agent_config when it starts; include_policy_settings "
+            "does not apply, as Waldur always serves them."
+        ),
+    )
 
     def validate_offering_uuids(self, value):
         """Validate that all offerings exist and belong to the service provider."""
