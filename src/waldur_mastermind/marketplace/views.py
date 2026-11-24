@@ -9574,9 +9574,14 @@ class OrderViewSet(
 
     @extend_schema(
         summary="Set order state to erred (agent)",
-        description="Used by external agents to report a failure during order processing. An error message and traceback can be provided.",
+        description="Used by external agents to report a failure during order processing. An error message and traceback can be provided. Only an unfinished order (pending or executing) can be marked as erred.",
         request=serializers.OrderErrorDetailsSerializer,
-        responses={200: None},
+        responses={
+            200: None,
+            409: OpenApiResponse(
+                description="Order is already finished (done, erred, canceled or rejected)."
+            ),
+        },
         examples=[
             OpenApiExample(
                 "Report an error",
@@ -9595,6 +9600,14 @@ class OrderViewSet(
         serializer.is_valid(raise_exception=True)
 
         with transaction.atomic():
+            # Lock and re-check: Order.set_state_erred accepts any source state,
+            # so a late or racing report would otherwise reopen a finished order
+            # and move its resource as if the order had just failed.
+            order = models.Order.objects.select_for_update().get(pk=order.pk)
+            if order.state not in OrderStates.PENDING_STATES:
+                raise IncorrectStateException(
+                    _("Order is already finished and cannot be marked as erred.")
+                )
             order.set_state_erred()
             # Both fields are optional; an omitted one is stored empty.
             order.error_message = serializer.validated_data.get("error_message", "")
@@ -9607,7 +9620,12 @@ class OrderViewSet(
                     pk=resource.pk
                 )
                 if order.type == OrderTypes.TERMINATE:
-                    if resource.state != ResourceStates.OK:
+                    # A resource terminated by another path stays terminated:
+                    # one failed attempt to remove it must not bring it back.
+                    if resource.state not in (
+                        ResourceStates.OK,
+                        ResourceStates.TERMINATED,
+                    ):
                         resource.set_state_ok()
                         resource.save(update_fields=["state"])
                 else:
@@ -20057,9 +20075,14 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         resource_request.error_message = error_message
         resource_request.error_traceback = error_traceback
         resource_request.save(
-            update_fields=["error_message", "error_traceback", "state", "finished"]
+            update_fields=[
+                "error_message",
+                "error_traceback",
+                "state",
+                "finished",
+                "modified",
+            ]
         )
-        resource_request.save()
 
         return Response(
             {"status": _("Request state set to erred.")}, status=status.HTTP_200_OK

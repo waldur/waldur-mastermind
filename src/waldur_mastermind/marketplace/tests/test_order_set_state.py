@@ -374,6 +374,70 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
         self.assertEqual(self.order.error_message, error_message)
         self.assertEqual(self.order.error_traceback, error_traceback)
 
+    @data(
+        OrderStates.PENDING_CONSUMER,
+        OrderStates.PENDING_PROVIDER,
+        OrderStates.PENDING_PROJECT,
+        OrderStates.PENDING_START_DATE,
+        OrderStates.EXECUTING,
+    )
+    def test_unfinished_order_can_be_set_erred(self, state):
+        self.order.state = state
+        self.order.save()
+
+        response = self.item_set_state_erred("staff", "fail", "trace")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.ERRED)
+
+    @data(
+        OrderStates.DONE,
+        OrderStates.ERRED,
+        OrderStates.CANCELED,
+        OrderStates.REJECTED,
+    )
+    def test_finished_order_cannot_be_set_erred(self, state):
+        # A late report from the agent must not reopen a finished order or
+        # move its resource: a done termination would bring the resource back
+        # to OK, a done creation would mark a working resource erred.
+        self.order.type = OrderTypes.TERMINATE
+        self.order.state = state
+        self.order.error_message = "earlier"
+        self.order.save()
+        resource = self.order.resource
+        resource.state = ResourceStates.TERMINATED
+        resource.save()
+
+        response = self.item_set_state_erred("staff", "late failure", "trace")
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, state)
+        self.assertEqual(self.order.error_message, "earlier")
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.TERMINATED)
+
+    def test_failed_termination_of_terminated_resource_keeps_it_terminated(self):
+        # The resource can be terminated by another path while the agent still
+        # works on the order; the agent's failure report used to answer 500
+        # because Terminated -> OK is not a transition.
+        self.order.type = OrderTypes.TERMINATE
+        self.order.state = OrderStates.EXECUTING
+        self.order.save()
+        resource = self.order.resource
+        resource.state = ResourceStates.TERMINATED
+        resource.save()
+
+        response = self.item_set_state_erred("staff", "fail", "trace")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.state, OrderStates.ERRED)
+        self.assertEqual(self.order.error_message, "fail")
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.TERMINATED)
+
     def item_set_state_erred(self, user, error_message, error_traceback):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
