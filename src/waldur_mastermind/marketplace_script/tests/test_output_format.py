@@ -111,6 +111,34 @@ class CreateOutputFormatTest(test.APITestCase):
             ).exists()
         )
 
+    def test_endpoints_outside_the_allowed_domains_are_dropped(
+        self, mock_check_access, mock_docker
+    ):
+        marketplace_factories.ServiceProviderFactory(
+            customer=self.fixture.offering.customer,
+            allowed_domains=["provider.example"],
+        )
+        mock_docker.DockerClient().containers.run.return_value = (
+            b"backend_id "
+            + base64.b64encode(
+                b"""{"endpoints": [
+                    {"name": "api", "url": "https://api.provider.example/v1"},
+                    {"name": "elsewhere", "url": "https://attacker.example/v1"}
+                ]}"""
+            )
+        )
+        marketplace_utils.process_order(self.order, self.fixture.staff)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.resource.state, ResourceStates.OK)
+        self.assertEqual(
+            list(
+                marketplace_models.ResourceAccessEndpoint.objects.filter(
+                    resource=self.order.resource
+                ).values_list("url", flat=True)
+            ),
+            ["https://api.provider.example/v1"],
+        )
+
 
 @mock.patch("waldur_mastermind.marketplace_script.utils.docker")
 @mock.patch("waldur_mastermind.marketplace_script.utils.check_docker_socket_access")

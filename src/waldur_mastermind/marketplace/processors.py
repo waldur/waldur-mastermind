@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.callbacks import (
 from waldur_mastermind.marketplace.utils import (
     derived_limit_inputs,
     parse_date,
+    validate_endpoint_domain,
     validate_limits,
 )
 
@@ -95,10 +96,24 @@ class AbstractCreateResourceProcessor(BaseOrderProcessor):
             for endpoint in endpoints:
                 name = endpoint.get("name")
                 url = endpoint.get("url")
-                if name is not None and url is not None:
-                    models.ResourceAccessEndpoint.objects.create(
-                        name=name, url=url, resource=resource
+                if name is None or url is None:
+                    continue
+                # The backend already holds the resource, so an endpoint
+                # outside the provider's allowed domains is dropped rather than
+                # failing the order.
+                try:
+                    validate_endpoint_domain(resource.offering, url)
+                except serializers.ValidationError as error:
+                    logger.warning(
+                        "Endpoint %s of resource %s is not stored: %s",
+                        url,
+                        resource.uuid,
+                        error.detail,
                     )
+                    continue
+                models.ResourceAccessEndpoint.objects.create(
+                    name=name, url=url, resource=resource
+                )
 
             if (
                 not scope

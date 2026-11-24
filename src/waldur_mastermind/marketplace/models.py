@@ -6204,6 +6204,15 @@ class ResourceApiKey(
             "an update. Waldur sends one once the key settles."
         ),
     )
+    rotation_due = models.BooleanField(
+        default=False,
+        help_text=_(
+            "The key's assignee's account was deleted while the key could not be "
+            "rotated: it was paused, its last command had failed, or one was in "
+            "flight. Waldur rotates it once it settles, so the departed person's "
+            "copy stops working. A rotation that settles clears it."
+        ),
+    )
     limit_pause_retries = models.PositiveSmallIntegerField(
         default=0,
         help_text=_(

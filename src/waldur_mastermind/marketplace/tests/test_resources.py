@@ -3252,6 +3252,34 @@ class ResourceSetEndpointsTest(test.APITestCase):
         names = set(self.resource.endpoints.values_list("name", flat=True))
         self.assertEqual(names, {"vLLM API", "Chat playground"})
 
+    def test_endpoints_are_held_to_the_providers_allowed_domains(self):
+        self.fixture.service_provider.allowed_domains = ["provider.example"]
+        self.fixture.service_provider.save()
+        models.ResourceAccessEndpoint.objects.create(
+            resource=self.resource, name="kept", url="https://api.provider.example/"
+        )
+        response = self.make_request(
+            self.fixture.offering_owner,
+            [
+                {"name": "API", "url": "https://llm.provider.example/v1"},
+                {"name": "Elsewhere", "url": "https://evil.example/v1"},
+            ],
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("evil.example", str(response.data))
+        # A refused set leaves the previous one in place.
+        names = set(self.resource.endpoints.values_list("name", flat=True))
+        self.assertEqual(names, {"kept"})
+
+    def test_endpoints_within_the_allowed_domains_are_accepted(self):
+        self.fixture.service_provider.allowed_domains = ["provider.example"]
+        self.fixture.service_provider.save()
+        response = self.make_request(
+            self.fixture.offering_owner,
+            [{"name": "API", "url": "https://llm.provider.example/v1"}],
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
     @data("owner", "admin", "manager")
     def test_user_can_not_set_endpoints_of_resource(self, user):
         response = self.make_request(getattr(self.fixture, user))

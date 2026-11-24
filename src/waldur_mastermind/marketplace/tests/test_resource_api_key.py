@@ -304,6 +304,39 @@ class ProviderApiKeyTest(test.APITestCase):
             )
         self.assertEqual(self.resource.api_keys.count(), 2)
 
+    def test_an_unknown_resource_looks_like_a_forbidden_one(self):
+        # A 400 for a resource that does not exist against a 403 for one that
+        # does would tell any signed-in caller which resource UUIDs exist.
+        self.client.force_authenticate(structure_factories.UserFactory())
+        statuses = {
+            self.client.post(
+                list_url("report-created"),
+                {"resource": resource_uuid, "client_id": "cid-1", "api_key": "sk-x"},
+            ).status_code
+            for resource_uuid in (self.resource.uuid.hex, "0" * 32, "not-a-uuid")
+        }
+        self.assertEqual(statuses, {status.HTTP_403_FORBIDDEN})
+
+    def test_an_authorized_caller_still_gets_validation_errors(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            list_url("report-created"),
+            {"resource": self.resource.uuid.hex, "client_id": "cid-1"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("api_key", response.data)
+
+    def test_a_body_naming_no_resource_is_a_validation_error(self):
+        # It reveals nothing about which resources exist.
+        self.client.force_authenticate(structure_factories.UserFactory())
+        for body in ({"client_id": "cid-1", "api_key": "sk-x"}, ["cid-1"]):
+            with self.subTest(body=body):
+                response = self.client.post(
+                    list_url("report-created"), body, format="json"
+                )
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertIn("resource", response.data)
+
     def test_consumer_cannot_report_created(self):
         CustomerRole.OWNER.add_permission(
             PermissionEnum.MANAGE_RESOURCE_CONSUMER_API_KEY

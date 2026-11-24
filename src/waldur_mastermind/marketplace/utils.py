@@ -19,7 +19,7 @@ from functools import lru_cache
 from io import BytesIO
 from string import Template
 from typing import cast
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 import httpx
 from django.conf import settings
@@ -9571,4 +9571,36 @@ def log_terms_of_service_replaced(previous, new_tos):
             "new_version": new_tos.version,
         },
         scopes=[new_tos.offering, new_tos.offering.customer],
+    )
+
+
+def validate_endpoint_domain(offering: models.Offering, url: str) -> None:
+    """Refuse an endpoint URL outside the service provider's allowed domains.
+
+    Applies to an offering's endpoints and to a resource's alike: HomePort sends
+    a revealed API key to a resource's endpoint, so it is held to the same list.
+    """
+    try:
+        service_provider = offering.customer.serviceprovider
+    except models.ServiceProvider.DoesNotExist:
+        return
+
+    allowed_domains = service_provider.allowed_domains
+    if not allowed_domains:
+        return
+
+    hostname = (urlparse(url).hostname or "").lower()
+    for domain in allowed_domains:
+        if hostname == domain.lower() or hostname.endswith("." + domain.lower()):
+            return
+
+    raise rf_exceptions.ValidationError(
+        _(
+            "Endpoint URL domain '%(hostname)s' is not in the list of allowed domains "
+            "for this service provider. Allowed domains: %(domains)s."
+        )
+        % {
+            "hostname": hostname,
+            "domains": ", ".join(allowed_domains),
+        }
     )

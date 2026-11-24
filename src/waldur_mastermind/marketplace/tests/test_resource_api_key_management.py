@@ -973,6 +973,97 @@ class DeletedAssigneeTest(ApiKeyManagementTestBase):
         self.assertEqual(self.key.pending_action, Actions.ROTATE)
         self.assertIsNone(self.key.user)
 
+    def settle(self, action="set-ok", data=None):
+        response, prepare = self.post(
+            self.fixture.offering_owner, detail_url(self.key, action), data
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        return prepare
+
+    def test_without_key_management_a_paused_key_is_rotated_once_resumed(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        self.key.state = States.PAUSED
+        self.key.save()
+        prepare = self.delete_assignee()
+        # A paused key cannot be rotated: nothing is published yet, and the
+        # departed person's value cannot be revealed meanwhile.
+        prepare.assert_not_called()
+        self.assertEqual(self.key.key_ciphertext, "")
+        self.assertTrue(self.key.rotation_due)
+
+        response, prepare = self.post(
+            self.fixture.owner, detail_url(self.key, "resume")
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.RESUME)
+
+        # The resume settles, and the key is rotated straight away rather than
+        # kept serving the departed person's value.
+        prepare = self.settle()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+        self.assertEqual(self.key.state, States.UPDATING)
+        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+        self.assertTrue(self.key.rotation_due)
+
+        prepare = self.settle("set-key", {"api_key": "sk-nobody-has-seen"})
+        prepare.assert_not_called()
+        self.assertEqual(self.key.state, States.OK)
+        self.assertFalse(self.key.rotation_due)
+        self.assertEqual(
+            encryption.decrypt_value(self.key.key_ciphertext), "sk-nobody-has-seen"
+        )
+
+    def test_without_key_management_a_failed_resume_is_rotated_once_retried(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        self.key.state = States.ERRED
+        self.key.pending_action = Actions.RESUME
+        self.key.save()
+        self.delete_assignee()
+        self.assertTrue(self.key.rotation_due)
+
+        response, prepare = self.post(self.fixture.owner, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.RESUME)
+        prepare = self.settle()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+
+    def test_a_rotation_already_in_flight_is_not_followed_by_another(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        self.key.set_updating(Actions.ROTATE)
+        self.key.save()
+        prepare = self.delete_assignee()
+        prepare.assert_not_called()
+        # Due until a rotation settles: one in flight may still fail.
+        self.assertTrue(self.key.rotation_due)
+        # The rotation in flight replaces the departed person's value.
+        prepare = self.settle("set-key", {"api_key": "sk-new"})
+        prepare.assert_not_called()
+        self.assertEqual(self.key.state, States.OK)
+        self.assertFalse(self.key.rotation_due)
+
+    def test_a_rotation_that_fails_stays_due(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
+        self.key.set_updating(Actions.ROTATE)
+        self.key.save()
+        self.delete_assignee()
+        self.settle("set-erred", {"error_message": "gateway down"})
+        self.assertEqual(self.key.state, States.ERRED)
+        self.assertTrue(self.key.rotation_due)
+
+    def test_a_rotation_by_hand_settles_the_one_due(self):
+        self.key.rotation_due = True
+        self.key.save()
+        response, _ = self.post(self.fixture.owner, detail_url(self.key, "rotate"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        prepare = self.settle("set-key", {"api_key": "sk-new"})
+        prepare.assert_not_called()
+        self.assertFalse(self.key.rotation_due)
+
     def test_a_key_that_takes_no_command_keeps_no_value(self):
         self.resource.state = models.Resource.States.TERMINATING
         self.resource.save()
@@ -980,6 +1071,95 @@ class DeletedAssigneeTest(ApiKeyManagementTestBase):
         prepare.assert_not_called()
         self.assertEqual(self.key.key_ciphertext, "")
         self.assertIsNone(self.key.user)
+
+    def sweep(self):
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.rotate_due_api_keys()
+        self.key.refresh_from_db()
+        return prepare
+
+    def test_a_key_left_by_a_failed_termination_is_rotated_by_the_sweep(self):
+        self.resource.state = models.Resource.States.TERMINATING
+        self.resource.save()
+        self.delete_assignee()
+        self.assertTrue(self.key.rotation_due)
+        self.assertEqual(self.key.state, States.OK)
+        # While the resource is terminating, the key goes with it.
+        self.sweep().assert_not_called()
+        self.resource.state = models.Resource.States.ERRED
+        self.resource.save()
+        prepare = self.sweep()
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+        self.assertTrue(self.key.rotation_due)
+        # Once the rotation is in flight, the sweep leaves it alone.
+        self.sweep().assert_not_called()
+        self.settle("set-key", {"api_key": "sk-new"})
+        self.assertFalse(self.key.rotation_due)
+
+    def test_a_rotation_the_agent_reports_as_created_settles_the_one_due(self):
+        self.key.rotation_due = True
+        self.key.set_updating(Actions.ROTATE)
+        self.key.save()
+        response, _ = self.post(
+            self.fixture.offering_owner,
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": self.key.client_id,
+                "api_key": "sk-new",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
+        self.assertFalse(self.key.rotation_due)
+
+    def test_a_value_reported_again_for_a_key_due_is_rotated_at_once(self):
+        self.key.rotation_due = True
+        self.key.save()
+        response, prepare = self.post(
+            self.fixture.offering_owner,
+            list_url("report-created"),
+            {
+                "resource": self.resource.uuid.hex,
+                "client_id": self.key.client_id,
+                "api_key": "sk-departed",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.ROTATE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.ROTATE)
+        self.assertTrue(self.key.rotation_due)
+
+    def test_one_key_the_sweep_cannot_rotate_leaves_the_others_rotated(self):
+        other = self.make_key("cid-2")
+        models.ResourceApiKey.objects.filter(pk__in=[self.key.pk, other.pk]).update(
+            rotation_due=True
+        )
+        issue_command = resource_api_keys.issue_command
+        calls = []
+
+        def fail_first(api_key, *args, **kwargs):
+            calls.append(api_key.pk)
+            if len(calls) == 1:
+                raise RuntimeError("broker down")
+            return issue_command(api_key, *args, **kwargs)
+
+        with mock.patch.object(
+            resource_api_keys, "issue_command", side_effect=fail_first
+        ):
+            self.sweep()
+        self.assertEqual(len(calls), 2)
+        keys = models.ResourceApiKey.objects.filter(pk__in=calls)
+        self.assertEqual(
+            sorted(key.pending_action for key in keys), ["", Actions.ROTATE]
+        )
+        self.assertTrue(all(key.rotation_due for key in keys))
 
     def test_other_users_keys_are_left_alone(self):
         self.sibling = self.make_key("cid-2", user=self.fixture.admin)

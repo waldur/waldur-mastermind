@@ -16,7 +16,9 @@ below. The agent-side mechanics build on the
 - **Zero-downtime rotation**: rotating one key never disturbs the others, so
   consumers on a different key keep working.
 - **The stored key is always a working key.** Waldur never hands a member a key
-  the gateway would reject.
+  the gateway would reject — as long as one site agent serves the offering. An
+  acknowledgement does not name the command it answers, so two agents racing on
+  the same key can settle a newer rotation with an older value.
 - **Safe visibility**: members read the keys on demand, but they are never
   plaintext where a database dump or a broad API response could leak them.
 - **Per-key governance**, where the backend supports it: a key can be requested,
@@ -117,8 +119,16 @@ Where the offering manages keys, each is deleted — a requested key not created
 yet is dropped, and a command in flight gives way to the deletion, so its late
 acknowledgement is refused. Without key management, where a key cannot be
 deleted, it is rotated, so the departed person's copy stops working. A key that
-can take neither, such as one of a resource being terminated, has its stored
-value dropped, so nobody reveals it. Deactivating an account changes nothing.
+can take neither has its stored value dropped, so nobody reveals it, and is
+marked `rotation_due`. A key that is paused, whose last command failed, or
+that has a command in flight cannot be rotated at once; it is rotated as soon as
+it next settles `OK`, so a manager resuming it, or retrying its failed resume,
+does not bring the departed person's copy back. The mark clears only when the
+key gets a new value (`set_key`, or `report_created` settling a rotation), so a
+rotation that fails keeps it. A key of a
+resource being terminated goes with the resource; if the termination fails, the
+key is left settled with no acknowledgement to come, and an hourly sweep rotates
+it, as it does any settled key still marked. Deactivating an account changes nothing.
 
 **Limits are enforced by Waldur, not the gateway.** The Envoy backend's
 `set_resource_limits` is a no-op by design: limits are enforced by Waldur (report
@@ -192,6 +202,7 @@ on only for a backend whose agent sets `supports_resource_api_key_lifecycle`.
 | `paused_by_limit` | Waldur paused the key because its usage reached a limit; such a key is resumed automatically once under its limits again |
 | `limit_resumes_at` | when every limit that paused the key resets, so that it resumes without a usage report; empty while a reached total holds the key, which then resumes only when that limit is raised or cleared |
 | `models_outdated` | the resource's model selection changed while the key could not take an `update`; Waldur sends one once the key settles ([below](#resource-selection)) |
+| `rotation_due` | the key's assignee's account was deleted while the key could not be rotated; Waldur rotates it once it settles `OK`, and a settled rotation clears it ([above](#design-rationale)). Not in the API |
 | `error_message` | agent-reported failure detail when `Erred` |
 | `modified` | `TimeStampedModel`; the time the key last changed state or settings — the agent's sweep reads it as "in this state since". Usage reports do not touch it |
 
@@ -565,6 +576,15 @@ resume the key once the resource's restriction lifts.
 A resume by hand clears the mark, but does not override the limit: if the key is
 still over it, it is paused again once the agent acknowledges the resume. A key a person paused is never resumed automatically.
 
+To keep a key that Waldur paused for its limit paused past the reset, a manager
+pauses it: the pause becomes theirs. The key is already paused at the backend,
+so nothing is sent to the agent; `paused_by_limit` and `limit_resumes_at` are
+cleared and the change is audited ("It stays paused until someone resumes it.").
+Pausing a key a person already paused is still refused (409). The same holds
+when Waldur's pause failed and left the key `Erred`: a manager's pause is sent
+again, but as theirs, so the key is not resumed at the reset. Retrying the
+failed pause keeps it Waldur's.
+
 **Daily usage rows.** A key's status reads only the daily rows its own limits
 reach back to: from the start of the week for a day or week limit, of the
 quarter or year for those. A key with month or total limits only, or none,
@@ -934,3 +954,10 @@ then. The API reports it for the current month: a key whose last report is for
 an earlier month reads 0, and sorts as 0, until usage for this month comes in.
 On an offering that no longer has `enable_api_key_provisioning` the field is
 null, like the key's usage, and the key sorts and totals as 0.
+
+The estimate is only shown, so it never puts a usage report at stake. It is
+written last, after the usage and any limit pause, and in a savepoint of its own:
+a cost the field cannot hold, or a price that cannot be read, is logged, while
+the report and the pause still go through. The key keeps the last estimate
+stored if it is for the same month; a report that moved the key to a new month
+stores 0 instead, so the last month's cost is never shown as this month's.

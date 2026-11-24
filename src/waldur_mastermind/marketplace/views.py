@@ -5,7 +5,6 @@ import logging
 import traceback
 from collections.abc import Mapping
 from typing import cast
-from urllib.parse import urlparse
 
 import httpx
 import reversion
@@ -222,6 +221,7 @@ from waldur_mastermind.marketplace.utils import (
     get_offering_usage_timeseries,
     narrow_terminated_to_usage_window,
     validate_attributes,
+    validate_endpoint_domain,
 )
 from waldur_mastermind.marketplace_site_agent import (
     agent_configuration as site_agent_configuration,
@@ -4735,7 +4735,7 @@ class ProviderOfferingViewSet(
         serializer.is_valid(raise_exception=True)
 
         url = serializer.validated_data["url"]
-        self._validate_endpoint_domain(offering, url)
+        validate_endpoint_domain(offering, url)
 
         endpoint = models.OfferingAccessEndpoint.objects.create(
             offering=offering,
@@ -4746,37 +4746,6 @@ class ProviderOfferingViewSet(
         return Response(
             {"uuid": endpoint.uuid},
             status=status.HTTP_201_CREATED,
-        )
-
-    @staticmethod
-    def _validate_endpoint_domain(offering: models.Offering, url: str) -> None:
-        """
-        Validate that the endpoint URL's domain is within the allowed domains
-        configured on the service provider.
-        """
-        try:
-            service_provider = offering.customer.serviceprovider
-        except models.ServiceProvider.DoesNotExist:
-            return
-
-        allowed_domains = service_provider.allowed_domains
-        if not allowed_domains:
-            return
-
-        hostname = (urlparse(url).hostname or "").lower()
-        for domain in allowed_domains:
-            if hostname == domain.lower() or hostname.endswith("." + domain.lower()):
-                return
-
-        raise ValidationError(
-            _(
-                "Endpoint URL domain '%(hostname)s' is not in the list of allowed domains "
-                "for this service provider. Allowed domains: %(domains)s."
-            )
-            % {
-                "hostname": hostname,
-                "domains": ", ".join(allowed_domains),
-            }
         )
 
     add_endpoint_permissions = [
@@ -4806,7 +4775,7 @@ class ProviderOfferingViewSet(
 
         if "url" in serializer.validated_data:
             url = serializer.validated_data["url"]
-            self._validate_endpoint_domain(offering, url)
+            validate_endpoint_domain(offering, url)
             endpoint.url = url
         if "name" in serializer.validated_data:
             endpoint.name = serializer.validated_data["name"]
@@ -12265,6 +12234,8 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        for endpoint in serializer.validated_data["endpoints"]:
+            validate_endpoint_domain(resource.offering, endpoint["url"])
 
         with transaction.atomic():
             resource.endpoints.all().delete()
@@ -18150,9 +18121,20 @@ CONSUMER_API_KEY_SOURCES = ["project", "project.customer"]
     )
 )
 def check_provider_api_key_permissions(request, view, obj=None):
-    serializer = view.get_serializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    resource = serializer.validated_data["resource"]
+    # Only the resource is read before permission is checked, and a resource
+    # that does not exist is refused like one the caller may not manage: a 400
+    # for one against a 403 for the other would tell any signed-in caller which
+    # resource UUIDs exist. The rest of the body is validated by the action. A
+    # body that names no resource reveals nothing, so it gets the plain 400.
+    data = request.data
+    if not isinstance(data, dict) or data.get("resource") in (None, ""):
+        raise ValidationError({"resource": [_("This field is required.")]})
+    try:
+        resource = (
+            view.get_serializer().fields["resource"].run_validation(data["resource"])
+        )
+    except ValidationError:
+        raise PermissionDenied()
     # Built from the same traversal the detail actions declare below, so a read
     # gate and the write gate it has to agree with cannot drift apart.
     if not has_permission_on_any_source(
@@ -18933,6 +18915,8 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
             "key_ciphertext": encryption.encrypt_value(plaintext),
             "issued_at": timezone.now(),
             "error_message": "",
+            # A new value replaces whatever a deleted assignee held.
+            "rotation_due": False,
         }
         # A backend whose public identifier rotates together with the secret (an S3
         # access key) reports the new one; one with a stable client_id omits it,

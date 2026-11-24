@@ -29,6 +29,7 @@ key whose effective list it changes. See docs/resource-api-keys.md.
 
 import datetime
 import logging
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -80,6 +81,8 @@ _START = {
 # predates governance; a resume must stay possible for a key that was paused
 # before the provider switched governance off, or the key is stranded.
 UNGOVERNED = frozenset({Actions.ROTATE, Actions.RESUME})
+
+_DEPARTED_ASSIGNEE = "Its assignee's account was deleted."
 
 
 def is_resource_live(resource: models.Resource) -> bool:
@@ -317,6 +320,10 @@ def issue_command(
         api_key = _lock(api_key)
         old_limits = api_key.spending_limits
         cancel = action == Actions.DELETE and not api_key.client_id
+        # A pause a person asks for is theirs, even in place of a limit pause
+        # that failed: it is not resumed when the limit resets. A retry of that
+        # failed pause names no action and stays Waldur's.
+        person_pause = action == Actions.PAUSE and actor is not None
         if action is None:
             if api_key.state != States.ERRED:
                 raise IncorrectStateException(
@@ -381,23 +388,40 @@ def issue_command(
             )
         if action == Actions.CREATE:
             require_resource_provisioned(api_key.resource)
-        try:
-            if cancel:
-                api_key.cancel_request()
-            else:
-                _START[action](api_key)
-        except TransitionNotAllowed:
-            raise IncorrectStateException(
-                f"Cannot {action} an API key that is {api_key.state}."
-            )
-        for field, value in updates.items():
-            setattr(api_key, field, value)
-        if action in Actions.CARRY_SETTINGS and action != Actions.ROTATE:
-            # The command carries the effective list as it is now. A rotation
-            # carries it too, but an agent older than that ignores it, so a key
-            # marked is still sent an update once the rotation settles.
-            api_key.models_outdated = False
-        api_key.save()
+        if _takes_over_limit_pause(api_key, action, actor):
+            _take_over_limit_pause(api_key)
+            hold = True
+        else:
+            hold = False
+            try:
+                if cancel:
+                    api_key.cancel_request()
+                else:
+                    _START[action](api_key)
+            except TransitionNotAllowed:
+                raise IncorrectStateException(
+                    f"Cannot {action} an API key that is {api_key.state}."
+                )
+            if person_pause:
+                api_key.paused_by_limit = False
+                api_key.limit_resumes_at = None
+            for field, value in updates.items():
+                setattr(api_key, field, value)
+            if action in Actions.CARRY_SETTINGS and action != Actions.ROTATE:
+                # The command carries the effective list as it is now. A rotation
+                # carries it too, but an agent older than that ignores it, so a
+                # key marked is still sent an update once the rotation settles.
+                api_key.models_outdated = False
+            api_key.save()
+    if hold:
+        log.log_resource_api_key_command(
+            api_key,
+            action,
+            actor,
+            "It stays paused until someone resumes it.",
+            applied=True,
+        )
+        return api_key
     if cancel:
         log.log_resource_api_key_command(api_key, action, actor, applied=True)
         return api_key
@@ -410,6 +434,31 @@ def issue_command(
         **_limits_change(old_limits, api_key.spending_limits),
     )
     return api_key
+
+
+def _takes_over_limit_pause(api_key: models.ResourceApiKey, action: str, actor) -> bool:
+    """Whether a person's pause takes over a pause Waldur made for the key's limit.
+
+    The key is already paused at the backend, so there is nothing to publish:
+    the pause only stops being Waldur's, and the key is no longer resumed when
+    its period resets or its limit is raised.
+    """
+    return (
+        action == Actions.PAUSE
+        and actor is not None
+        and api_key.state == States.PAUSED
+        and api_key.paused_by_limit
+    )
+
+
+def _take_over_limit_pause(api_key: models.ResourceApiKey) -> None:
+    # Saved without touching modified, which the agent's sweep reads as the
+    # time the key entered its current state: it has not left Paused.
+    api_key.paused_by_limit = False
+    api_key.limit_resumes_at = None
+    models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
+        paused_by_limit=False, limit_resumes_at=None
+    )
 
 
 def retry(api_key: models.ResourceApiKey, actor) -> models.ResourceApiKey:
@@ -557,7 +606,35 @@ def acknowledge(
             setattr(api_key, field, value)
         api_key.save()
         api_key = _pause_if_over_limit(api_key)
+        api_key = _rotate_if_due(api_key)
     return send_outdated_models(api_key)
+
+
+def _rotate_if_due(api_key: models.ResourceApiKey) -> models.ResourceApiKey:
+    """Rotate a key that has just settled, if its departed assignee still holds its value.
+
+    Called with the key locked. A key over its limit has just been paused
+    instead, and is rotated once a resume settles it. The rotation is Waldur's
+    own and must not undo the acknowledgement that settled the key: if it
+    cannot be issued, the key stays marked for the next time it settles.
+    """
+    if not (
+        api_key.rotation_due
+        and api_key.state == States.OK
+        and not api_key.pending_action
+        and api_key.client_id
+        and is_resource_live(api_key.resource)
+    ):
+        return api_key
+    try:
+        with transaction.atomic():
+            return issue_command(api_key, Actions.ROTATE, reason=_DEPARTED_ASSIGNEE)
+    except (IncorrectStateException, ValidationError):
+        logger.exception(
+            "Could not rotate API key %s of a deleted user as it settled",
+            api_key.uuid,
+        )
+        return api_key
 
 
 def record_created_key(
@@ -603,6 +680,9 @@ def record_created_key(
             raise IncorrectStateException(
                 f"API key {client_id} is {api_key.state} and cannot be re-reported."
             )
+        if api_key.pending_action == Actions.ROTATE:
+            # The rotation is settled with a value nobody held before.
+            api_key.rotation_due = False
         api_key.key_ciphertext = key_ciphertext
         api_key.issued_at = timezone.now()
         api_key.state = States.OK
@@ -610,6 +690,9 @@ def record_created_key(
         api_key.error_message = ""
         api_key.save()
         api_key = _pause_if_over_limit(api_key)
+        # A value re-reported with no rotation pending may be the departed
+        # assignee's, back in storage: rotate it now rather than at the sweep.
+        api_key = _rotate_if_due(api_key)
     return send_outdated_models(api_key)
 
 
@@ -736,23 +819,55 @@ def record_usage(
     """
     with transaction.atomic():
         api_key = _lock(api_key)
+        estimated_period = api_key.usage_period
         if usages is not None:
             _record_month(api_key, usages, period, daily_usages)
         if daily_usages:
             _record_days(api_key, daily_usages)
-        api_key.estimated_cost = api_key_cost.estimate(api_key)
         models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
             current_usages=api_key.current_usages,
             usage_period=api_key.usage_period,
             usage_history=api_key.usage_history,
-            estimated_cost=api_key.estimated_cost,
         )
         reached = api_key_spending_limits.reached_limits(api_key)
         if reached:
             api_key = _pause_if_over_limit(api_key, reached)
         else:
             api_key = resume_if_under_limit(api_key)
+        _store_estimated_cost(api_key, estimated_period)
     return api_key
+
+
+def _store_estimated_cost(
+    api_key: models.ResourceApiKey, estimated_period: datetime.date | None
+) -> None:
+    """Recompute the key's estimated cost, without putting its usage at stake.
+
+    The estimate is only shown; the usage and the limit pause are what is
+    enforced. It runs last and in a savepoint, so a cost the field cannot hold,
+    which the database refuses, or a price that cannot be read rolls back the
+    estimate alone. The key keeps the last one stored while it is for the same
+    month (``estimated_period``, the month the key held before the report); a
+    report that moved it to a new month zeroes it instead, so the last month's
+    cost is not shown as this one's.
+    """
+    try:
+        with transaction.atomic():
+            estimated_cost = api_key_cost.estimate(api_key)
+            models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
+                estimated_cost=estimated_cost
+            )
+    except Exception:
+        logger.exception(
+            "Could not store the estimated cost of API key %s", api_key.uuid
+        )
+        if api_key.usage_period == estimated_period:
+            return
+        estimated_cost = Decimal(0)
+        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
+            estimated_cost=estimated_cost
+        )
+    api_key.estimated_cost = estimated_cost
 
 
 def _pause_if_over_limit(
@@ -937,8 +1052,13 @@ def revoke_keys_of_deleted_user(user) -> None:
     - where it does not, keys cannot be deleted, so the key is rotated: the
       departed person's copy stops working, and the key, now unassigned,
       carries a value nobody has seen;
-    - a key that can take neither, such as one of a resource being
-      terminated, has its stored value dropped, so that nobody reveals it.
+    - a key that can take neither has its stored value dropped, so that
+      nobody reveals it, and is marked ``rotation_due``: one paused, one whose
+      last command failed or one with a command in flight is rotated as it
+      next settles OK, so a manager resuming it does not bring back the
+      departed person's copy. One settled without an acknowledgement, such
+      as a key of a resource whose termination failed, is rotated by the
+      hourly sweep (``rotate_due_keys``).
     """
     keys = models.ResourceApiKey.objects.filter(user=user).exclude(
         state__in=(States.DELETING, States.DELETED)
@@ -948,23 +1068,31 @@ def revoke_keys_of_deleted_user(user) -> None:
 
 
 def _revoke_for_deleted_assignee(api_key: models.ResourceApiKey) -> None:
-    reason = "Its assignee's account was deleted."
     with transaction.atomic():
         api_key = _lock(api_key)
         try:
             if api_key.is_managed:
-                issue_command(api_key, Actions.DELETE, reason=reason, supersede=True)
+                issue_command(
+                    api_key,
+                    Actions.DELETE,
+                    reason=_DEPARTED_ASSIGNEE,
+                    supersede=True,
+                )
             else:
-                issue_command(api_key, Actions.ROTATE, reason=reason)
+                issue_command(api_key, Actions.ROTATE, reason=_DEPARTED_ASSIGNEE)
             return
         except (IncorrectStateException, ValidationError) as error:
             logger.warning(
                 "API key %s of a deleted user could not be withdrawn (%s); its "
-                "stored value is dropped instead.",
+                "stored value is dropped, and it is rotated once it settles.",
                 api_key.uuid,
                 error,
             )
-        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(key_ciphertext="")
+        # Due until a rotation settles, not merely until one is issued: a
+        # rotation in flight, or the one issued as the key settles, may fail.
+        models.ResourceApiKey.objects.filter(pk=api_key.pk).update(
+            key_ciphertext="", rotation_due=True
+        )
 
 
 def resource_models_changed(
@@ -1057,6 +1185,29 @@ def offering_models_changed(
                 plugin_options, resource_options, resource.options
             )
             resource_models_changed(resource, before, before_choices)
+
+
+def rotate_due_keys() -> None:
+    """Rotate every settled key still marked ``rotation_due``.
+
+    A key is rotated as it settles; this catches the ones that are settled
+    without an acknowledgement, such as a key whose resource was being
+    terminated when its assignee's account was deleted and whose termination
+    then failed, leaving the resource live and the departed person's copy
+    working. A rotation is not governed, so keys of offerings without key
+    management are rotated too.
+    """
+    for api_key in models.ResourceApiKey.objects.filter(
+        rotation_due=True, state=States.OK, pending_action=""
+    ).exclude(
+        resource__state__in=(ResourceStates.TERMINATING, ResourceStates.TERMINATED)
+    ):
+        # One key failing must not keep the others due.
+        try:
+            with transaction.atomic():
+                _rotate_if_due(_lock(api_key))
+        except Exception:
+            logger.exception("Could not rotate API key %s", api_key.uuid)
 
 
 def send_outdated_keys_models() -> None:

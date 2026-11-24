@@ -202,6 +202,12 @@ def prune_api_key_daily_usage():
         logger.info("Pruned %s daily usage rows of API keys.", deleted)
 
 
+@shared_task(name="waldur_mastermind.marketplace.rotate_due_api_keys")
+def rotate_due_api_keys():
+    """Rotate settled API keys whose deleted assignee still holds their value."""
+    resource_api_keys.rotate_due_keys()
+
+
 @shared_task(name="waldur_mastermind.marketplace.send_outdated_api_key_models")
 def send_outdated_api_key_models():
     """Send settled API keys the models their resource changed meanwhile."""
