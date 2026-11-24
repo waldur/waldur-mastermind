@@ -19,6 +19,8 @@ import math
 import uuid as uuid_lib
 
 from django.db import transaction
+from django.db.models import F, Q, Value
+from django.db.models.functions import Greatest
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
@@ -324,6 +326,54 @@ def _lock_running_totals(entries):
         series.last_timestamp = locked.last_timestamp
 
 
+# last_reported_at is only moved once it is this old. Every resource of an
+# offering shares the metric row, so stamping it on every request makes
+# concurrent requests queue on its lock until they commit, and inside
+# marketplace_openstack's _store until that outer transaction ends.
+STAMP_RESOLUTION = datetime.timedelta(minutes=1)
+
+
+def _stale(now):
+    return Q(last_reported_at__isnull=True) | Q(
+        last_reported_at__lt=now - STAMP_RESOLUTION
+    )
+
+
+def _mark_reported(offering_metric_ids, now):
+    """Note that the metrics took points now: one update, last in the transaction.
+
+    It comes last so the row locks are held for as little of the transaction
+    as possible: until commit, or until the caller's own transaction ends when
+    record() runs inside one. Rows are locked by pk first, as
+    _lock_running_totals does, so two requests covering the same metrics
+    cannot take them in opposite order.
+
+    The lock is FOR NO KEY UPDATE, what the UPDATE itself takes. A plain
+    FOR UPDATE would also block the FOR KEY SHARE that a MetricSeries insert
+    takes on its metric when its deferred foreign key is checked at commit,
+    making requests that only created a series wait for this one.
+
+    Greatest keeps the time from going back when an earlier request commits
+    later; PostgreSQL's GREATEST skips the NULL of a metric never reported.
+
+    Only metrics whose stamp is older than STAMP_RESOLUTION are locked and
+    updated: a request that waited for another one's lock finds the row
+    fresh after it commits, and leaves it alone.
+    """
+    if not offering_metric_ids:
+        return
+    ids = sorted(offering_metric_ids)
+    list(
+        models.OfferingMetric.objects.select_for_update(no_key=True)
+        .filter(_stale(now), pk__in=ids)
+        .order_by("pk")
+        .values_list("pk", flat=True)
+    )
+    models.OfferingMetric.objects.filter(_stale(now), pk__in=ids).update(
+        last_reported_at=Greatest(F("last_reported_at"), Value(now))
+    )
+
+
 def ingest(request, points):
     if len(points) > config.METRICS_MAX_POINTS_PER_REQUEST:
         raise Rejected(
@@ -356,6 +406,7 @@ def _ingest(points, resources, measured=False):
         # Pass 1: everything that needs no counter state. A series is only
         # created for a point that got this far.
         entries = []
+        reported = set()
         for index in order:
             point = points[index]
             try:
@@ -386,6 +437,10 @@ def _ingest(points, resources, measured=False):
                 result.reject(index, e)
                 continue
             result.accepted += 1
+            # A metric stamped within the last minute needs no lock or update.
+            last = offering_metric.last_reported_at
+            if last is None or last < now - STAMP_RESOLUTION:
+                reported.add(offering_metric.pk)
             if value is not None:
                 # The same series and timestamp twice in one batch: last wins,
                 # as a correction sent later would.
@@ -411,5 +466,6 @@ def _ingest(points, resources, measured=False):
             models.MetricSeries.objects.bulk_update(
                 changed, ["start_time", "last_value", "last_timestamp"]
             )
+        _mark_reported(reported, now)
     result.rejected.sort(key=lambda r: r["index"])
     return result

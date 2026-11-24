@@ -1,8 +1,12 @@
 import datetime
+import threading
 from decimal import Decimal
 from unittest import mock
 
 from django.core.cache import cache
+from django.db import connection
+from django.test import TransactionTestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -356,6 +360,162 @@ class MetricPointTest(test.APITestCase):
 
         self.assertEqual(self.values(), [])
 
+    def last_reported(self, offering_metric):
+        offering_metric.refresh_from_db()
+        return offering_metric.last_reported_at
+
+    def test_accepted_points_mark_the_metric_reported_at_the_request_time(self):
+        request_time = timezone.now()
+        refused = self.point(
+            metric="support.response_time.median", attributes={"severity": "high"}
+        )
+        with freeze_time(request_time):
+            response = self.report(
+                [self.point(), self.point(timestamp=ago(hours=1)), refused]
+            )
+
+        self.assertEqual(response.data["accepted"], 2)
+        self.assertEqual(len(response.data["rejected"]), 1)
+        self.assertEqual(self.last_reported(self.counter), request_time)
+        self.assertIsNone(self.last_reported(self.gauge))
+
+    def test_refused_points_do_not_mark_the_metric_reported(self):
+        earlier = timezone.now() - datetime.timedelta(days=1)
+        self.counter.last_reported_at = earlier
+        self.counter.state = enums.OfferingMetricStates.PAUSED
+        self.counter.save(update_fields=["last_reported_at", "state"])
+
+        response = self.report(
+            [
+                self.point(),
+                self.point(
+                    metric="support.response_time.median",
+                    attributes={"severity": "high"},
+                ),
+            ]
+        )
+
+        self.assertEqual(response.data["accepted"], 0)
+        self.assertEqual(len(response.data["rejected"]), 2)
+        self.assertEqual(self.last_reported(self.counter), earlier)
+        self.assertIsNone(self.last_reported(self.gauge))
+
+    def test_a_retried_running_total_still_counts_as_reporting(self):
+        total = self.point(start_time=ago(hours=3), value=10)
+        self.report(total)
+        self.counter.last_reported_at = None
+        self.counter.save(update_fields=["last_reported_at"])
+
+        response = self.report(total)
+
+        self.assertEqual(response.data, {"accepted": 1, "rejected": []})
+        self.assertIsNotNone(self.last_reported(self.counter))
+
+    def test_a_total_refused_against_the_counter_state_does_not_mark_it(self):
+        start = ago(hours=5)
+        self.report(self.point(start_time=start, timestamp=ago(hours=1), value=10))
+        self.counter.last_reported_at = None
+        self.counter.save(update_fields=["last_reported_at"])
+
+        response = self.report(
+            self.point(start_time=start, timestamp=ago(hours=2), value=8)
+        )
+
+        self.assertEqual(response.data["accepted"], 0)
+        self.assertIn("older", response.data["rejected"][0]["reason"])
+        self.assertIsNone(self.last_reported(self.counter))
+
+    def test_one_request_updates_each_reported_metric_once(self):
+        gauge_point = {
+            "metric": "support.response_time.median",
+            "attributes": {"priority": "high"},
+        }
+        payload = [
+            self.point(timestamp=ago(hours=3)),
+            self.point(timestamp=ago(hours=2)),
+            self.point(timestamp=ago(hours=1)),
+            self.point(timestamp=ago(hours=2), value=1, **gauge_point),
+            self.point(timestamp=ago(hours=1), value=2, **gauge_point),
+        ]
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.report(payload)
+
+        self.assertEqual(response.data["accepted"], 5)
+        table = models.OfferingMetric._meta.db_table
+        updates = [
+            q["sql"]
+            for q in queries.captured_queries
+            if q["sql"].startswith(f'UPDATE "{table}"')
+        ]
+        self.assertEqual(len(updates), 1, updates)
+        self.assertIsNotNone(self.last_reported(self.counter))
+        self.assertIsNotNone(self.last_reported(self.gauge))
+
+    def test_an_older_request_time_does_not_move_it_back(self):
+        later = timezone.now()
+        self.counter.last_reported_at = later
+        self.counter.save(update_fields=["last_reported_at"])
+
+        ingest._mark_reported({self.counter.pk}, later - datetime.timedelta(seconds=5))
+
+        self.assertEqual(self.last_reported(self.counter), later)
+
+    def test_points_waldur_records_itself_mark_the_metric_reported(self):
+        request_time = timezone.now()
+        with freeze_time(request_time):
+            ingest.record(
+                self.resource, [self.recorded_point(self.resource.uuid.hex, 3)]
+            )
+
+        self.assertEqual(self.last_reported(self.counter), request_time)
+
+    def offering_metric_updates(self, queries):
+        table = models.OfferingMetric._meta.db_table
+        return [
+            q["sql"]
+            for q in queries.captured_queries
+            if q["sql"].startswith(f'UPDATE "{table}"')
+        ]
+
+    def test_a_stamp_made_within_the_minute_is_left_alone(self):
+        first = timezone.now()
+        with freeze_time(first):
+            self.report(self.point())
+
+        with freeze_time(first + datetime.timedelta(seconds=30)):
+            with CaptureQueriesContext(connection) as queries:
+                response = self.report(self.point(timestamp=ago(hours=1)))
+
+        self.assertEqual(response.data, {"accepted": 1, "rejected": []})
+        self.assertEqual(self.offering_metric_updates(queries), [])
+        self.assertEqual(self.last_reported(self.counter), first)
+
+    def test_a_stamp_older_than_a_minute_moves_to_the_request_time(self):
+        first = timezone.now()
+        with freeze_time(first):
+            self.report(self.point())
+
+        later = first + datetime.timedelta(minutes=2)
+        with freeze_time(later):
+            with CaptureQueriesContext(connection) as queries:
+                self.report(self.point(timestamp=ago(hours=1)))
+
+        self.assertEqual(len(self.offering_metric_updates(queries)), 1)
+        self.assertEqual(self.last_reported(self.counter), later)
+
+    def test_a_metric_stamped_while_the_request_ran_is_left_alone(self):
+        stamped = timezone.now()
+        self.counter.last_reported_at = stamped
+        self.counter.save(update_fields=["last_reported_at"])
+
+        # The request read the metric before another one stamped it.
+        ingest._mark_reported(
+            {self.counter.pk}, stamped + datetime.timedelta(seconds=10)
+        )
+
+        self.assertEqual(self.last_reported(self.counter), stamped)
+
 
 class IngestThrottleTest(test.APITestCase):
     """Test settings switch throttling off; these switch it back on."""
@@ -403,3 +563,57 @@ class IngestThrottleTest(test.APITestCase):
         self.assertEqual(
             self.native(self.fixture.manager).status_code, status.HTTP_200_OK
         )
+
+
+class ConcurrentReportingTest(TransactionTestCase):
+    """Two requests at once, each creating a series for the same metric and
+    stamping it: the second waits for the first, and both commit."""
+
+    def test_both_commit_without_a_deadlock(self):
+        offering = marketplace_factories.OfferingFactory()
+        offering_metric = factories.OfferingMetricFactory(offering=offering)
+        resources = [
+            marketplace_factories.ResourceFactory(
+                offering=offering, state=ResourceStates.OK
+            )
+            for _ in range(2)
+        ]
+        # Both have created their series before either stamps the metric.
+        barrier = threading.Barrier(2, timeout=10)
+        mark_reported = ingest._mark_reported
+
+        def wait_then_mark(*args):
+            barrier.wait()
+            mark_reported(*args)
+
+        errors = []
+
+        def record(resource):
+            try:
+                ingest.record(
+                    resource,
+                    [
+                        ingest.Point(
+                            resource_uuid=resource.uuid.hex,
+                            metric=offering_metric.definition.key,
+                            timestamp=timezone.now() - datetime.timedelta(hours=1),
+                            value=Decimal(1),
+                        )
+                    ],
+                )
+            except Exception as e:  # noqa: BLE001 - reported by the assertion
+                errors.append(e)
+            finally:
+                connection.close()
+
+        with mock.patch.object(ingest, "_mark_reported", wait_then_mark):
+            threads = [threading.Thread(target=record, args=(r,)) for r in resources]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join(30)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(models.MetricSeries.objects.count(), 2)
+        offering_metric.refresh_from_db()
+        self.assertIsNotNone(offering_metric.last_reported_at)

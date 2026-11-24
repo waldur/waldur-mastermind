@@ -187,9 +187,10 @@ class OfferingMetricSerializer(serializers.ModelSerializer):
             "attribute_keys",
             "project_aggregation",
             "state",
+            "last_reported_at",
             "created",
         )
-        read_only_fields = ("uuid", "state", "created")
+        read_only_fields = ("uuid", "state", "last_reported_at", "created")
 
     def validate(self, attrs):
         instance = self.instance
