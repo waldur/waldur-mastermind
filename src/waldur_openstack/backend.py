@@ -5662,7 +5662,14 @@ class OpenStackBackend(ServiceBackend):
             stale_ids = frontend_ids - backend_ids
             if stale_ids:
                 logger.info("About to detach floating IPs from ports: %s", stale_ids)
-                instance.floating_ips.filter(backend_id__in=stale_ids).update(port=None)
+                # Saved one by one rather than with update(): the detach must
+                # reach post_save handlers, e.g. the one that stops the VM being
+                # found by the floating IP's mapped public address.
+                for stale_floating_ip in instance.floating_ips.filter(
+                    backend_id__in=stale_ids
+                ):
+                    stale_floating_ip.port = None
+                    stale_floating_ip.save(update_fields=["port"])
 
     @log_backend_action()
     def push_instance_floating_ips(self, instance: models.Instance):

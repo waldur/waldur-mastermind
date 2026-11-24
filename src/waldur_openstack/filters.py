@@ -112,6 +112,17 @@ class FloatingIPFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     free = django_filters.BooleanFilter(
         field_name="port", lookup_expr="isnull", widget=BooleanWidget, label="Is free"
     )
+    query = django_filters.CharFilter(
+        method="filter_query",
+        label="Search by name, address or mapped public IP",
+    )
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(address__icontains=value)
+            | Q(external_address__icontains=value)
+        )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.FloatingIP
@@ -477,7 +488,9 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
         label="Ordering",
     )
     query = django_filters.CharFilter(
-        method="filter_query", label="Search by name, MAC address or backend ID"
+        method="filter_query",
+        label="Search by name, MAC address, backend ID, fixed IP, "
+        "floating IP or its mapped public IP",
     )
     has_device_owner = django_filters.BooleanFilter(
         method="filter_has_device_owner", label="Has device owner"
@@ -509,7 +522,10 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
             Q(name__icontains=value)
             | Q(mac_address__icontains=value)
             | Q(backend_id__icontains=value)
-        )
+            | Q(fixed_ips__icontains=value)
+            | Q(floating_ips__address__icontains=value)
+            | Q(floating_ips__external_address__icontains=value)
+        ).distinct()
 
     def filter_exclude_subnet_uuids(self, queryset, name, value):
         if not value:

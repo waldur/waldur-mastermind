@@ -2327,7 +2327,11 @@ class HealthMonitorViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet)
     ),
 )
 class PortViewSet(structure_views.ResourceViewSet):
-    queryset = models.Port.objects.all().order_by("network__name")
+    queryset = (
+        models.Port.objects.all()
+        .prefetch_related("floating_ips")
+        .order_by("network__name")
+    )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.PortFilter
     serializer_class = serializers.OpenStackPortSerializer

@@ -2389,6 +2389,13 @@ CREATES_PORT = access.custom(
 )
 
 
+class OpenStackPortFloatingIpSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.FloatingIP
+        fields = ("uuid", "address", "external_address")
+        read_only_fields = fields
+
+
 class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer):
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
@@ -2402,6 +2409,13 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
         lookup_field="uuid",
         read_only=True,
         many=True,
+    )
+    floating_ip_addresses = OpenStackPortFloatingIpSerializer(
+        source="floating_ips",
+        many=True,
+        read_only=True,
+        help_text="Floating IPs associated with the port, with the public IP "
+        "each one is mapped to, if any",
     )
     fixed_ips = OpenStackFixedIpField(required=False)
     security_groups = OpenStackPortNestedSecurityGroupSerializer(
@@ -2432,6 +2446,7 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
             "network_name",
             "network_uuid",
             "floating_ips",
+            "floating_ip_addresses",
             "device_id",
             "device_owner",
             "port_security_enabled",

@@ -314,6 +314,45 @@ class MarketplaceOpenStackConfig(AppConfig):
             "update_floating_ip_external_addresses",
         )
 
+        signals.post_delete.connect(
+            handlers.update_ip_addresses_on_floating_ip_delete,
+            sender=openstack_models.FloatingIP,
+            dispatch_uid="waldur_mastermind.marketplace_openstack."
+            "update_ip_addresses_on_floating_ip_delete",
+        )
+
+        for model, suffix in (
+            (openstack_models.Port, "port"),
+            (openstack_models.Router, "router"),
+            (openstack_models.LoadBalancer, "load_balancer"),
+        ):
+            signals.post_save.connect(
+                getattr(handlers, f"update_ip_addresses_on_{suffix}_change"),
+                sender=model,
+                dispatch_uid="waldur_mastermind.marketplace_openstack."
+                f"update_ip_addresses_on_{suffix}_change",
+            )
+            signals.post_delete.connect(
+                getattr(handlers, f"update_ip_addresses_on_{suffix}_delete"),
+                sender=model,
+                dispatch_uid="waldur_mastermind.marketplace_openstack."
+                f"update_ip_addresses_on_{suffix}_delete",
+            )
+
+        signals.post_save.connect(
+            handlers.update_external_addresses_on_external_subnet_change,
+            sender=openstack_models.ExternalSubnet,
+            dispatch_uid="waldur_mastermind.marketplace_openstack."
+            "update_external_addresses_on_external_subnet_change",
+        )
+
+        signals.post_delete.connect(
+            handlers.update_external_addresses_on_external_subnet_delete,
+            sender=openstack_models.ExternalSubnet,
+            dispatch_uid="waldur_mastermind.marketplace_openstack."
+            "update_external_addresses_on_external_subnet_delete",
+        )
+
         signals.post_save.connect(
             handlers.sync_instance_metrics,
             sender=marketplace_models.Offering,
