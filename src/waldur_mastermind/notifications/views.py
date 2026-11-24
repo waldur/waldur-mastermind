@@ -1,3 +1,4 @@
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, permissions, status
@@ -104,3 +105,16 @@ class AdminAnnouncementViewSet(ActionsViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_class = filters.AdminAnnouncementFilterSet
     lookup_field = "uuid"
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_authenticated:
+            return queryset
+        # Signed-out visitors only get what staff explicitly published to them,
+        # and only while it is active.
+        now = timezone.now()
+        return queryset.filter(
+            visible_to_anonymous_users=True,
+            active_from__lte=now,
+            active_to__gt=now,
+        )
