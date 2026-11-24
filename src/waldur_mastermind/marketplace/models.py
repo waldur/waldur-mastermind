@@ -2782,12 +2782,12 @@ class Resource(
         limit_change_total = Decimal("0.0")
         final_limits = new_limits or self.limits
 
-        # Calculate new end date
-        current_end_date = self.end_date or timezone.now().date()
-        if current_end_date < timezone.now().date():
-            current_end_date = timezone.now().date()
+        # Count from the local date, as the end-date sweeps do: a resource whose
+        # end date has passed is extended from today.
+        today = timezone.localdate()
+        current_end_date = max(self.end_date or today, today)
         new_end_date = current_end_date + relativedelta(months=extension_months)
-        remaining_days = (new_end_date - timezone.now().date()).days
+        remaining_days = (new_end_date - today).days
 
         if self.plan:
             component_factors = self.offering.component_factors
