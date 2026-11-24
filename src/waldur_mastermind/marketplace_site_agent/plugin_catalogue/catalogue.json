@@ -1,5 +1,5 @@
 {
-  "agent_version": "1.0.8rc15",
+  "agent_version": "1.0.8rc16",
   "catalogue_version": 1,
   "offering_secret_fields": [
     "oidc_client_secret",
@@ -297,7 +297,7 @@
         "title": "AzureBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -310,7 +310,7 @@
       "sensitive_component_settings": [],
       "sensitive_settings": [],
       "settings_schema": null,
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -627,7 +627,7 @@
               }
             ],
             "default": null,
-            "description": "Fixed RGW tenant for new users; older form of tenant_template",
+            "description": "No longer supported: one tenant shared by every resource. The agent refuses to start while it is set",
             "title": "Default Tenant"
           },
           "flavour": {
@@ -770,7 +770,7 @@
               }
             ],
             "default": null,
-            "description": "RGW tenant for new users, rendered per resource (croit flavour), e.g. '{customer_slug}_{customer_uuid:.8}'. Fields: resource_slug, resource_uuid, customer_slug, customer_uuid, project_slug, project_uuid, offering_slug, offering_uuid",
+            "description": "RGW tenant each new resource gets for itself, and its backend id. Must contain {resource_uuid} or {resource_slug}; fields can be cut with {field:.N}. Default: '{customer_abbreviation:.12}_{project_name:.12}_{resource_name:.20}_{resource_uuid:.8}'. Fields: resource_slug, resource_uuid, resource_name, customer_slug, customer_uuid, customer_name, customer_abbreviation, project_slug, project_uuid, project_name, offering_slug, offering_uuid",
             "sensitive": true,
             "title": "Tenant Template"
           },
@@ -832,7 +832,7 @@
         "title": "CephS3BackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -1149,7 +1149,7 @@
               }
             ],
             "default": null,
-            "description": "Fixed RGW tenant for new users; older form of tenant_template",
+            "description": "No longer supported: one tenant shared by every resource. The agent refuses to start while it is set",
             "title": "Default Tenant"
           },
           "flavour": {
@@ -1292,7 +1292,7 @@
               }
             ],
             "default": null,
-            "description": "RGW tenant for new users, rendered per resource (croit flavour), e.g. '{customer_slug}_{customer_uuid:.8}'. Fields: resource_slug, resource_uuid, customer_slug, customer_uuid, project_slug, project_uuid, offering_slug, offering_uuid",
+            "description": "RGW tenant each new resource gets for itself, and its backend id. Must contain {resource_uuid} or {resource_slug}; fields can be cut with {field:.N}. Default: '{customer_abbreviation:.12}_{project_name:.12}_{resource_name:.20}_{resource_uuid:.8}'. Fields: resource_slug, resource_uuid, resource_name, customer_slug, customer_uuid, customer_name, customer_abbreviation, project_slug, project_uuid, project_name, offering_slug, offering_uuid",
             "sensitive": true,
             "title": "Tenant Template"
           },
@@ -1354,7 +1354,7 @@
         "title": "CephS3BackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -1625,7 +1625,7 @@
         "title": "CSCSDWDIBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -1896,7 +1896,7 @@
         "title": "CSCSDWDIBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -2153,7 +2153,7 @@
         "title": "CSCSDWDIStorageBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -2475,7 +2475,7 @@
         "title": "DigitalOceanBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -2694,7 +2694,7 @@
         "title": "EnvoyAIGatewayBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -2866,7 +2866,7 @@
         "title": "EnvoyUsageBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -3077,7 +3077,7 @@
         "title": "HarborBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -3802,7 +3802,7 @@
         "title": "K8sUtNamespaceBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -4527,7 +4527,7 @@
         "title": "K8sUtNamespaceBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -5195,7 +5195,7 @@
         "title": "LdapBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -5544,7 +5544,7 @@
         "title": "LdapRolesBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -5946,7 +5946,7 @@
         "title": "LiteLLMBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -6166,7 +6166,7 @@
         "title": "LiteLLMUsageBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -6307,7 +6307,7 @@
         "title": "MoabBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -6617,7 +6617,7 @@
         "title": "MUPBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -6828,7 +6828,7 @@
         "title": "NextcloudBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -7066,7 +7066,7 @@
         "title": "OkdBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -7557,10 +7557,10 @@
           "template_id": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "integer"
               },
               {
-                "type": "integer"
+                "type": "string"
               },
               {
                 "type": "null"
@@ -7650,7 +7650,7 @@
         "title": "OpenNebulaBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -8058,7 +8058,7 @@
         "title": "RancherBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -8468,7 +8468,7 @@
         "title": "RancherKcCrdBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -8785,7 +8785,7 @@
               }
             ],
             "default": null,
-            "description": "Fixed RGW tenant for new users; older form of tenant_template",
+            "description": "No longer supported: one tenant shared by every resource. The agent refuses to start while it is set",
             "title": "Default Tenant"
           },
           "flavour": {
@@ -8928,7 +8928,7 @@
               }
             ],
             "default": null,
-            "description": "RGW tenant for new users, rendered per resource (croit flavour), e.g. '{customer_slug}_{customer_uuid:.8}'. Fields: resource_slug, resource_uuid, customer_slug, customer_uuid, project_slug, project_uuid, offering_slug, offering_uuid",
+            "description": "RGW tenant each new resource gets for itself, and its backend id. Must contain {resource_uuid} or {resource_slug}; fields can be cut with {field:.N}. Default: '{customer_abbreviation:.12}_{project_name:.12}_{resource_name:.20}_{resource_uuid:.8}'. Fields: resource_slug, resource_uuid, resource_name, customer_slug, customer_uuid, customer_name, customer_abbreviation, project_slug, project_uuid, project_name, offering_slug, offering_uuid",
             "sensitive": true,
             "title": "Tenant Template"
           },
@@ -8990,7 +8990,7 @@
         "title": "CephS3BackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -10160,7 +10160,7 @@
         "title": "SlurmBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": {
@@ -10487,7 +10487,7 @@
         "title": "WaldurBackendSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     },
     {
       "component_schema": null,
@@ -10533,7 +10533,7 @@
         "title": "WaldurIdentityBridgeSettingsSchema",
         "type": "object"
       },
-      "version": "1.0.8rc15"
+      "version": "1.0.8rc16"
     }
   ]
 }
