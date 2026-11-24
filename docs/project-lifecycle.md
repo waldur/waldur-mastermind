@@ -11,14 +11,14 @@ Projects control the overall workspace for resources and define key temporal bou
 Projects have two key temporal fields:
 
 - **`start_date`** (optional): When project becomes active for resource provisioning
-- **`end_date`** (optional): Inclusive termination date - all project resources scheduled for termination when reached
+- **`end_date`** (optional): Termination date - all project resources are scheduled for termination on this date plus the grace period, if any (on this date itself for offerings that disable the grace period)
 
 ```python
 # Project model fields
 start_date = models.DateField(null=True, blank=True)
 end_date = models.DateField(
     null=True, blank=True,
-    help_text="The date is inclusive. Once reached, all project resource will be scheduled for termination."
+    help_text="The project's resources are scheduled for termination on this date plus the grace period, if one is configured. Offerings that disable the grace period terminate them on this date."
 )
 ```
 
@@ -109,14 +109,14 @@ Resources maintain independent lifecycle from orders but are constrained by proj
 
 Resources have temporal controls:
 
-- **`end_date`** (optional): Inclusive termination date - resource scheduled for termination when reached
+- **`end_date`** (optional): Termination date - the resource is scheduled for termination on this date, so the day before is the last full day of use
 - **`state`**: Current operational state affecting available operations
 
 ```python
 # Resource model fields
 end_date = models.DateField(
     null=True, blank=True,
-    help_text="The date is inclusive. Once reached, a resource will be scheduled for termination."
+    help_text="The resource is scheduled for termination on this date, so the day before is the last full day of use."
 )
 ```
 
