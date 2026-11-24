@@ -4297,3 +4297,14 @@ SOFTWARE_PACKAGE_FACETS = (
         array=True,
     ),
 )
+
+
+class OfferingTemplateFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    offering_type = django_filters.CharFilter()
+    is_published = django_filters.BooleanFilter(widget=BooleanWidget)
+    o = django_filters.OrderingFilter(fields=("name", "created", "modified"))
+
+    class Meta:
+        model = models.OfferingTemplate
+        fields = ["name", "offering_type", "is_published"]

@@ -13,6 +13,7 @@ from typing import Literal, cast
 
 import jwt
 import regex
+import yaml
 from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
 from django import forms
@@ -123,7 +124,7 @@ from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
 from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
-from waldur_mastermind.marketplace import offering_merge_coverage
+from waldur_mastermind.marketplace import offering_merge_coverage, offering_templates
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     LEGACY_SITE_AGENT_OFFERING,
@@ -19104,6 +19105,17 @@ class ExportComponentDataSerializer(serializers.Serializer):
     limit_increase_only = serializers.BooleanField()
     article_code = serializers.CharField(allow_blank=True)
     backend_id = serializers.CharField(allow_blank=True)
+    min_value = serializers.FloatField(allow_null=True, required=False)
+    max_value = serializers.FloatField(allow_null=True, required=False)
+    max_available_limit = serializers.FloatField(allow_null=True, required=False)
+    default_limit = serializers.FloatField(allow_null=True, required=False)
+    spending_limit_periods = serializers.JSONField(
+        required=False,
+        help_text=(
+            "Periods customers can set spending limits for, each with an "
+            "optional default and maximum."
+        ),
+    )
 
 
 class ExportPlanComponentDataSerializer(serializers.Serializer):
@@ -21524,3 +21536,190 @@ class OrderFlowDescriptionSerializer(serializers.Serializer):
     steps = OrderFlowStepSerializer(many=True)
     terminals = OrderFlowTerminalSerializer(many=True)
     stats = OrderFlowStatsSerializer(allow_null=True)
+
+
+class OfferingTemplateParameterSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    label = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    type = serializers.ChoiceField(choices=list(offering_templates.PARAMETER_TYPES))
+    required = serializers.BooleanField()
+    default = serializers.JSONField(allow_null=True)
+    paths = serializers.ListField(
+        child=serializers.CharField(),
+        help_text=(
+            "Dotted paths into the document that the value fills, such as "
+            "offering.backend_id; digits address list items."
+        ),
+    )
+
+
+class OfferingTemplateSerializer(serializers.ModelSerializer):
+    """An offering template; non-staff see a published one's public part only."""
+
+    document = serializers.JSONField(
+        help_text=(
+            "Offering document in the export_offering format, as a mapping or a "
+            "YAML string, with agent_configuration and parameters. It may not "
+            "hold secret_options, organization groups, screenshots, files, a "
+            "customer, resources or people. Non-staff see only the offering's "
+            "name, description and type, its components, plans and parameters."
+        ),
+    )
+    parameters = serializers.SerializerMethodField()
+    created_by = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = models.OfferingTemplate
+        fields = (
+            "uuid",
+            "url",
+            "name",
+            "description",
+            "offering_type",
+            "document",
+            "parameters",
+            "schema_version",
+            "version",
+            "is_published",
+            "created_by",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "uuid",
+            "url",
+            "schema_version",
+            "version",
+            "created",
+            "modified",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-offering-template-detail",
+            },
+            "offering_type": {
+                "help_text": "Offering type the template creates; only Marketplace.SiteAgent for now."
+            },
+        }
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+        request = self.context.get("request")
+        if request is None or not request.user.is_staff:
+            fields.pop("created_by", None)
+        return fields
+
+    @extend_schema_field(OfferingTemplateParameterSerializer(many=True))
+    def get_parameters(self, template):
+        return (template.document or {}).get(offering_templates.PARAMETERS_KEY) or []
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request is None or not request.user.is_staff:
+            data["document"] = offering_templates.public_document(
+                instance.document or {}
+            )
+        return data
+
+    def validate_document(self, value):
+        if isinstance(value, str):
+            try:
+                value = yaml.safe_load(value)
+            except yaml.YAMLError:
+                raise serializers.ValidationError(_("Invalid YAML."))
+        if not isinstance(value, dict):
+            raise serializers.ValidationError(_("Expected a mapping."))
+        return value
+
+    def validate(self, attrs):
+        offering_type = attrs.get("offering_type") or (
+            self.instance.offering_type if self.instance else None
+        )
+        if offering_type:
+            attrs["offering_type"] = normalize_offering_type(offering_type)
+        document = attrs.get("document")
+        if document is None and "offering_type" in attrs and self.instance:
+            document = self.instance.document
+        if document is not None:
+            try:
+                document = offering_templates.check_document(
+                    document, attrs.get("offering_type") or ""
+                )
+            except serializers.ValidationError as e:
+                if isinstance(e.detail, dict) and set(e.detail) == {"offering_type"}:
+                    raise
+                raise serializers.ValidationError({"document": e.detail})
+            attrs["document"] = document
+            attrs["schema_version"] = document["schema_version"]
+        return attrs
+
+
+class OfferingTemplateVersionSerializer(serializers.ModelSerializer):
+    created_by = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = models.OfferingTemplateVersion
+        fields = ("number", "document", "document_hash", "created_by", "created")
+        read_only_fields = fields
+
+
+class OfferingTemplatePresetSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True)
+    offering_type = serializers.CharField()
+    parameters = OfferingTemplateParameterSerializer(many=True)
+    name_taken = serializers.BooleanField(
+        help_text=(
+            "An offering template already holds the name this preset would be "
+            "loaded under: rename or delete it to load the preset."
+        )
+    )
+
+
+class LoadOfferingTemplatePresetSerializer(serializers.Serializer):
+    presets = serializers.ListField(
+        child=serializers.CharField(),
+        allow_empty=False,
+        help_text="Keys of the presets to load, as the presets action lists them.",
+    )
+    publish = serializers.BooleanField(
+        default=False,
+        help_text="Publish the templates created, so offering creators see them.",
+    )
+
+    def validate_presets(self, value):
+        unknown = sorted(set(value) - set(offering_templates.names()))
+        if unknown:
+            raise serializers.ValidationError(
+                _("Unknown presets: %s.") % ", ".join(unknown)
+            )
+        return list(dict.fromkeys(value))
+
+
+class LoadOfferingTemplatePresetResponseSerializer(serializers.Serializer):
+    created = serializers.IntegerField()
+    created_names = serializers.ListField(child=serializers.CharField())
+
+
+class OfferingSaveAsTemplateSerializer(serializers.Serializer):
+    name = serializers.CharField(
+        max_length=models.OfferingTemplate._meta.get_field("name").max_length,
+        required=False,
+        allow_blank=False,
+        help_text="Name of the template. Defaults to the offering's name.",
+    )
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Description of the template. Defaults to the offering's.",
+    )

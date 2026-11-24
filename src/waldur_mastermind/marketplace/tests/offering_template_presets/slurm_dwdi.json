@@ -1,0 +1,134 @@
+{
+  "name": "SLURM cluster with DWDI reporting",
+  "description": "A SLURM cluster sold in node-hours. The site agent creates accounts and syncs members in SLURM and reports usage from CSCS-DWDI. SLURM limits are set in TRES-minutes (unit_factor 60) while DWDI already reports node-hours (unit_factor_reporting 1). The cluster name is both the offering's backend ID and SLURM's cluster_name, so DWDI usage and diagnostics find the offering's accounts.",
+  "offering_type": "Marketplace.SiteAgent",
+  "document": {
+    "schema_version": 1,
+    "offering": {
+      "name": "HPC cluster",
+      "description": "Compute time on an HPC cluster, allocated in node-hours.",
+      "type": "Marketplace.SiteAgent",
+      "shared": true,
+      "billable": true
+    },
+    "plugin_options": {},
+    "agent_configuration": {
+      "order_processing_backend": "slurm",
+      "membership_sync_backend": "slurm",
+      "reporting_backend": "cscs-dwdi-compute",
+      "username_management_backend": "base",
+      "backend_settings": {
+        "qos_default": "normal",
+        "qos_downscaled": "limited",
+        "qos_paused": "paused",
+        "enable_user_homedir_account_creation": true,
+        "default_homedir_umask": "0077",
+        "cscs_dwdi_oidc_scope": "cscs-dwdi:read"
+      },
+      "backend_components": {
+        "node": {
+          "unit_factor_reporting": 1
+        }
+      }
+    },
+    "components": [
+      {
+        "type": "node",
+        "name": "Node hours",
+        "description": "Compute time, counted in whole nodes.",
+        "billing_type": "limit",
+        "measured_unit": "node-hours",
+        "unit_factor": 60,
+        "limit_period": "total",
+        "limit_amount": null,
+        "backend_id": "node"
+      }
+    ],
+    "plans": [
+      {
+        "name": "Default",
+        "description": "Pay per node-hour allocated.",
+        "unit": "month",
+        "components": [
+          {
+            "component_type": "node",
+            "amount": 0,
+            "price": 0
+          }
+        ]
+      }
+    ],
+    "parameters": [
+      {
+        "key": "cluster_name",
+        "label": "Cluster name",
+        "description": "SLURM's cluster_name. It is also the offering's backend ID, which DWDI reporting and diagnostics match accounts by.",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "paths": [
+          "offering.backend_id",
+          "agent_configuration.backend_settings.cluster_name"
+        ]
+      },
+      {
+        "key": "default_account",
+        "label": "Default parent account",
+        "description": "The SLURM account new customer accounts are created under.",
+        "type": "string",
+        "required": true,
+        "default": "root",
+        "paths": ["agent_configuration.backend_settings.default_account"]
+      },
+      {
+        "key": "customer_prefix",
+        "label": "Customer account prefix",
+        "type": "string",
+        "required": true,
+        "default": "hpc_",
+        "paths": ["agent_configuration.backend_settings.customer_prefix"]
+      },
+      {
+        "key": "project_prefix",
+        "label": "Project account prefix",
+        "type": "string",
+        "required": true,
+        "default": "hpc_",
+        "paths": ["agent_configuration.backend_settings.project_prefix"]
+      },
+      {
+        "key": "allocation_prefix",
+        "label": "Allocation account prefix",
+        "type": "string",
+        "required": true,
+        "default": "hpc_",
+        "paths": ["agent_configuration.backend_settings.allocation_prefix"]
+      },
+      {
+        "key": "cscs_dwdi_api_url",
+        "label": "DWDI API URL",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "paths": ["agent_configuration.backend_settings.cscs_dwdi_api_url"]
+      },
+      {
+        "key": "cscs_dwdi_oidc_token_url",
+        "label": "DWDI OIDC token URL",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "paths": ["agent_configuration.backend_settings.cscs_dwdi_oidc_token_url"]
+      },
+      {
+        "key": "cscs_dwdi_client_id",
+        "label": "DWDI OIDC client ID",
+        "description": "The client secret is not asked for: it stays in the agent configuration file on the agent host.",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "paths": ["agent_configuration.backend_settings.cscs_dwdi_client_id"]
+      }
+    ]
+  }
+}

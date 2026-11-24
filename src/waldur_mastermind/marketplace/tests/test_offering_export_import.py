@@ -1098,6 +1098,74 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
         )
         self.assertTrue(component.limit_increase_only)
 
+    def test_spending_limits_survive_export_and_import(self):
+        offering = factories.OfferingFactory(customer=self.customer)
+        factories.OfferingComponentFactory(
+            offering=offering,
+            type="token_cost",
+            billing_type=BillingTypes.USAGE,
+            spending_limit_periods={
+                "day": {},
+                "month": {"default": 50, "maximum": 200},
+            },
+            default_limit=10,
+            max_available_limit=500,
+            min_value=1,
+            max_value=1000,
+        )
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
+        offering.add_user(self.user, OfferingRole.MANAGER)
+        response = self.client.post(
+            factories.OfferingFactory.get_url(offering, "export_offering"),
+            {"include_components": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        (exported,) = response.data["export_data"]["components"]
+
+        response = self._import(
+            {"offering": {"name": "Imported Spending"}, "components": [exported]}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        component = models.OfferingComponent.objects.get(
+            offering__name="Imported Spending", type="token_cost"
+        )
+        source = offering.components.get(type="token_cost")
+        self.assertEqual(
+            component.spending_limit_periods, source.spending_limit_periods
+        )
+        self.assertIn("month", component.spending_limit_periods)
+        for name in ("default_limit", "max_available_limit", "min_value", "max_value"):
+            self.assertEqual(getattr(component, name), getattr(source, name), name)
+
+    def test_spending_limits_on_a_limit_component_are_refused(self):
+        response = self._import(
+            {
+                "offering": {"name": "Bad Spending"},
+                "components": [
+                    {
+                        "type": "cores",
+                        "billing_type": BillingTypes.LIMIT,
+                        "spending_limit_periods": {"month": {}},
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("components[0].spending_limit_periods", response.data)
+        self.assertFalse(models.Offering.objects.filter(name="Bad Spending").exists())
+
+    def test_import_sets_backend_id(self):
+        response = self._import(
+            {"offering": {"name": "With Backend ID", "backend_id": "alpha"}}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(
+            models.Offering.objects.get(name="With Backend ID").backend_id, "alpha"
+        )
+
     @data(
         (models.Offering, OFFERING_IMPORT_FIELDS),
         (models.OfferingComponent, COMPONENT_IMPORT_FIELDS),

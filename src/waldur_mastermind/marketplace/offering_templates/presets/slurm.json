@@ -1,0 +1,136 @@
+{
+  "name": "SLURM cluster",
+  "description": "A SLURM cluster sold in CPU and memory hours. The site agent creates accounts, syncs members and reports usage from SLURM. SLURM accounts in TRES-minutes, so each component's unit_factor converts its unit to those: 60000 CPU-minutes per thousand CPU-hours, 61440 MB-minutes per GB-hour. The cluster name is both the offering's backend ID and SLURM's cluster_name.",
+  "offering_type": "Marketplace.SiteAgent",
+  "document": {
+    "schema_version": 1,
+    "offering": {
+      "name": "HPC cluster",
+      "description": "Compute time on a SLURM cluster.",
+      "type": "Marketplace.SiteAgent",
+      "shared": true,
+      "billable": true
+    },
+    "plugin_options": {
+      "service_provider_can_create_offering_user": true
+    },
+    "agent_configuration": {
+      "order_processing_backend": "slurm",
+      "membership_sync_backend": "slurm",
+      "reporting_backend": "slurm",
+      "username_management_backend": "base",
+      "backend_settings": {
+        "qos_default": "normal",
+        "qos_downscaled": "limited",
+        "qos_paused": "paused",
+        "enable_user_homedir_account_creation": true,
+        "default_homedir_umask": "0077"
+      }
+    },
+    "components": [
+      {
+        "type": "cpu",
+        "name": "CPU",
+        "description": "CPU time.",
+        "billing_type": "usage",
+        "measured_unit": "k-Hours",
+        "unit_factor": 60000,
+        "backend_id": "cpu"
+      },
+      {
+        "type": "mem",
+        "name": "RAM",
+        "description": "Memory over time.",
+        "billing_type": "usage",
+        "measured_unit": "GB-Hours",
+        "unit_factor": 61440,
+        "backend_id": "mem"
+      }
+    ],
+    "plans": [
+      {
+        "name": "Default",
+        "description": "Pay for the CPU and memory hours used.",
+        "unit": "month",
+        "components": [
+          {
+            "component_type": "cpu",
+            "amount": 0,
+            "price": 0
+          },
+          {
+            "component_type": "mem",
+            "amount": 0,
+            "price": 0
+          }
+        ]
+      }
+    ],
+    "parameters": [
+      {
+        "key": "cluster_name",
+        "label": "Cluster name",
+        "description": "SLURM's cluster_name. It is also the offering's backend ID, which usage reporting and diagnostics match accounts by. It must name a cluster SLURM already knows (sacctmgr list clusters): the agent refuses to start otherwise.",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "paths": [
+          "offering.backend_id",
+          "agent_configuration.backend_settings.cluster_name"
+        ]
+      },
+      {
+        "key": "username_generation_policy",
+        "label": "How usernames are generated",
+        "description": "How project members get their SLURM usernames: anonymized (waldur_00001, always POSIX-safe), waldur_username (their portal username), full_name (john_doe_01), identity_claim (from the identity provider), freeipa, or service_provider (typed in by the provider for each user). The agent's base username backend does not generate usernames, so service_provider leaves members without accounts until the provider fills them in.",
+        "type": "string",
+        "required": true,
+        "default": "anonymized",
+        "paths": [
+          "plugin_options.username_generation_policy"
+        ]
+      },
+      {
+        "key": "default_account",
+        "label": "Default parent account",
+        "description": "The SLURM account new customer accounts are created under.",
+        "type": "string",
+        "required": true,
+        "default": "root",
+        "paths": [
+          "agent_configuration.backend_settings.default_account"
+        ]
+      },
+      {
+        "key": "customer_prefix",
+        "label": "Customer account prefix",
+        "type": "string",
+        "required": true,
+        "default": "hpc_",
+        "paths": [
+          "agent_configuration.backend_settings.customer_prefix"
+        ]
+      },
+      {
+        "key": "project_prefix",
+        "label": "Project account prefix",
+        "type": "string",
+        "required": true,
+        "default": "hpc_",
+        "paths": [
+          "agent_configuration.backend_settings.project_prefix"
+        ]
+      },
+      {
+        "key": "allocation_prefix",
+        "label": "Allocation account prefix",
+        "type": "string",
+        "required": true,
+        "default": "hpc_",
+        "paths": [
+          "agent_configuration.backend_settings.allocation_prefix"
+        ]
+      }
+    ]
+  }
+}
