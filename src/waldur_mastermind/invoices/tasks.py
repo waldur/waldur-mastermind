@@ -454,6 +454,23 @@ def set_to_zero_overdue_credits(effective_date=None):
             f"effective_date={effective_date} (today={today}). "
             f"This would zero credits whose end_date has not arrived yet."
         )
+    expire_overdue_credits(effective_date)
+
+
+def expire_overdue_credits(effective_date, customer=None):
+    """Expire the credits whose end date is before ``effective_date``, of
+    ``customer`` only when given. Unlike set_to_zero_overdue_credits it takes
+    a future date: the billing simulation closes a month that has not ended,
+    inside a transaction it rolls back."""
+    customer_credits = models.CustomerCredit.objects.select_for_update().filter(
+        end_date__lt=effective_date
+    )
+    project_credits = models.ProjectCredit.objects.select_for_update().filter(
+        end_date__lt=effective_date
+    )
+    if customer is not None:
+        customer_credits = customer_credits.filter(customer=customer)
+        project_credits = project_credits.filter(project__customer=customer)
     with (
         transaction.atomic(),
         skip_credit_audit(),
@@ -468,11 +485,7 @@ def set_to_zero_overdue_credits(effective_date=None):
             billing_period=effective_date.replace(day=1),
         ),
     ):
-        for credit in (
-            models.CustomerCredit.objects.select_for_update()
-            .filter(end_date__lt=effective_date)
-            .exclude(value=0)
-        ):
+        for credit in customer_credits.exclude(value=0):
             # A savepoint per credit so that one broken row does not abort
             # zeroing of the remaining credits or the calling invoice task.
             try:
@@ -506,11 +519,7 @@ def set_to_zero_overdue_credits(effective_date=None):
                     "Unable to set overdue customer credit %s to zero", credit.uuid
                 )
                 continue
-        for project_credit in (
-            models.ProjectCredit.objects.select_for_update()
-            .filter(end_date__lt=effective_date)
-            .exclude(value=0)
-        ):
+        for project_credit in project_credits.exclude(value=0):
             try:
                 with transaction.atomic():
                     old_value = int(project_credit.value)

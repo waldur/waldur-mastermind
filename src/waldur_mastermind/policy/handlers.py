@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from waldur_mastermind.invoices import models as invoices_models
+from waldur_mastermind.invoices import simulation as billing_simulation
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 from waldur_mastermind.marketplace.exceptions import PolicyException
 
@@ -116,6 +117,11 @@ def _debounced_call(
     with the request user, to the worker. The task's arguments stay the same,
     so old and new workers both run it during a rolling deploy.
     """
+    if billing_simulation.is_active():
+        # A simulated invoice is rolled back: evaluating policies against it
+        # would act on costs that never existed (with debounce off, the task
+        # is sent at once rather than on commit).
+        return
     if debounce_seconds is None:
         debounce_seconds = _get_debounce_seconds()
     if debounce_seconds <= 0:

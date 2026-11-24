@@ -3,6 +3,7 @@ import logging
 from django.db import transaction
 
 from waldur_core.structure.models import Project
+from waldur_mastermind.invoices import simulation as billing_simulation
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 
 from . import models
@@ -57,6 +58,10 @@ def update_estimates_for_customer(customer):
 
 def process_invoice_item(sender, instance: InvoiceItem, created=False, **kwargs):
     """Process invoice item changes and update related price estimates."""
+    if billing_simulation.is_active():
+        # The simulated items are rolled back; updating the estimates for them
+        # would only lock the customer's and projects' rows meanwhile.
+        return
     if not created and not set(instance.tracker.changed()) & {
         "unit_price",
         "start",
