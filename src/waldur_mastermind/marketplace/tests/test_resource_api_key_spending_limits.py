@@ -13,6 +13,7 @@ from django.test.utils import CaptureQueriesContext
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_mastermind.marketplace import (
@@ -610,6 +611,54 @@ class EnforcementTest(KeySpendingLimitsTestBase):
         self.sibling.refresh_from_db()
         self.assertEqual(self.sibling.state, States.OK)
 
+    def test_a_cost_the_estimate_cannot_store_keeps_the_usage_and_the_pause(self):
+        self.set_limits(day=10, month=100)
+        self.key.usage_period = TODAY.replace(day=1)
+        self.key.estimated_cost = Decimal("1.5")
+        self.key.save()
+        # More digits than the cost field holds: the database refuses the write.
+        with mock.patch(
+            "waldur_mastermind.marketplace.api_key_cost.estimate",
+            return_value=Decimal("1e30"),
+        ):
+            response, prepare = self.report(daily_usages=[self.day(TODAY, 10)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.current_usages, {"token_cost": 10})
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertTrue(self.key.paused_by_limit)
+        # The last estimate that could be stored is kept, being for this month.
+        self.assertEqual(self.key.estimated_cost, Decimal("1.5"))
+
+    def test_a_failing_estimate_keeps_the_usage_and_the_pause(self):
+        self.set_limits(day=10, month=100)
+        with mock.patch(
+            "waldur_mastermind.marketplace.api_key_cost.estimate",
+            side_effect=ValueError("no price"),
+        ):
+            response, prepare = self.report(daily_usages=[self.day(TODAY, 10)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.current_usages, {"token_cost": 10})
+
+    def test_a_failing_estimate_in_a_new_month_drops_the_last_months_cost(self):
+        self.key.usage_period = datetime.date(2026, 9, 1)
+        self.key.current_usages = {"token_cost": 50}
+        self.key.estimated_cost = Decimal("7.5")
+        self.key.save()
+        with mock.patch(
+            "waldur_mastermind.marketplace.api_key_cost.estimate",
+            side_effect=ValueError("no price"),
+        ):
+            response, _ = self.report(daily_usages=[self.day(TODAY, 10)])
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.usage_period, datetime.date(2026, 10, 1))
+        self.assertEqual(self.key.current_usages, {"token_cost": 10})
+        self.assertEqual(self.key.estimated_cost, Decimal(0))
+
     def test_a_week_limit_counts_the_days_of_the_week_across_reports(self):
         self.set_limits(week=30)
         self.report(daily_usages=[self.day(datetime.date(2026, 10, 18), 25)])
@@ -754,6 +803,44 @@ class FailedLimitPauseTest(KeySpendingLimitsTestBase):
         self.run_task(at="2026-10-21 12:35").assert_called_once()
         self.key.refresh_from_db()
         self.assertEqual(self.key.limit_pause_retries, 3)
+
+    def run_resume_tasks(self):
+        with (
+            freeze_time("2026-10-22 00:04"),
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.resume_api_keys_after_limit_reset()
+            tasks.resume_api_keys_under_limit()
+        return prepare
+
+    def test_a_person_pausing_in_place_of_the_failed_pause_keeps_it_paused(self):
+        self.fail_the_limit_pause()
+        response, prepare = self.post(self.fixture.owner, detail_url(self.key, "pause"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.pending_action, Actions.PAUSE)
+        self.assertFalse(self.key.paused_by_limit)
+        self.assertIsNone(self.key.limit_resumes_at)
+        response, _ = self.post(
+            self.fixture.offering_owner, detail_url(self.key, "set-paused")
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.PAUSED)
+        self.run_resume_tasks().assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.PAUSED)
+
+    def test_retrying_the_failed_pause_leaves_it_waldurs(self):
+        self.fail_the_limit_pause()
+        response, prepare = self.post(self.fixture.owner, detail_url(self.key, "retry"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        self.assertEqual(self.published_payload(prepare)["action"], Actions.PAUSE)
+        self.key.refresh_from_db()
+        self.assertTrue(self.key.paused_by_limit)
+        self.assertEqual(self.key.limit_resumes_at, utc(2026, 10, 22))
 
     def test_the_wait_is_capped_at_six_hours(self):
         self.assertEqual(
@@ -996,6 +1083,45 @@ class ResumeTest(KeySpendingLimitsTestBase):
         ):
             tasks.resume_api_keys_after_limit_reset()
             tasks.resume_api_keys_under_limit()
+        prepare.assert_not_called()
+
+    def test_a_manager_can_keep_a_key_paused_for_its_limit_paused(self):
+        self.pause_for_day_limit()
+        response, prepare = self.post(self.fixture.owner, detail_url(self.key, "pause"))
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+        # The key is already paused at the backend: nothing to publish.
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.PAUSED)
+        self.assertEqual(self.key.pending_action, "")
+        self.assertFalse(self.key.paused_by_limit)
+        self.assertIsNone(self.key.limit_resumes_at)
+        with (
+            freeze_time("2026-10-22 00:04"),
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.resume_api_keys_after_limit_reset()
+            tasks.resume_api_keys_under_limit()
+        prepare.assert_not_called()
+
+    def test_taking_over_a_limit_pause_is_audited(self):
+        self.pause_for_day_limit()
+        with mock.patch("waldur_mastermind.marketplace.log.event_logger.emit") as emit:
+            self.post(self.fixture.owner, detail_url(self.key, "pause"))
+        messages = [
+            c.args[0]
+            for c in emit.call_args_list
+            if c.kwargs["event_type"] == EventType.MARKETPLACE_RESOURCE_API_KEY_PAUSED
+        ]
+        self.assertEqual(len(messages), 1)
+        self.assertIn("stays paused until someone resumes it", messages[0])
+
+    def test_a_key_paused_by_hand_cannot_be_paused_again(self):
+        self.key.state = States.PAUSED
+        self.key.save()
+        response, prepare = self.post(self.fixture.owner, detail_url(self.key, "pause"))
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         prepare.assert_not_called()
 
     def test_a_longer_limit_reached_since_moves_the_resume_time(self):
