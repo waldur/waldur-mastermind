@@ -136,6 +136,7 @@ from waldur_core.core.serializers import (
 )
 from waldur_core.core.tasks import sample_table_sizes
 from waldur_core.core.utils import (
+    can_use_personal_access_tokens,
     format_homeport_link,
     get_constance_setting_type,
     network_acl_widens,
@@ -2857,8 +2858,16 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         """Atomically revoke the old token and create a new one with the same scopes and bindings."""
         old_pat = self.get_object()
 
-        # A rotation mints a new token, so it is guarded as a create is.
-        # guarded() runs the body in a transaction that uses up the grant.
+        # A rotation mints a new token, so it is guarded as a create is: it
+        # needs the same right, or a user without tokens could renew one that
+        # comes alive when PAT_ENABLED is next turned on, and the same
+        # reauthentication. guarded() runs the body in a transaction that uses
+        # up the grant.
+        if not self._can_create_tokens(request.user):
+            raise ValidationError(
+                "You are not allowed to create personal access tokens."
+            )
+
         with reauthentication.guarded(
             request, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
         ):
@@ -3285,7 +3294,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         return response
 
     def _can_create_tokens(self, user) -> bool:
-        return bool(config.PAT_ENABLED and user.can_use_personal_access_tokens)
+        return can_use_personal_access_tokens(user)
 
     @extend_schema(
         summary="List token templates the caller can use",

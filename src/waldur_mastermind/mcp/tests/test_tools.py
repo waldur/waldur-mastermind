@@ -766,6 +766,19 @@ class StaleTokenTest(MCPToolsTestCase):
 
         self.assert_refused()
 
+    def test_user_without_the_flag_is_served_while_tokens_are_on(self):
+        # PAT_ENABLED gives every user tokens, so clearing the flag after
+        # the verifier accepted the token changes nothing.
+        self.user.can_use_personal_access_tokens = False
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
+        tool = StubTool(ToolName.LIST_PROJECTS).install(self)
+
+        result = call(self.token, "list_projects")
+
+        self.assertFalse(result.is_error, texts(result))
+        self.assertEqual(len(tool.calls), 1)
+
+    @override_config(PAT_ENABLED=False)
     def test_user_no_longer_allowed_tokens(self):
         self.user.can_use_personal_access_tokens = False
         self.user.save(update_fields=["can_use_personal_access_tokens"])

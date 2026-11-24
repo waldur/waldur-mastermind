@@ -3,6 +3,7 @@ import hashlib
 import pathlib
 from datetime import timedelta
 
+from ddt import data, ddt, unpack
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from rest_framework import status, test
@@ -217,11 +218,19 @@ class PersonalAccessTokenAuthenticationTest(test.APITestCase):
                 self.assertEqual(response.content, baseline.content)
 
     @override_config(PAT_ENABLED=False)
-    def test_kill_switch_rejects_all_pats(self):
+    def test_flagged_user_token_works_while_pats_are_off(self):
         pat = _create_pat(self.user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
         response = self.client.get("/api/customers/")
-        # With PAT disabled, request falls through to next auth (no auth → 401)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_config(PAT_ENABLED=False)
+    def test_unflagged_user_token_is_rejected_while_pats_are_off(self):
+        self.user.can_use_personal_access_tokens = False
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
+        pat = _create_pat(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
+        response = self.client.get("/api/customers/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_impersonation_header_is_rejected(self):
@@ -1250,9 +1259,11 @@ class PersonalAccessTokenAvailableBindingTargetsTest(test.APITestCase):
         self.assertNotIn(PermissionEnum.STAFF_ACCESS.value, by_perm)
 
 
-@override_config(PAT_ENABLED=True)
+@ddt
 class PersonalAccessTokenPerUserGateTest(test.APITestCase):
-    """Per-user enablement: only users with the flag may create/use PATs."""
+    """PAT_ENABLED gives every user tokens; while it is off, only users with
+    the can_use_personal_access_tokens flag have them. Staff are not
+    special-cased."""
 
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
@@ -1264,11 +1275,15 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
             "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
         }
 
-    def test_user_without_flag_cannot_create(self):
-        user = self.fixture.owner
-        self.assertFalse(user.can_use_personal_access_tokens)
+    def _user(self, role, flag):
+        user = getattr(self.fixture, role)
+        user.can_use_personal_access_tokens = flag
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        return user
+
+    def _create(self, user):
         self.client.force_authenticate(user=user)
-        response = self.client.post(
+        return self.client.post(
             PAT_URL,
             self._create_payload(),
             format="json",
@@ -1276,41 +1291,70 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
                 user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
             ),
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_user_with_flag_can_create(self):
-        user = self.fixture.owner
-        user.can_use_personal_access_tokens = True
-        user.save(update_fields=["can_use_personal_access_tokens"])
+    def _authenticate(self, user):
+        pat = _create_pat(user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
+        return self.client.get("/api/customers/")
+
+    # (role, PAT_ENABLED, flag, allowed)
+    MATRIX = [
+        (role, enabled, flag, enabled or flag)
+        for role in ("owner", "staff")
+        for enabled in (True, False)
+        for flag in (True, False)
+    ]
+
+    @data(*MATRIX)
+    @unpack
+    def test_create(self, role, enabled, flag, allowed):
+        with override_config(PAT_ENABLED=enabled):
+            response = self._create(self._user(role, flag))
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED if allowed else status.HTTP_400_BAD_REQUEST,
+            response.data,
+        )
+
+    @data(*MATRIX)
+    @unpack
+    def test_authenticate(self, role, enabled, flag, allowed):
+        with override_config(PAT_ENABLED=enabled):
+            response = self._authenticate(self._user(role, flag))
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK if allowed else status.HTTP_401_UNAUTHORIZED,
+        )
+
+    @data(*MATRIX)
+    @unpack
+    def test_rotate(self, role, enabled, flag, allowed):
+        user = self._user(role, flag)
+        pat = _create_pat(user)
         self.client.force_authenticate(user=user)
-        response = self.client.post(
-            PAT_URL,
-            self._create_payload(),
-            format="json",
-            **reauthenticated(
-                user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
-            ),
+        with override_config(PAT_ENABLED=enabled):
+            response = self.client.post(
+                f"{PAT_URL}{pat.uuid}/rotate/",
+                **reauthenticated(
+                    user, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
+                ),
+            )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED if allowed else status.HTTP_400_BAD_REQUEST,
+            response.data,
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_staff_cannot_create_without_flag(self):
-        staff = self.fixture.staff
-        self.assertFalse(staff.can_use_personal_access_tokens)
-        self.client.force_authenticate(user=staff)
-        response = self.client.post(
-            PAT_URL,
-            self._create_payload(),
-            format="json",
-            **reauthenticated(
-                staff, ReauthenticationAction.CREATE_PERSONAL_ACCESS_TOKEN
-            ),
+        pat.refresh_from_db()
+        # A refused rotation leaves the old token as it was and mints nothing.
+        self.assertEqual(pat.is_active, not allowed)
+        self.assertEqual(
+            PersonalAccessToken.objects.filter(user=user).count(),
+            2 if allowed else 1,
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_revoking_flag_disables_existing_token(self):
-        user = self.fixture.owner
-        user.can_use_personal_access_tokens = True
-        user.save(update_fields=["can_use_personal_access_tokens"])
+    @override_config(PAT_ENABLED=False)
+    def test_clearing_flag_disables_existing_token_while_pats_are_off(self):
+        user = self._user("owner", True)
         pat = _create_pat(user)
 
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
@@ -1322,9 +1366,15 @@ class PersonalAccessTokenPerUserGateTest(test.APITestCase):
         response = self.client.get("/api/customers/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
-    def test_staff_token_rejected_without_flag(self):
-        staff = self.fixture.staff
-        pat = _create_pat(staff)
+    def test_turning_pats_off_disables_an_unflagged_users_token(self):
+        user = self._user("owner", False)
+        pat = _create_pat(user)
         self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
-        response = self.client.get("/api/customers/")
+
+        with override_config(PAT_ENABLED=True):
+            response = self.client.get("/api/customers/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        with override_config(PAT_ENABLED=False):
+            response = self.client.get("/api/customers/")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

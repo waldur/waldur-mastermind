@@ -77,10 +77,11 @@ def load_caller(token: AccessToken) -> Caller:
                 is_active=True,
                 expires_at__gt=timezone.now(),
                 user__is_active=True,
-                user__can_use_personal_access_tokens=True,
             )
         except PersonalAccessToken.DoesNotExist:
             raise InvalidToken from None
+        if not core_utils.can_use_personal_access_tokens(pat.user):
+            raise InvalidToken
         return Caller(user=pat.user, client=pat.name, pat=pat)
 
     oauth_token = auth.load_oauth_token(token.token)

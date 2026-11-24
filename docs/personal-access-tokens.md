@@ -320,9 +320,21 @@ All authentication failures return the same `"Invalid token."` message regardles
 
 The `revoke_user_pats_on_deactivation` signal handler in `waldur_core.core.handlers` revokes all active PATs when a user's `is_active` changes from `True` to `False`.
 
-### Global Kill Switch
+### Who May Have Tokens
 
-The `PAT_ENABLED` setting (default: `True`) controls whether PAT authentication is active. When `False`, `PATAuthentication.authenticate()` returns `None` for all `w_`-prefixed tokens, effectively disabling all PATs system-wide.
+A user may create, rotate and authenticate with tokens when the `PAT_ENABLED` setting is on **or** the user's own `can_use_personal_access_tokens` flag is set:
+
+| `PAT_ENABLED` | User flag | Tokens |
+|---------------|-----------|--------|
+| on | any | yes |
+| off | on | yes |
+| off | off | no |
+
+So `PAT_ENABLED` gives tokens to every user, and the flag gives them to selected users on a deployment that keeps them off for everyone else. Staff are not special-cased. `core.utils.can_use_personal_access_tokens(user)` holds the rule; token creation, rotation, REST and MCP authentication, and the template endpoints all call it.
+
+Neither switch deletes tokens. While a user is not allowed tokens, their existing tokens are refused, with the `pats_disabled` audit reason (see [Network ACLs](#network-acls)). They work again once the user is allowed tokens, unless they have expired or been revoked in the meantime. To cut off one user while `PAT_ENABLED` is on, revoke their tokens or deactivate the account; clearing the flag has no effect then.
+
+Before this rule, a user needed both `PAT_ENABLED` and the flag. On upgrade, migration `core.0062` turns a stored `PAT_ENABLED` of `True` off, so exactly the flagged users keep their tokens and nobody gains any. To give tokens to every user, turn `PAT_ENABLED` on again afterwards. A value the deployment applies from a settings file on every deploy is restored by the next deploy, which the migration logs as a warning; change it in that file.
 
 ## Configuration
 
@@ -330,7 +342,7 @@ The `PAT_ENABLED` setting (default: `True`) controls whether PAT authentication 
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `PAT_ENABLED` | `True` | Global enable/disable for PAT authentication |
+| `PAT_ENABLED` | `False` | Give tokens to every user; while off, only users with the per-user flag have them (see [Who May Have Tokens](#who-may-have-tokens)) |
 | `PAT_MAX_LIFETIME_DAYS` | `365` | Maximum token lifetime in days |
 | `PAT_MAX_TOKENS_PER_USER` | `20` | Maximum active tokens per user |
 
@@ -473,7 +485,7 @@ A request from outside the ACL is rejected with the same generic `Invalid token.
 
 Enforcement **fails closed**: if the source address cannot be determined, a token with a non-empty ACL is rejected.
 
-A known token presented after it should no longer work -- revoked, or with a deactivated owner, or an owner no longer permitted personal access tokens -- is rejected with the same generic error and recorded as a `pat_authentication_rejected` audit event carrying a `reason` (`revoked`, `user_inactive`, `permission_revoked`), debounced per token, reason and source IP. An expired token is rejected without an individual audit event (expiry is an expected lifecycle end, already surfaced by the `pat_expired` event the cleanup task emits, not a replay signal). An unknown token is never audited, so a forged bearer token cannot flood the event log.
+A known token presented after it should no longer work -- revoked, or with a deactivated owner, or an owner who is not allowed personal access tokens -- is rejected with the same generic error and recorded as a `pat_authentication_rejected` audit event carrying a `reason` (`revoked`, `user_inactive`, `pats_disabled`), debounced per token, reason and source IP. Events recorded before `pats_disabled` existed carry `permission_revoked` for the same check. An expired token is rejected without an individual audit event (expiry is an expected lifecycle end, already surfaced by the `pat_expired` event the cleanup task emits, not a replay signal). An unknown token is never audited, so a forged bearer token cannot flood the event log.
 
 Audit volume is additionally capped per token: `PAT_MAX_AUDIT_EVENTS_PER_HOUR` (default 50) limits how many events one token may generate per hour, counted separately for source-address changes and for rejections. Beyond the ceiling the events and the `last_used_at` / `last_used_ip` / `use_count` write are suppressed for the rest of the window and a warning is logged; the requests themselves are unaffected. The per-address debounce alone cannot bound this -- a caller with an IPv6 /64 has effectively unlimited source addresses.
 

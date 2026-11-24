@@ -2092,7 +2092,7 @@ class PersonalAccessTokenCreateSerializer(
     def validate(self, attrs):
         user = self.context["request"].user
 
-        if not user.can_use_personal_access_tokens:
+        if not core_utils.can_use_personal_access_tokens(user):
             raise serializers.ValidationError(
                 "You are not allowed to create personal access tokens."
             )
