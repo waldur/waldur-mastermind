@@ -26,6 +26,7 @@ from typing import Any
 from django.db import IntegrityError, transaction
 from rest_framework import serializers
 
+from waldur_core.core.yaml_utils import json_size, too_large_message
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
@@ -123,6 +124,16 @@ SITE_SPECIFIC_SETTINGS = {
 # Offering fields a template never takes over from an offering: it creates a
 # draft, and why an offering was paused is that offering's own.
 DROPPED_OFFERING_FIELDS = ("state", "paused_reason")
+
+# Every edit stores a full snapshot of the document. The shipped presets are
+# a few kilobytes.
+DOCUMENT_MAX_BYTES = 1024 * 1024
+DOCUMENT_NAME = "offering template document"
+
+SECRET_MESSAGE = (
+    "This is a secret, or is named like one. Secrets stay with the offering "
+    "they belong to."
+)
 
 REQUIRED_SETTING_MESSAGE = "This setting is required."
 NAME_TAKEN = "An offering template with this name already exists."
@@ -333,16 +344,137 @@ def _check_agent_configuration(configuration, targets: set[str]) -> dict:
     return configuration
 
 
+def find_secrets(document: dict) -> list[str]:
+    """Paths in the document whose key is a secret, or is named like one.
+
+    Every section is searched by the agent configuration's rule, at any depth,
+    except the parameters: their field names are fixed (one of them is
+    ``key``), and check_parameters refuses a path that names a secret. The
+    agent configuration's components are keyed by component type, and a type
+    such as license_key names no secret, so only each component's fields are
+    searched there, as the configuration's serializer does.
+    """
+    found: list[str] = []
+    for section, value in document.items():
+        if section == PARAMETERS_KEY:
+            continue
+        if section == "agent_configuration" and isinstance(value, dict):
+            found.extend(
+                site_agent_configuration.find_secret_settings(
+                    {
+                        key: item
+                        for key, item in value.items()
+                        if key != "backend_components"
+                    },
+                    section,
+                )
+            )
+            components = value.get("backend_components")
+            if isinstance(components, dict):
+                for component_type, fields in components.items():
+                    found.extend(
+                        site_agent_configuration.find_secret_settings(
+                            fields, f"{section}.backend_components.{component_type}"
+                        )
+                    )
+            continue
+        if section == "offering" and isinstance(value, dict):
+            found.extend(
+                site_agent_configuration.find_secret_settings(
+                    {key: item for key, item in value.items() if key != "options"},
+                    section,
+                )
+            )
+            found.extend(_form_secrets(value.get("options"), "offering.options"))
+            continue
+        if section == "resource_options":
+            found.extend(_form_secrets(value, section))
+            continue
+        found.extend(site_agent_configuration.find_secret_settings(value, section))
+    return found
+
+
+# The keys of an order form (offering.options, resource_options) that hold its
+# fields by name, and the list that orders them.
+FORM_FIELDS_KEY = "options"
+FORM_ORDER_KEY = "order"
+
+
+def _form_secrets(form, prefix: str) -> list[str]:
+    """Secrets in an order form.
+
+    A form's fields are keyed by the name of what the customer is asked for:
+    a field called ssh_public_key names an input, not a secret held in the
+    template. So field names are not judged; what each field holds is.
+    """
+    if not isinstance(form, dict):
+        return site_agent_configuration.find_secret_settings(form, prefix)
+    found = site_agent_configuration.find_secret_settings(
+        {
+            key: item
+            for key, item in form.items()
+            if key not in (FORM_FIELDS_KEY, FORM_ORDER_KEY)
+        },
+        prefix,
+    )
+    fields = form.get(FORM_FIELDS_KEY)
+    if isinstance(fields, dict):
+        for name, definition in fields.items():
+            found.extend(
+                site_agent_configuration.find_secret_settings(
+                    definition, f"{prefix}.{FORM_FIELDS_KEY}.{name}"
+                )
+            )
+    elif fields is not None:
+        found.extend(
+            site_agent_configuration.find_secret_settings(
+                fields, f"{prefix}.{FORM_FIELDS_KEY}"
+            )
+        )
+    return found
+
+
+def _strip_form(form):
+    """An order form with every secret removed, keeping its field names."""
+    if not isinstance(form, dict):
+        return form
+    stripped = site_agent_configuration.without_secrets(
+        {
+            key: item
+            for key, item in form.items()
+            if key not in (FORM_FIELDS_KEY, FORM_ORDER_KEY)
+        }
+    )
+    fields = form.get(FORM_FIELDS_KEY)
+    if isinstance(fields, dict):
+        stripped[FORM_FIELDS_KEY] = {
+            name: site_agent_configuration.without_secrets(definition)
+            if isinstance(definition, dict)
+            else definition
+            for name, definition in fields.items()
+        }
+    elif FORM_FIELDS_KEY in form:
+        stripped[FORM_FIELDS_KEY] = fields
+    if FORM_ORDER_KEY in form:
+        stripped[FORM_ORDER_KEY] = form[FORM_ORDER_KEY]
+    return stripped
+
+
 def check_document(document, offering_type: str) -> dict:
     """Refuse a document a template may not hold; return it normalised.
 
-    Its schema version must be supported, it may hold only known sections and
-    none of the excluded ones, its offering block must be of the template's
-    type, its agent configuration must be valid and free of secrets, and its
-    parameters well formed.
+    It may be at most DOCUMENT_MAX_BYTES as JSON, its schema version must be
+    supported, it may hold only known sections and none of the excluded ones,
+    its offering block must be of the template's type, its agent configuration
+    must be valid, its parameters well formed, and no section may hold a key
+    named like a secret.
     """
     if not isinstance(document, dict):
         raise serializers.ValidationError("Expected a mapping.")
+    if json_size(document) > DOCUMENT_MAX_BYTES:
+        raise serializers.ValidationError(
+            too_large_message(DOCUMENT_NAME, DOCUMENT_MAX_BYTES)
+        )
     if offering_type not in OFFERING_TYPES:
         raise _error(
             "offering_type",
@@ -379,16 +511,6 @@ def check_document(document, offering_type: str) -> dict:
             f"The template is for {offering_type} offerings.",
         )
 
-    secrets = site_agent_configuration.find_secret_settings(
-        document.get("plugin_options") or {}, "plugin_options"
-    )
-    if secrets:
-        raise _error(
-            secrets[0],
-            "This is a secret, or is named like one. Secrets stay with the "
-            "offering they belong to.",
-        )
-
     normalized = dict(document)
     parameters = check_parameters(document.get(PARAMETERS_KEY, []), document)
     normalized[PARAMETERS_KEY] = parameters
@@ -398,6 +520,11 @@ def check_document(document, offering_type: str) -> dict:
         _check_agent_configuration(
             document["agent_configuration"], parameter_targets(parameters)
         )
+    # After the agent configuration's own check, which explains a secret in
+    # its backend settings in its own words.
+    secrets = find_secrets(document)
+    if secrets:
+        raise _error(secrets[0], SECRET_MESSAGE)
     return normalized
 
 
@@ -499,24 +626,52 @@ def template_document(export_data: dict) -> dict:
                 f"endpoints.{index}.url",
             )
 
+    # Secrets are dropped from every section by the rule check_document
+    # refuses them by, so an offering whose options hold one still saves.
     configuration = document.get("agent_configuration")
     if isinstance(configuration, dict):
-        configuration["backend_settings"] = site_agent_configuration.without_secrets(
-            configuration.get("backend_settings") or {}
-        )
-        # Components may carry settings named like a secret; drop them too.
+        # Components are keyed by type, which names no secret; their fields
+        # may carry settings named like one.
         components = configuration.get("backend_components") or {}
+        configuration = site_agent_configuration.without_secrets(
+            {
+                key: value
+                for key, value in configuration.items()
+                if key != "backend_components"
+            }
+        )
+        configuration["backend_settings"] = configuration.get("backend_settings") or {}
         configuration["backend_components"] = {
             component_type: site_agent_configuration.without_secrets(fields)
             for component_type, fields in components.items()
         }
+        document["agent_configuration"] = configuration
     else:
         document.pop("agent_configuration", None)
 
-    if isinstance(document.get("plugin_options"), dict):
-        document["plugin_options"] = site_agent_configuration.without_secrets(
-            document["plugin_options"]
-        )
+    for section in SECTIONS:
+        value = document.get(section)
+        if section in (PARAMETERS_KEY, "agent_configuration"):
+            continue
+        if section == "offering" and isinstance(value, dict):
+            options = value.get(FORM_FIELDS_KEY)
+            document[section] = site_agent_configuration.without_secrets(
+                {key: item for key, item in value.items() if key != FORM_FIELDS_KEY}
+            )
+            if FORM_FIELDS_KEY in value:
+                document[section][FORM_FIELDS_KEY] = _strip_form(options)
+        elif section == "resource_options":
+            document[section] = _strip_form(value)
+        elif isinstance(value, dict):
+            document[section] = site_agent_configuration.without_secrets(value)
+        elif isinstance(value, list):
+            document[section] = [
+                site_agent_configuration.without_secrets(item)
+                if isinstance(item, dict)
+                else item
+                for item in value
+            ]
+    offering = document["offering"]
 
     sources = (
         (

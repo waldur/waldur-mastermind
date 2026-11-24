@@ -1,15 +1,19 @@
+import base64
 import textwrap
 from decimal import Decimal
 
 import yaml
 from ddt import data, ddt
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.permissions.tests import factories as permission_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, views
 from waldur_mastermind.marketplace.enums import (
     LEGACY_SITE_AGENT_OFFERING,
     SITE_AGENT_OFFERING,
@@ -312,11 +316,13 @@ class OfferingExportImportTestCase(test.APITestCase):
         """Test importing offering updates existing offering when overwrite is enabled."""
         self.client.force_authenticate(self.user)
 
-        # Create existing offering
+        # Create existing offering. Overwriting takes the permission to update
+        # it, which an owner holds on a draft.
         existing_offering = factories.OfferingFactory(
             customer=self.customer,
             name="Existing Offering",
             description="Old description",
+            state=models.Offering.States.DRAFT,
         )
 
         import_data = {
@@ -1227,6 +1233,7 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
             country="EE",
             access_url="https://example.com",
             paused_reason="Maintenance",
+            state=models.Offering.States.DRAFT,
         )
         component = factories.OfferingComponentFactory(
             offering=offering,
@@ -1572,3 +1579,143 @@ class PrepaidComponentImportTest(test.APITestCase):
             [{"type": "cpu", "name": "CPU", "billing_type": BillingTypes.LIMIT}]
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+
+class OfferingImportSafetyTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.customer = self.fixture.customer
+        self.owner = self.fixture.owner
+        self.category = factories.CategoryFactory(title="Safety Test Category")
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        self.offering = factories.OfferingFactory(
+            customer=self.customer,
+            category=self.category,
+            name="Existing",
+            description="Old description",
+            backend_id="alpha",
+            state=models.Offering.States.DRAFT,
+        )
+
+    def _import(self, offering_data, user=None, **params):
+        self.client.force_authenticate(user or self.owner)
+        if not isinstance(offering_data, str):
+            offering_data = yaml.safe_dump(offering_data)
+        return self.client.post(
+            reverse("marketplace-provider-offering-import-offering"),
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                "offering_data": offering_data,
+                **params,
+            },
+        )
+
+    def test_yaml_aliases_are_refused_and_nothing_is_stored(self):
+        response = self._import(
+            textwrap.dedent(
+                """\
+                offering:
+                  name: Bomb
+                  attributes:
+                    a: &a [x, x, x, x, x, x, x, x, x, x]
+                    b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]
+                    c: [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]
+                """
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("anchors and aliases", str(response.data["offering_data"]))
+        self.assertFalse(models.Offering.objects.filter(name="Bomb").exists())
+
+    def test_plain_yaml_import_still_works(self):
+        response = self._import(
+            textwrap.dedent(
+                """\
+                offering:
+                  name: Plain
+                  attributes:
+                    cores: [1, 2, 4]
+                """
+            )
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(name="Plain")
+        self.assertEqual(offering.attributes, {"cores": [1, 2, 4]})
+
+    def test_document_over_the_size_limit_is_refused(self):
+        response = self._import(
+            {
+                "offering": {
+                    "name": "Large",
+                    "attributes": {"blob": "x" * views.OFFERING_IMPORT_MAX_BYTES},
+                }
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("larger than 1 MB", str(response.data["offering_data"]))
+        self.assertFalse(models.Offering.objects.filter(name="Large").exists())
+
+    def test_file_content_does_not_count_towards_the_size_limit(self):
+        content = base64.b64encode(b"x" * views.OFFERING_IMPORT_MAX_BYTES).decode()
+        response = self._import(
+            {
+                "offering": {"name": "With File"},
+                "files": [
+                    {"name": "Guide", "filename": "guide.txt", "file_content": content}
+                ],
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(name="With File")
+        self.assertTrue(offering.files.filter(name="Guide").exists())
+
+    def _overwrite(self, user=None):
+        return self._import(
+            {
+                "offering": {
+                    "name": "Existing",
+                    "description": "New description",
+                    "backend_id": "beta",
+                }
+            },
+            user=user,
+            overwrite_existing=True,
+        )
+
+    def test_overwrite_needs_permission_to_update_the_offering(self):
+        # Holds CREATE_OFFERING on the organization, but not UPDATE_OFFERING.
+        creator = structure_factories.UserFactory()
+        role = permission_factories.RoleFactory(
+            content_type=ContentType.objects.get_for_model(self.customer)
+        )
+        role.add_permission(PermissionEnum.CREATE_OFFERING)
+        self.customer.add_user(creator, role)
+
+        response = self._overwrite(creator)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.description, "Old description")
+
+    def test_overwrite_of_an_active_offering_follows_update_overview(self):
+        # While providers may not manage their offerings, only staff change
+        # one that is not a draft.
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save(update_fields=["state"])
+
+        response = self._overwrite()
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.state, models.Offering.States.ACTIVE)
+        self.assertEqual(self.offering.description, "Old description")
+
+    def test_overwrite_with_permission_keeps_the_backend_id(self):
+        response = self._overwrite()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.description, "New description")
+        self.assertEqual(self.offering.backend_id, "alpha")
+        self.assertIn("backend ID was not imported", str(response.data["warnings"]))

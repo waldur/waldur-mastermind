@@ -776,6 +776,10 @@ class ImportOfferingTrustTest(AgentConfigurationTrustTestMixin, test.APITestCase
         )
         creator.add_permission(PermissionEnum.CREATE_OFFERING)
         self.customer.add_user(self.offering_manager, creator)
+        # Overwriting takes the permission to update the offering, which a
+        # provider holds on a draft while staff manage the offering lifecycle.
+        self.offering.state = marketplace_models.Offering.States.DRAFT
+        self.offering.save(update_fields=["state"])
 
     def import_offering(self, user, configuration, name="Cluster", overwrite=True):
         document = {

@@ -5,7 +5,6 @@ import re
 import uuid
 from datetime import datetime
 
-import yaml
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -29,6 +28,7 @@ from waldur_core.core.enums import ReviewStates as CoreReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.models import DESCRIPTION_LENGTH
 from waldur_core.core.validators import get_project_name_regex_error
+from waldur_core.core.yaml_utils import load_document
 from waldur_core.media import models as media_models
 from waldur_core.media.validators import DocumentValidator, ImageValidator
 from waldur_core.permissions import enums as permissions_enums
@@ -8897,48 +8897,15 @@ class CallExportResponseSerializer(serializers.Serializer):
 
 # An exported call is tens of kilobytes; anything near this is not one.
 CALL_DATA_MAX_BYTES = 2 * 1024 * 1024
-CALL_DATA_TOO_LARGE = (
-    f"The call document is larger than {CALL_DATA_MAX_BYTES // (1024 * 1024)} MB."
-)
-
-
-class NoAliasSafeLoader(yaml.SafeLoader):
-    """``yaml.SafeLoader`` refusing anchors and aliases.
-
-    An export never writes them, and a few nested aliases expand into
-    billions of nodes once the document is stored as JSON.
-    """
-
-    def compose_node(self, parent, index):
-        event = self.peek_event()
-        if isinstance(event, yaml.AliasEvent) or getattr(event, "anchor", None):
-            raise yaml.composer.ComposerError(
-                None,
-                None,
-                "YAML anchors and aliases are not supported",
-                event.start_mark,
-            )
-        return super().compose_node(parent, index)
 
 
 def parse_call_document(value):
     """A call document given as a mapping or a YAML string, as a mapping.
 
-    YAML is read with the safe loader, refusing anchors and aliases, and
-    either form is refused beyond CALL_DATA_MAX_BYTES.
+    YAML is read refusing anchors and aliases, and either form is refused
+    beyond CALL_DATA_MAX_BYTES.
     """
-    if isinstance(value, str):
-        if len(value.encode()) > CALL_DATA_MAX_BYTES:
-            raise serializers.ValidationError(CALL_DATA_TOO_LARGE)
-        try:
-            value = yaml.load(value, Loader=NoAliasSafeLoader)  # noqa: S506
-        except yaml.YAMLError as e:
-            raise serializers.ValidationError(f"Invalid YAML data: {e}")
-    elif len(json.dumps(value, default=str).encode()) > CALL_DATA_MAX_BYTES:
-        raise serializers.ValidationError(CALL_DATA_TOO_LARGE)
-    if not isinstance(value, dict):
-        raise serializers.ValidationError("Expected a mapping.")
-    return value
+    return load_document(value, CALL_DATA_MAX_BYTES, "call document")
 
 
 class CallImportParametersSerializer(serializers.Serializer):

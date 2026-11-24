@@ -6,6 +6,8 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.configuration.testing import override_config
+from waldur_core.core.tests.helpers import create_pat
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -154,6 +156,86 @@ class OfferingTemplateDocumentTest(BaseOfferingTemplateTest):
     def test_secret_in_plugin_options_is_refused(self):
         response = self.create(make_document(plugin_options={"api_token": "x"}))
         self.assertEqual(response.status_code, 400)
+
+    def test_secret_anywhere_in_the_document_is_refused_with_its_path(self):
+        offering = make_document()["offering"]
+        cases = (
+            (
+                {"offering": {**offering, "options": {"api_token": "x"}}},
+                "offering.options.api_token",
+            ),
+            (
+                {
+                    "offering": {
+                        **offering,
+                        "attributes": {"nested": [{"password": "x"}]},
+                    }
+                },
+                "offering.attributes.nested[0].password",
+            ),
+            ({"resource_options": {"secret": "x"}}, "resource_options.secret"),
+            (
+                {
+                    "components": [
+                        {
+                            "type": "node",
+                            "name": "Node hours",
+                            "billing_type": "limit",
+                            "measured_unit": "node-hours",
+                            "access_key": "x",
+                        }
+                    ]
+                },
+                "components[0].access_key",
+            ),
+            (
+                {"endpoints": [{"name": "API", "url": "https://x", "token": "x"}]},
+                "endpoints[0].token",
+            ),
+        )
+        for overrides, path in cases:
+            with self.subTest(path=path):
+                response = self.create(make_document(**overrides))
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(path, response.data["document"])
+        self.assertFalse(models.OfferingTemplate.objects.exists())
+
+    def test_parameter_field_named_key_and_component_type_are_no_secrets(self):
+        document = make_document()
+        document["agent_configuration"]["backend_components"] = {
+            "license_key": {"unit_factor_reporting": 1}
+        }
+        response = self.create(document)
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def test_yaml_aliases_are_refused_and_nothing_is_stored(self):
+        document = (
+            "schema_version: 1\n"
+            "offering:\n"
+            "  name: HPC\n"
+            f"  type: {SITE_AGENT_OFFERING}\n"
+            "  attributes:\n"
+            "    a: &a [x, x, x, x, x, x, x, x, x, x]\n"
+            "    b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]\n"
+            "    c: [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]\n"
+        )
+        response = self.create(document)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("anchors and aliases", str(response.data["document"]))
+        self.assertFalse(models.OfferingTemplate.objects.exists())
+
+    def test_document_over_the_size_limit_is_refused(self):
+        big = "x" * offering_templates.DOCUMENT_MAX_BYTES
+        offering = {**make_document()["offering"], "description": big}
+        for document in (
+            make_document(offering=offering),
+            json.dumps(make_document(offering=offering)),
+        ):
+            with self.subTest(yaml=isinstance(document, str)):
+                response = self.create(document)
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("larger than 1 MB", str(response.data["document"]))
+        self.assertFalse(models.OfferingTemplate.objects.exists())
 
     def test_required_setting_not_filled_by_a_parameter_is_refused(self):
         document = make_document()
@@ -370,6 +452,36 @@ class OfferingTemplatePermissionTest(BaseOfferingTemplateTest):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, [])
 
+    def list_with_token(self, user, scopes):
+        user.can_use_personal_access_tokens = True
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        _, token = create_pat(user, scopes=scopes)
+        return self.client.get(LIST_URL, HTTP_AUTHORIZATION=f"Bearer {token}")
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_without_create_offering_sees_none(self):
+        response = self.list_with_token(
+            self.owner, [PermissionEnum.LIST_PROJECTS.value]
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
+    @override_config(PAT_ENABLED=True)
+    def test_token_with_create_offering_sees_published_templates(self):
+        response = self.list_with_token(
+            self.owner, [PermissionEnum.CREATE_OFFERING.value]
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([t["name"] for t in response.data], ["Published"])
+
+    @override_config(PAT_ENABLED=True)
+    def test_staff_token_without_staff_or_create_offering_scope_sees_none(self):
+        response = self.list_with_token(
+            self.staff, [PermissionEnum.LIST_PROJECTS.value]
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [])
+
 
 class OfferingTemplatePresetTest(BaseOfferingTemplateTest):
     def setUp(self):
@@ -512,6 +624,62 @@ class SaveOfferingAsTemplateTest(BaseOfferingTemplateTest):
             self.assertNotIn(secret, stored)
             self.assertNotIn(secret, json.dumps(response.data, default=str))
         self.assertNotIn("secret_options", stored)
+
+    def test_secrets_in_other_sections_are_dropped(self):
+        self.offering.options = {
+            "order": ["ssh_public_key", "size"],
+            "options": {
+                # A field the customer fills in: its name is not a secret.
+                "ssh_public_key": {"type": "string", "label": "SSH key"},
+                "size": {
+                    "type": "integer",
+                    "label": "Size",
+                    "api_token": "option-secret-value",
+                },
+            },
+        }
+        self.offering.resource_options = {"admin_password": "resource-secret-value"}
+        self.offering.attributes = {"nested": {"token": "attribute-secret-value"}}
+        self.offering.save()
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(self.url, {}, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        document = models.OfferingTemplate.objects.get().document
+        stored = json.dumps(document)
+        for secret in (
+            "resource-secret-value",
+            "attribute-secret-value",
+            "option-secret-value",
+        ):
+            self.assertNotIn(secret, stored)
+        form = document["offering"]["options"]
+        self.assertEqual(form["order"], ["ssh_public_key", "size"])
+        self.assertEqual(set(form["options"]), {"ssh_public_key", "size"})
+        self.assertEqual(form["options"]["size"], {"type": "integer", "label": "Size"})
+        self.assertEqual(offering_templates.find_secrets(document), [])
+
+    def test_order_form_field_names_are_not_secrets(self):
+        document = make_document(
+            offering={
+                "name": "HPC",
+                "type": SITE_AGENT_OFFERING,
+                "options": {
+                    "order": ["ssh_public_key"],
+                    "options": {
+                        "ssh_public_key": {"type": "string", "label": "SSH key"}
+                    },
+                },
+            },
+            resource_options={
+                "options": {"api_key_name": {"type": "string", "label": "Key name"}}
+            },
+        )
+        self.assertEqual(offering_templates.find_secrets(document), [])
+        document["offering"]["options"]["options"]["ssh_public_key"]["password"] = "x"
+        self.assertEqual(
+            offering_templates.find_secrets(document),
+            ["offering.options.options.ssh_public_key.password"],
+        )
 
     def test_site_specific_values_become_parameters(self):
         self.client.force_authenticate(self.staff)
