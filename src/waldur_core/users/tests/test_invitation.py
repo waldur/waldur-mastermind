@@ -3628,6 +3628,152 @@ class InvitationResendStuckTaskTest(test.APITestCase):
             process.delay.assert_not_called()
 
 
+class ProcessInvitationTaskTest(test.APITestCase):
+    def setUp(self):
+        self.sender = structure_factories.UserFactory()
+
+    def test_sends_a_pending_invitation(self):
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+
+        with (
+            mock.patch("waldur_core.users.tasks.send_invitation_created") as send,
+            mock.patch("waldur_core.users.tasks.get_or_create_user") as create_user,
+        ):
+            tasks.process_invitation(invitation.uuid.hex, self.sender.full_name)
+
+        send.assert_called_once_with(invitation.uuid.hex, self.sender.full_name)
+        create_user.assert_not_called()
+
+    @override_waldur_core_settings(INVITATION_CREATE_MISSING_USER=True)
+    def test_pending_invitation_creates_the_missing_user(self):
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+
+        with (
+            mock.patch("waldur_core.users.tasks.send_invitation_created") as send,
+            mock.patch("waldur_core.users.tasks.get_or_create_user") as create_user,
+        ):
+            tasks.process_invitation(invitation.uuid.hex, self.sender.full_name)
+
+        create_user.assert_called_once_with(invitation.uuid.hex, self.sender.full_name)
+        send.assert_not_called()
+
+    def test_does_not_send_a_pending_project_invitation(self):
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING_PROJECT,
+            created_by=self.sender,
+        )
+
+        with (
+            mock.patch("waldur_core.users.tasks.send_invitation_created") as send,
+            mock.patch("waldur_core.users.tasks.get_or_create_user") as create_user,
+        ):
+            tasks.process_invitation(invitation.uuid.hex, "OpenPortal")
+
+        send.assert_not_called()
+        create_user.assert_not_called()
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.PENDING_PROJECT)
+        self.assertEqual(
+            invitation.execution_state, models.Invitation.ExecutionState.SCHEDULED
+        )
+
+    @override_waldur_core_settings(INVITATION_CREATE_MISSING_USER=True)
+    def test_does_not_create_a_user_for_a_pending_project_invitation(self):
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING_PROJECT,
+            email="waiting@example.com",
+            created_by=self.sender,
+        )
+
+        with mock.patch("waldur_core.users.tasks.broadcast_mail") as mail:
+            tasks.process_invitation(invitation.uuid.hex, "OpenPortal")
+
+        mail.assert_not_called()
+        self.assertFalse(
+            core_models.User.objects.filter(email="waiting@example.com").exists()
+        )
+
+    def test_sends_once_the_project_has_started(self):
+        project = structure_factories.ProjectFactory(
+            start_date=timezone.now().date() - timedelta(days=1)
+        )
+        invitation = factories.ProjectInvitationFactory(
+            scope=project,
+            state=InvitationState.PENDING_PROJECT,
+            created_by=self.sender,
+        )
+
+        # The callback is registered with on_commit. It has to run while the
+        # mock is still in place; exiting the patch first would restore the
+        # real task before captureOnCommitCallbacks executes it.
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            with self.captureOnCommitCallbacks(execute=True):
+                tasks.process_pending_project_invitations()
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.PENDING)
+        process.delay.assert_called_once_with(
+            invitation.uuid.hex,
+            self.sender.full_name or self.sender.username,
+        )
+
+    def test_future_project_invitation_stays_unsent(self):
+        project = structure_factories.ProjectFactory(
+            start_date=timezone.now().date() + timedelta(days=7)
+        )
+        invitation = factories.ProjectInvitationFactory(
+            scope=project,
+            state=InvitationState.PENDING_PROJECT,
+            created_by=self.sender,
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            with self.captureOnCommitCallbacks(execute=True):
+                tasks.process_pending_project_invitations()
+
+        process.delay.assert_not_called()
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.PENDING_PROJECT)
+
+    def test_each_due_invitation_is_sent(self):
+        project = structure_factories.ProjectFactory(
+            start_date=timezone.now().date() - timedelta(days=1)
+        )
+        ada = structure_factories.UserFactory(first_name="Ada", last_name="Lovelace")
+        alan = structure_factories.UserFactory(first_name="Alan", last_name="Turing")
+        first = factories.ProjectInvitationFactory(
+            scope=project,
+            email="ada@example.com",
+            state=InvitationState.PENDING_PROJECT,
+            created_by=ada,
+        )
+        second = factories.ProjectInvitationFactory(
+            scope=project,
+            email="alan@example.com",
+            state=InvitationState.PENDING_PROJECT,
+            created_by=alan,
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            with self.captureOnCommitCallbacks(execute=True):
+                tasks.process_pending_project_invitations()
+
+        process.delay.assert_has_calls(
+            [
+                mock.call(first.uuid.hex, ada.full_name),
+                mock.call(second.uuid.hex, alan.full_name),
+            ],
+            any_order=True,
+        )
+        self.assertEqual(process.delay.call_count, 2)
+
+
 class InvitationWebhookScopeTest(test.APITestCase):
     """Tests for webhook scope filtering - webhooks only support project invitations."""
 

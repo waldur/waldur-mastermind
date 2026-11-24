@@ -412,6 +412,22 @@ def get_or_create_user(invitation_uuid, sender):
 
 @shared_task(name="waldur_core.users.process_invitation")
 def process_invitation(invitation_uuid, sender):
+    """Send an invitation the recipient can accept.
+
+    PENDING_PROJECT means the project start date has not arrived. Accept
+    rejects that state, so the link must not go out yet.
+    process_pending_project_invitations moves the row to PENDING and calls
+    this task again. Callers that send immediately have already set PENDING.
+    """
+    invitation = models.Invitation.objects.get(uuid=invitation_uuid)
+    if invitation.state != InvitationState.PENDING:
+        logger.info(
+            "Skipping invitation %s: only pending invitations are sent (state=%s).",
+            invitation_uuid,
+            invitation.state,
+        )
+        return
+
     if settings.WALDUR_CORE["INVITATION_CREATE_MISSING_USER"]:
         get_or_create_user(invitation_uuid, sender)
     else:
@@ -499,6 +515,11 @@ def process_pending_project_invitations():
         sender = invitation.created_by and (
             invitation.created_by.full_name or invitation.created_by.username
         )
+        # Bind the values now. The lambda runs after the loop when this task
+        # is inside a transaction, and would otherwise mail the last
+        # invitation once per row.
         transaction.on_commit(
-            lambda: process_invitation.delay(invitation.uuid.hex, sender)
+            lambda invitation_uuid=invitation.uuid.hex, sender=sender: (
+                process_invitation.delay(invitation_uuid, sender)
+            )
         )
