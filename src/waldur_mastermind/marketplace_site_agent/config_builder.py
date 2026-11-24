@@ -50,6 +50,11 @@ SECRET_REQUIREMENT_LABELS = {
 # it cannot take them from Waldur.
 BOOTSTRAP_FIELDS = ("waldur_api_url", "waldur_api_token", "waldur_offering_uuid")
 
+# Where an offering's configuration comes from, as the agent's
+# configuration_source names it: the file (local) or Waldur (waldur).
+LOCAL_SOURCE = "local"
+WALDUR_SOURCE = "waldur"
+
 
 def has_agent_roles(offering) -> bool:
     configuration = offering.agent_configuration or {}
@@ -139,6 +144,76 @@ def build_offering_config(
             offering_config["policy_settings"] = policy_settings
 
     return offering_config
+
+
+def build_bootstrap_offering_config(
+    offering, waldur_api_url, generated
+) -> dict[str, Any]:
+    """The block of an offering that takes its configuration from Waldur.
+
+    The agent reads everything else from site_agent_config when it starts, and
+    refuses any other key here: the block holds how to reach Waldur and the
+    secrets of the configuration Waldur serves. A secret gets a placeholder
+    where it would in a local configuration, that is where its block is
+    configured and it is not optional; the others are only listed. An empty
+    placeholder of an optional secret would set it to "" once the agent merges
+    the file in, and one of a block Waldur does not serve fails the load.
+    """
+    listed = ListedSecrets()
+    served = build_offering_config(offering, None, True, listed)
+    served_settings = served["backend_settings"]
+
+    offering_config: dict[str, Any] = {
+        "name": offering.name,
+        "configuration_source": WALDUR_SOURCE,
+        "waldur_api_url": waldur_api_url,
+        "waldur_api_token": generated.placeholder(
+            offering,
+            "waldur_api_token",
+            None,
+            REQUIRED_SECRET,
+            "Waldur API token (User Profile -> Credentials -> API Token)",
+        ),
+        "waldur_offering_uuid": str(offering.uuid),
+    }
+    secret_settings: dict[str, Any] = {}
+    for secret in listed.secrets:
+        path = secret["field"].removeprefix("backend_settings.")
+        parts = path.split(".")
+        if secret["requirement"] != site_agent_configuration.OPTIONAL and (
+            _served_block(served_settings, parts)
+        ):
+            node = secret_settings
+            for part in parts[:-1]:
+                node = node.setdefault(part, {})
+            label = SECRET_REQUIREMENT_LABELS[secret["requirement"]]
+            node[parts[-1]] = generated.placeholder(
+                offering,
+                secret["field"],
+                secret["backend"],
+                secret["requirement"],
+                f"{secret['backend']}{label}",
+            )
+        else:
+            generated.add_secret(
+                offering, secret["field"], secret["backend"], secret["requirement"]
+            )
+    if secret_settings:
+        offering_config["backend_settings"] = secret_settings
+    return offering_config
+
+
+def _served_block(settings, parts) -> bool:
+    """Whether the block of a secret at these path parts is in the settings.
+
+    A secret inside a mapping or list of entries has no single place to go.
+    """
+    if any(part == "*" or part.endswith("[]") for part in parts):
+        return False
+    node = settings
+    for part in parts[:-1]:
+        node = node.get(part) if isinstance(node, dict) else None
+    return isinstance(node, dict)
 
 
 def event_settings(configuration) -> dict[str, Any]:
@@ -386,9 +461,10 @@ class GeneratedAgentConfig(_SecretList):
     COMMENT = "comment"
     ENV = "env"
 
-    def __init__(self, secret_format):
+    def __init__(self, secret_format, configuration_source=LOCAL_SOURCE):
         super().__init__()
         self.secret_format = secret_format
+        self.configuration_source = configuration_source
         self.config = {"sentry_dsn": "", "timezone": "UTC", "offerings": []}
         self._placeholders = []
         self._env_prefixes = {}
@@ -441,13 +517,23 @@ class GeneratedAgentConfig(_SecretList):
         return f"{prefix}_{self._env_name(setting)}"
 
     def checklist(self):
-        """Header lines naming each backend secret the operator must add."""
-        lines = []
+        """Header lines naming each backend secret the operator must add.
+
+        Two lists: the secrets to add now, and those of a block the offering
+        does not set, which a configuration_source: waldur agent refuses until
+        Waldur serves the block.
+        """
+        lines, unset_block_lines = [], []
         for secret in self.secrets:
             if secret["backend"] is None:
                 continue
             # Names go into '#' comment lines: a line break would end the comment.
             name = " ".join(secret["offering_name"].split())
+            if self._block_unset(secret):
+                unset_block_lines.append(
+                    f"{name}: {secret['field']} ({secret['backend']})"
+                )
+                continue
             line = (
                 f"{name}: {secret['field']} ({secret['backend']}"
                 f"{SECRET_REQUIREMENT_LABELS[secret['requirement']]})"
@@ -455,7 +541,21 @@ class GeneratedAgentConfig(_SecretList):
             if secret["env_var"]:
                 line += f" as ${{{secret['env_var']}}}"
             lines.append(line)
-        return lines
+        return lines, unset_block_lines
+
+    @staticmethod
+    def _block_unset(secret):
+        """A needed secret left without a placeholder: its block is not set.
+
+        One inside a mapping or list of entries is needed per entry, which the
+        file cannot show, so it stays with the secrets to add.
+        """
+        parts = secret["field"].split(".")
+        return (
+            not secret["in_file"]
+            and secret["requirement"] != site_agent_configuration.OPTIONAL
+            and not any(part == "*" or part.endswith("[]") for part in parts)
+        )
 
     def yaml_content(self):
         """The configuration as YAML, with instructional header comments."""
@@ -479,19 +579,34 @@ class GeneratedAgentConfig(_SecretList):
             "# and start the site agent service.\n"
             "\n"
         )
+        if self.configuration_source == WALDUR_SOURCE:
+            header += (
+                "# configuration_source: waldur - the agent reads each offering's\n"
+                "# roles, settings and components from Waldur when it starts, so\n"
+                "# this file holds only how to reach Waldur and the secrets. Any\n"
+                "# other key in an offering fails the load. Needs a site agent that\n"
+                "# supports configuration_source.\n#\n"
+            )
         if self.secret_format == self.ENV:
             header += (
                 "# Secrets are '${VARIABLE}' references: fill them in before starting\n"
                 "# the agent, for example with envsubst. The agent does not expand\n"
                 "# variables itself. A ' in a secret must be written twice ('').\n#\n"
             )
-        checklist = self.checklist()
+        checklist, unset_block_checklist = self.checklist()
         if checklist:
             # Waldur never stores these, so the file cannot carry them; required
             # ones are present as placeholders, the others only listed.
             lines = "".join(f"#   - {line}\n" for line in checklist)
             header += (
                 "# BACKEND SECRETS TO CONFIGURE (kept on the agent host only):\n"
+                f"{lines}#\n"
+            )
+        if unset_block_checklist:
+            lines = "".join(f"#   - {line}\n" for line in unset_block_checklist)
+            header += (
+                "# SECRETS NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED - the offering\n"
+                "# does not set the block, so leave them out until it does:\n"
                 f"{lines}#\n"
             )
 

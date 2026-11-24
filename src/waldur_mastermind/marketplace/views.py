@@ -1323,7 +1323,10 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             "details, the agent roles, event and backend settings, components, and "
             "optionally SLURM periodic usage policy settings. Secrets are never "
             "included: each is left as a placeholder (secret_format) and listed in "
-            "the header; site_agent_config_secrets lists them as data."
+            "the header; site_agent_config_secrets lists them as data. With "
+            "configuration_source 'waldur' each offering holds only how to reach "
+            "Waldur and the secret placeholders, and the agent reads the rest from "
+            "site_agent_config."
         ),
         request=serializers.SiteAgentConfigGenerationSerializer,
         responses={
@@ -1379,7 +1382,10 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 
-        generated = config_builder.GeneratedAgentConfig(validated_data["secret_format"])
+        source = validated_data["configuration_source"]
+        generated = config_builder.GeneratedAgentConfig(
+            validated_data["secret_format"], source
+        )
         generated.config["timezone"] = validated_data.get("timezone", "UTC")
         waldur_api_url = validated_data.get(
             "waldur_api_url"
@@ -1387,11 +1393,15 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         include_policy = validated_data.get("include_policy_settings", True)
 
         for offering in serializer.context.get("validated_offerings", []):
-            generated.config["offerings"].append(
-                config_builder.build_offering_config(
+            if source == config_builder.WALDUR_SOURCE:
+                offering_config = config_builder.build_bootstrap_offering_config(
+                    offering, waldur_api_url, generated
+                )
+            else:
+                offering_config = config_builder.build_offering_config(
                     offering, waldur_api_url, include_policy, generated
                 )
-            )
+            generated.config["offerings"].append(offering_config)
         return generated
 
     # Kept for callers of the class; the builders are in config_builder.
