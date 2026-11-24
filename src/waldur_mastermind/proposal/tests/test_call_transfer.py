@@ -12,6 +12,7 @@ from rest_framework import status, test
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.enums import ChecklistTypes, QuestionTypes
 from waldur_core.checklist.tests import factories as checklist_factories
+from waldur_core.core import yaml_utils
 from waldur_core.media import models as media_models
 from waldur_core.permissions.fixtures import CallRole
 from waldur_mastermind.proposal import call_transfer, models, serializers
@@ -363,10 +364,7 @@ class CallTransferTest(test.APITestCase):
     def test_an_export_round_trips_through_the_alias_free_loader(self):
         exported = self.export().data["export_data"]
         self.assertEqual(
-            yaml.load(
-                yaml.safe_dump(exported),
-                Loader=serializers.NoAliasSafeLoader,  # noqa: S506
-            ),
+            yaml_utils.load_yaml(yaml.safe_dump(exported)),
             yaml.safe_load(yaml.safe_dump(exported)),
         )
 

@@ -14,6 +14,7 @@ from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
+    check_pat_permission,
     has_permission,
     has_permission_on_any_source,
     permission_factory,
@@ -894,13 +895,27 @@ def can_view_offering_user_attribute_config(request, view, obj=None):
     raise exceptions.PermissionDenied()
 
 
-def may_create_offerings(user) -> bool:
-    """Whether ``user`` may create an offering for some organization: the
-    people a published offering template is for."""
+def may_create_offerings(request) -> bool:
+    """Whether the request may create an offering for some organization: the
+    people a published offering template is for.
+
+    A personal access token limits it as ``has_permission`` does: without
+    CREATE_OFFERING among its permissions it may not, not even a staff
+    user's, and a token bound to some objects may only for an organization
+    it reaches.
+    """
+    user = request.user
     if not user.is_active:
         return False
-    if user.is_staff:
+    permission = PermissionEnum.CREATE_OFFERING
+    # Without a token, or with an unbound one carrying the permission.
+    unbound = check_pat_permission(request, permission)
+    if user.is_staff and unbound:
         return True
-    return get_connected_customers_by_permission(
-        user, PermissionEnum.CREATE_OFFERING
-    ).exists()
+    customer_ids = get_connected_customers_by_permission(user, permission)
+    if unbound:
+        return customer_ids.exists()
+    return any(
+        check_pat_permission(request, permission, customer)
+        for customer in structure_models.Customer.objects.filter(id__in=customer_ids)
+    )

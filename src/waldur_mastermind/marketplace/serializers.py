@@ -13,7 +13,6 @@ from typing import Literal, cast
 
 import jwt
 import regex
-import yaml
 from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
 from django import forms
@@ -52,7 +51,7 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist import utils as checklist_utils
 from waldur_core.configuration import config
-from waldur_core.core import access, encryption
+from waldur_core.core import access, encryption, yaml_utils
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
@@ -21611,7 +21610,7 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
         if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
         request = self.context.get("request")
-        if request is None or not request.user.is_staff:
+        if request is None or not has_staff_access(request):
             fields.pop("created_by", None)
         return fields
 
@@ -21622,21 +21621,19 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         data = super().to_representation(instance)
         request = self.context.get("request")
-        if request is None or not request.user.is_staff:
+        if request is None or not has_staff_access(request):
             data["document"] = offering_templates.public_document(
                 instance.document or {}
             )
         return data
 
     def validate_document(self, value):
-        if isinstance(value, str):
-            try:
-                value = yaml.safe_load(value)
-            except yaml.YAMLError:
-                raise serializers.ValidationError(_("Invalid YAML."))
-        if not isinstance(value, dict):
-            raise serializers.ValidationError(_("Expected a mapping."))
-        return value
+        # Refuses YAML anchors and aliases, which would expand on save.
+        return yaml_utils.load_document(
+            value,
+            offering_templates.DOCUMENT_MAX_BYTES,
+            offering_templates.DOCUMENT_NAME,
+        )
 
     def validate(self, attrs):
         offering_type = attrs.get("offering_type") or (

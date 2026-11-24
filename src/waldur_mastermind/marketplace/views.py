@@ -9,7 +9,6 @@ from typing import cast
 import httpx
 import reversion
 import tomli_w
-import yaml
 from cryptography.fernet import InvalidToken
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
@@ -83,7 +82,7 @@ from rest_framework.serializers import Serializer
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
 from waldur_core.configuration import config
-from waldur_core.core import access, encryption
+from waldur_core.core import access, encryption, yaml_utils
 from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -2908,6 +2907,34 @@ def _import_error(path, message):
     return rf_exceptions.ValidationError({path: [message]})
 
 
+# What an import may hold besides the content of its screenshots and files,
+# which an export embeds and an import writes to media storage, not to JSON
+# columns. An export is tens of kilobytes without them.
+OFFERING_IMPORT_MAX_BYTES = 1024 * 1024
+# The base64 content of each item of these sections.
+IMPORT_ATTACHMENT_FIELDS = {"screenshots": "image_content", "files": "file_content"}
+
+
+def _check_import_size(import_data):
+    measured = dict(import_data)
+    for section, field in IMPORT_ATTACHMENT_FIELDS.items():
+        items = measured.get(section)
+        if isinstance(items, list):
+            measured[section] = [
+                {key: value for key, value in item.items() if key != field}
+                if isinstance(item, dict)
+                else item
+                for item in items
+            ]
+    if yaml_utils.json_size(measured) > OFFERING_IMPORT_MAX_BYTES:
+        raise rf_exceptions.ValidationError(
+            yaml_utils.too_large_message(
+                "offering document, without the content of its screenshots and files,",
+                OFFERING_IMPORT_MAX_BYTES,
+            )
+        )
+
+
 def _import_mapping(value, path):
     """Return an imported mapping; a missing or null one is empty."""
     if value is None:
@@ -3087,6 +3114,15 @@ class ProviderOfferingViewSet(
         # Looks the offering up as retrieve does; the pool it returns may be
         # the service provider's default.
         "effective_posix_id_pool": [OFFERING_SEEN_ACCESS],
+        "import_offering": [
+            access.custom(
+                "Overwriting an existing offering also takes what updating its "
+                "overview does: UPDATE_OFFERING on it, its organization or its "
+                "service provider, and while "
+                "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT is off, staff unless "
+                "it is a draft."
+            )
+        ],
     }
 
     def _check_extra_field_needed(self, field_name):
@@ -6793,17 +6829,12 @@ class ProviderOfferingViewSet(
         serializer.is_valid(raise_exception=True)
         params = serializer.validated_data
 
-        # Parse YAML data
+        # Anchors and aliases are refused: they would expand on save.
         try:
-            if isinstance(params["offering_data"], str):
-                import_data = yaml.safe_load(params["offering_data"])
-            else:
-                import_data = params["offering_data"]
-        except yaml.YAMLError as e:
-            raise rf_exceptions.ValidationError(f"Invalid YAML data: {str(e)}")
-
-        if not isinstance(import_data, dict):
-            raise _import_error("offering_data", "Expected a mapping.")
+            import_data = yaml_utils.load_document(params["offering_data"])
+            _check_import_size(import_data)
+        except rf_exceptions.ValidationError as e:
+            raise rf_exceptions.ValidationError({"offering_data": e.detail})
 
         warnings = []
 
@@ -6961,6 +6992,21 @@ class ProviderOfferingViewSet(
             if not params.get("overwrite_existing", False):
                 raise rf_exceptions.ValidationError(
                     f"Offering '{offering_name}' already exists. Set overwrite_existing=True to update it."
+                )
+            # Overwriting changes the offering, so it takes what update_overview
+            # takes, not only CREATE_OFFERING.
+            can_update_offering(self.request, self, existing_offering)
+            # The backend ID ties the offering to its backend, which may be
+            # using it already: change it with update_overview. Only a new
+            # offering takes it from an import, as one created from an
+            # offering template does.
+            backend_id = offering_values.pop("backend_id", None)
+            if backend_id is not None and backend_id != existing_offering.backend_id:
+                warnings.append(
+                    _(
+                        "The backend ID was not imported: an import does not "
+                        "change the backend ID of an existing offering."
+                    )
                 )
             offering = existing_offering
         else:
@@ -22953,16 +22999,16 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
     destroy_permissions = [structure_permissions.is_staff]
 
     @access.shows(
-        "Users with the staff flag see every template; those holding "
-        "OFFERING.CREATE on some organization see the published ones; anyone "
-        "else sees none."
+        "Staff see every template, a personal access token only with the "
+        "staff scope; those holding OFFERING.CREATE on some organization see "
+        "the published ones, a token only with OFFERING.CREATE among its "
+        "permissions; anyone else sees none."
     )
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_staff:
+        if has_staff_access(self.request):
             return queryset
-        if marketplace_permissions.may_create_offerings(user):
+        if marketplace_permissions.may_create_offerings(self.request):
             return queryset.filter(is_published=True)
         return queryset.none()
 
