@@ -9388,6 +9388,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     )
     spending_limit_status = serializers.SerializerMethodField()
     customer_slug = serializers.ReadOnlyField(source="project.customer.slug")
+    customer_abbreviation = serializers.ReadOnlyField(
+        source="project.customer.abbreviation"
+    )
     renewal_date = serializers.SerializerMethodField()
     offering_state = serializers.SerializerMethodField()
     offering_components = serializers.SerializerMethodField()
@@ -9483,6 +9486,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "service_settings_uuid",
             "project_slug",
             "customer_slug",
+            "customer_abbreviation",
             "user_requires_reconsent",
             "renewal_date",
             "offering_state",
@@ -9513,6 +9517,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "last_sync",
             "project_slug",
             "customer_slug",
+            "customer_abbreviation",
             "offering_components",
             "usage_limit_resumes_at",
         )

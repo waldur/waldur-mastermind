@@ -3980,6 +3980,45 @@ class ProviderResourcesTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+class ResourceCustomerAbbreviationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.customer = self.resource.project.customer
+        self.client.force_authenticate(self.fixture.staff)
+
+    def _get_all(self):
+        """Retrieve and list the resource on the consumer and provider endpoints."""
+        list_params = {"project_uuid": self.resource.project.uuid.hex}
+        detail_urls = [
+            factories.ResourceFactory.get_url(self.resource),
+            factories.ResourceFactory.get_provider_resource_url(self.resource),
+        ]
+        list_urls = [
+            factories.ResourceFactory.get_list_url(),
+            factories.ResourceFactory.get_provider_resource_list_url(),
+        ]
+        payloads = [self.client.get(url).data for url in detail_urls]
+        for url in list_urls:
+            response = self.client.get(url, list_params)
+            self.assertEqual(len(response.data), 1)
+            payloads.append(response.data[0])
+        return payloads
+
+    def test_abbreviation_is_returned(self):
+        self.customer.abbreviation = "ACME"
+        self.customer.save()
+        for payload in self._get_all():
+            self.assertEqual(payload["customer_abbreviation"], "ACME")
+            self.assertEqual(payload["customer_slug"], self.customer.slug)
+
+    def test_empty_abbreviation_is_returned_as_empty_string(self):
+        self.customer.abbreviation = ""
+        self.customer.save()
+        for payload in self._get_all():
+            self.assertEqual(payload["customer_abbreviation"], "")
+
+
 class ProviderResourceOrderWorkflowTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
