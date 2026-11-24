@@ -677,6 +677,7 @@ td:nth-child(4) {
 | `record_credit_transaction` | `Django Signal (post_save)` | `invoices.ProjectCredit` | Write ledger rows for every credit value change, organization or project. |
 | `refresh_vat_rates_when_enabled` | `Custom Signal (setting_updated)` | `—` | Without rates, pending invoices cannot get VAT until the next month. |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
+| `release_end_date_pause_when_resource_end_date_changes` | `Django Signal (post_save)` | `marketplace.Resource` | Lift the end-date pause once a resource's own end date is moved past today. |
 | `release_grace_pauses_when_project_end_date_changes` | `Django Signal (post_save)` | `structure.Project` | Lift grace-period pauses once a project's end date moves it out of the grace period. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Mark the deleted POSIX id consumer's identity as released. |
 | `release_posix_allocations_on_consumer_deletion` | `Django Signal (post_delete)` | `marketplace.ServiceProviderAccount` | Mark the deleted POSIX id consumer's identity as released. |
@@ -901,7 +902,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 817
+Total unique handlers found: 818
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -909,7 +910,7 @@ Total unique handlers found: 817
 - **waldur_core**: 353 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 400 handlers
+- **waldur_mastermind**: 401 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
