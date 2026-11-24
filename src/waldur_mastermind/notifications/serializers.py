@@ -137,6 +137,7 @@ class AdminAnnouncementSerializer(
             "is_active",
             "type",
             "created",
+            "visible_to_anonymous_users",
         )
 
 

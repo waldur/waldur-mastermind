@@ -57,6 +57,13 @@ class AdminAnnouncement(UuidMixin, DescribableMixin, TimeStampedModel):
     )
     active_from = models.DateTimeField()
     active_to = models.DateTimeField()
+    visible_to_anonymous_users = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Show the announcement to signed-out visitors, e.g. on the login page, "
+            "while it is active."
+        ),
+    )
 
     @property
     def is_active(self) -> bool:

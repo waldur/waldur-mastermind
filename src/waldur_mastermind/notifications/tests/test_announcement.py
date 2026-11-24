@@ -46,6 +46,19 @@ class AdminAnnouncementCreateTest(test.APITestCase):
         self.assertEqual(response.data["description"], "admin announcement")
         self.assertEqual(response.data["type"], "information")
 
+    @freeze_time("2025-01-01")
+    def test_announcement_is_hidden_from_anonymous_users_by_default(self):
+        payload = self.payload.copy()
+        payload["active_from"] = "2025-01-01T00:00:00Z"
+        response = self.create_admin_announcement(self.fixture.staff, payload)
+        self.assertEqual(response.status_code, 201)
+        self.assertFalse(response.data["visible_to_anonymous_users"])
+
+        payload["visible_to_anonymous_users"] = True
+        response = self.create_admin_announcement(self.fixture.staff, payload)
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(response.data["visible_to_anonymous_users"])
+
     def test_user_cannot_create_admin_announcement(self):
         payload = {
             "description": "admin announcement",
@@ -62,20 +75,62 @@ class AdminAnnouncementCreateTest(test.APITestCase):
         return response
 
 
+@freeze_time("2025-06-01")
 class AdminAnnouncementGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
-        self.admin_announcement = factories.AdminAnnouncementFactory()
-        self.url = factories.AdminAnnouncementFactory.get_url(self.admin_announcement)
-
-    def test_anonymous_user_can_get_admin_announcement(self):
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["uuid"], self.admin_announcement.uuid.hex)
-        self.assertEqual(
-            response.data["description"], self.admin_announcement.description
+        self.public = factories.AdminAnnouncementFactory(
+            visible_to_anonymous_users=True
         )
-        self.assertEqual(response.data["type"], self.admin_announcement.type)
+        self.hidden = factories.AdminAnnouncementFactory()
+        self.public_expired = factories.AdminAnnouncementFactory(
+            visible_to_anonymous_users=True,
+            active_from="2024-01-01T00:00:00Z",
+            active_to="2025-01-01T00:00:00Z",
+        )
+        self.public_upcoming = factories.AdminAnnouncementFactory(
+            visible_to_anonymous_users=True,
+            active_from="2025-07-01T00:00:00Z",
+            active_to="2025-08-01T00:00:00Z",
+        )
+        self.list_url = factories.AdminAnnouncementFactory.get_list_url()
+
+    def get_listed_uuids(self):
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, 200)
+        return {item["uuid"] for item in response.data}
+
+    def test_anonymous_user_lists_only_active_announcements_visible_to_them(self):
+        self.assertEqual(self.get_listed_uuids(), {self.public.uuid.hex})
+
+    def test_anonymous_user_can_get_announcement_visible_to_them(self):
+        response = self.client.get(
+            factories.AdminAnnouncementFactory.get_url(self.public)
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["uuid"], self.public.uuid.hex)
+        self.assertEqual(response.data["description"], self.public.description)
+        self.assertEqual(response.data["type"], self.public.type)
+        self.assertTrue(response.data["visible_to_anonymous_users"])
+
+    def test_anonymous_user_cannot_get_hidden_or_inactive_announcement(self):
+        for announcement in (self.hidden, self.public_expired, self.public_upcoming):
+            response = self.client.get(
+                factories.AdminAnnouncementFactory.get_url(announcement)
+            )
+            self.assertEqual(response.status_code, 404)
+
+    def test_authenticated_user_lists_all_announcements(self):
+        self.client.force_authenticate(self.fixture.user)
+        self.assertEqual(
+            self.get_listed_uuids(),
+            {
+                self.public.uuid.hex,
+                self.hidden.uuid.hex,
+                self.public_expired.uuid.hex,
+                self.public_upcoming.uuid.hex,
+            },
+        )
 
 
 @freeze_time("2025-01-01")
