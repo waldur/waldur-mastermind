@@ -1,4 +1,6 @@
 import datetime
+import hashlib
+import json
 import logging
 from collections.abc import Callable
 from datetime import timedelta
@@ -14,7 +16,7 @@ from django.core.validators import (
     MinValueValidator,
     RegexValidator,
 )
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Index, Q, Sum
 from django.db.models import signals as django_signals
 from django.db.models.constraints import UniqueConstraint
@@ -7080,3 +7082,126 @@ class DemoPresetLoad(TimeStampedModel, core_models.UuidMixin):
 
     def __str__(self):
         return f"{self.preset} ({self.state})"
+
+
+def offering_template_document_hash(document) -> str:
+    """A digest of a template document that ignores key order and formatting.
+
+    The database stores documents as jsonb, which reorders keys, so the
+    digest is taken over a canonical serialisation.
+    """
+    canonical = json.dumps(
+        document, sort_keys=True, separators=(",", ":"), default=str
+    ).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+class OfferingTemplate(TimeStampedModel, core_models.UuidMixin):
+    """A complete offering setup that a new offering can start from.
+
+    The document is in the format export_offering writes, extended with the
+    agent configuration and the parameters a provider supplies. It never
+    carries a customer, secrets, resources or people. Staff author templates,
+    save one from an offering, or load one from a preset shipped with the
+    marketplace -- a copy that keeps no link to the preset. Offering creators
+    see the published ones.
+    """
+
+    name = models.CharField(max_length=150, unique=True)
+    description = models.TextField(blank=True)
+    offering_type = models.CharField(max_length=100)
+    document = models.JSONField()
+    schema_version = models.PositiveSmallIntegerField()
+    is_published = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    version = models.PositiveIntegerField(
+        default=1,
+        editable=False,
+        help_text=(
+            "Incremented whenever the document changes; name, description and "
+            "publication leave it as it is."
+        ),
+    )
+
+    # Who is saving the template, for the version snapshot; set by the caller
+    # before save, as a template's creator is not who edits it later.
+    edited_by = None
+
+    versions: models.Manager["OfferingTemplateVersion"]
+
+    class Meta:
+        ordering = ["name", "id"]
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-offering-template"
+
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get("update_fields")
+        with transaction.atomic():
+            created = self.pk is None
+            changed = False
+            if not created and (update_fields is None or "document" in update_fields):
+                # Locked, so that two concurrent edits cannot take the same
+                # version number.
+                stored = (
+                    OfferingTemplate.objects.select_for_update()
+                    .filter(pk=self.pk)
+                    .values_list("document", "version")
+                    .first()
+                )
+                if stored is not None and offering_template_document_hash(
+                    stored[0]
+                ) != offering_template_document_hash(self.document):
+                    self.version = stored[1] + 1
+                    changed = True
+                    if update_fields is not None:
+                        kwargs["update_fields"] = [*update_fields, "version"]
+            super().save(*args, **kwargs)
+            if created or changed:
+                OfferingTemplateVersion.objects.create(
+                    template=self,
+                    number=self.version,
+                    document=self.document,
+                    document_hash=offering_template_document_hash(self.document),
+                    created_by=self.edited_by or (self.created_by if created else None),
+                )
+
+
+class OfferingTemplateVersion(TimeStampedModel):
+    """A snapshot of an offering template's document, one per version."""
+
+    template = models.ForeignKey(
+        OfferingTemplate, on_delete=models.CASCADE, related_name="versions"
+    )
+    number = models.PositiveIntegerField()
+    document = models.JSONField()
+    document_hash = models.CharField(max_length=64)
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        ordering = ["number", "id"]
+        constraints = [
+            UniqueConstraint(
+                fields=["template", "number"],
+                name="marketplace_offering_template_version_unique_number",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.template} v{self.number}"

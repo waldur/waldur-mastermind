@@ -1,0 +1,106 @@
+{
+  "name": "LLM inference (LiteLLM)",
+  "description": "LLM inference through a LiteLLM proxy, priced per model by the proxy. The site agent mints a key per resource, blocks keys when a resource pauses, and reports tokens and spend from LiteLLM's spend table. token_cost is LiteLLM's own per-model spend in USD, billed at 1.0; the token counts are volume meters priced at 0. The proxy's master key is not asked for: it stays in the agent configuration file on the agent host. Key aliases derive from the resource UUID, so the plugin never claims a key on a shared proxy that Waldur did not mint. Members get LiteLLM users under their portal username. Customers set day, week and month spending limits on token_cost; the order form starts new resources at the default monthly limit, and the proxy refuses a key at its limit. Waldur records usage to the cent.",
+  "offering_type": "Marketplace.SiteAgent",
+  "document": {
+    "schema_version": 1,
+    "offering": {
+      "name": "LLM inference",
+      "description": "API access to large language models.",
+      "type": "Marketplace.SiteAgent",
+      "shared": true,
+      "billable": true
+    },
+    "plugin_options": {
+      "action_on_usage_limit": "pause",
+      "service_provider_can_create_offering_user": true,
+      "username_generation_policy": "waldur_username"
+    },
+    "agent_configuration": {
+      "order_processing_backend": "litellm",
+      "membership_sync_backend": "litellm",
+      "reporting_backend": "litellm-usage",
+      "backend_settings": {
+        "verify_ssl": true,
+        "resource_backend_id_source": "uuid"
+      }
+    },
+    "components": [
+      {
+        "type": "token_cost",
+        "name": "Inference cost",
+        "description": "What the proxy costed the requests, model by model.",
+        "billing_type": "usage",
+        "measured_unit": "USD",
+        "backend_id": "token_cost",
+        "spending_limit_periods": {
+          "day": {},
+          "week": {},
+          "month": {}
+        }
+      },
+      {
+        "type": "input_tokens",
+        "name": "Input tokens",
+        "billing_type": "usage",
+        "measured_unit": "tokens",
+        "backend_id": "input_tokens"
+      },
+      {
+        "type": "output_tokens",
+        "name": "Output tokens",
+        "billing_type": "usage",
+        "measured_unit": "tokens",
+        "backend_id": "output_tokens"
+      }
+    ],
+    "plans": [
+      {
+        "name": "Pay as you go",
+        "description": "Pay what the proxy costs per model; token counts are shown, not charged.",
+        "unit": "month",
+        "components": [
+          {
+            "component_type": "token_cost",
+            "amount": 0,
+            "price": 1
+          },
+          {
+            "component_type": "input_tokens",
+            "amount": 0,
+            "price": 0
+          },
+          {
+            "component_type": "output_tokens",
+            "amount": 0,
+            "price": 0
+          }
+        ]
+      }
+    ],
+    "parameters": [
+      {
+        "key": "api_url",
+        "label": "LiteLLM proxy URL",
+        "description": "Base URL of the LiteLLM proxy, e.g. https://litellm.example.com.",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "paths": [
+          "agent_configuration.backend_settings.api_url"
+        ]
+      },
+      {
+        "key": "default_monthly_spending_limit",
+        "label": "Default monthly spending limit (USD)",
+        "description": "The monthly spending limit the order form starts new resources with; the customer can change it. At the limit the resource is paused and the proxy refuses its keys. An order through the API sets its own spending_limits. Leave empty to start resources without a cap.",
+        "type": "number",
+        "required": false,
+        "default": 100,
+        "paths": [
+          "components.0.spending_limit_periods.month.default"
+        ]
+      }
+    ]
+  }
+}

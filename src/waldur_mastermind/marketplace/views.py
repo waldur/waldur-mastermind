@@ -172,6 +172,7 @@ from waldur_mastermind.marketplace import (
     dependents,
     derived_limits,
     display_limits,
+    offering_templates,
     provider_accounts,
 )
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
@@ -2863,6 +2864,9 @@ OFFERING_IMPORT_FIELDS = (
     "longitude",
     "access_url",
     "paused_reason",
+    # Not exported, so an export moved to another portal never carries it; an
+    # offering template fills it from a parameter (the SLURM cluster name).
+    "backend_id",
 )
 COMPONENT_IMPORT_FIELDS = (
     "name",
@@ -2875,6 +2879,10 @@ COMPONENT_IMPORT_FIELDS = (
     "limit_increase_only",
     "article_code",
     "backend_id",
+    "min_value",
+    "max_value",
+    "max_available_limit",
+    "default_limit",
 )
 PLAN_IMPORT_FIELDS = (
     "description",
@@ -2951,6 +2959,11 @@ def _import_value(field, value, path):
     except DjangoValidationError as e:
         raise rf_exceptions.ValidationError({path: e.messages})
     return value
+
+
+def _export_decimal(value):
+    """A decimal component field as the export writes numbers: a float, or None."""
+    return float(value) if value is not None else None
 
 
 def _import_fields(model, data, field_names, path):
@@ -6482,6 +6495,13 @@ class ProviderOfferingViewSet(
                     "limit_increase_only": component.limit_increase_only,
                     "article_code": component.article_code,
                     "backend_id": component.backend_id,
+                    "min_value": _export_decimal(component.min_value),
+                    "max_value": _export_decimal(component.max_value),
+                    "max_available_limit": _export_decimal(
+                        component.max_available_limit
+                    ),
+                    "default_limit": _export_decimal(component.default_limit),
+                    "spending_limit_periods": component.spending_limit_periods or {},
                 }
             )
         return components
@@ -6674,6 +6694,59 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
+
+    @extend_schema(
+        summary="Save the offering as an offering template",
+        description=(
+            "Save the offering's setup -- options, plugin options, agent "
+            "configuration, components, plans, endpoints and terms of service "
+            "-- as a new, unpublished offering template. Secrets, organization "
+            "groups, screenshots and files are left out. The values that tie "
+            "the offering to its site (its backend ID, access and endpoint "
+            "URLs, the cluster name, account prefixes and service URLs in the "
+            "agent configuration) are removed and declared as required "
+            "parameters. Staff only."
+        ),
+        request=serializers.OfferingSaveAsTemplateSerializer,
+        responses={201: serializers.OfferingTemplateSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def save_as_template(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        params = serializers.OfferingSaveAsTemplateSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        offering_type = normalize_offering_type(offering.type)
+        if offering_type not in offering_templates.OFFERING_TYPES:
+            raise rf_exceptions.ValidationError(
+                _("Offering templates support these offering types: %s.")
+                % ", ".join(offering_templates.OFFERING_TYPES)
+            )
+        export_data = self._build_offering_export_data(
+            offering,
+            {
+                "include_secret_options": False,
+                "include_screenshots": False,
+                "include_files": False,
+                "include_organization_groups": False,
+            },
+        )
+        template = serializers.OfferingTemplateSerializer(
+            data={
+                "name": params.validated_data.get("name") or offering.name,
+                "description": params.validated_data.get(
+                    "description", offering.description
+                ),
+                "offering_type": offering_type,
+                "document": offering_templates.template_document(export_data),
+            },
+            context=self.get_serializer_context(),
+        )
+        template.is_valid(raise_exception=True)
+        offering_templates.save_unique(lambda: template.save(created_by=request.user))
+        return response.Response(template.data, status=status.HTTP_201_CREATED)
+
+    save_as_template_permissions = [structure_permissions.is_staff]
+    save_as_template_serializer_class = serializers.OfferingSaveAsTemplateSerializer
 
     @extend_schema(
         summary="Import offering data",
@@ -7179,6 +7252,31 @@ class ProviderOfferingViewSet(
 
             option = shown.get(component_type)
             billing_type = values.get("billing_type", component.billing_type)
+            if "spending_limit_periods" in component_data:
+                # Checked as the component API checks it: periods suit only a
+                # usage-billed component, and not one a resource option
+                # already shows the limit of.
+                try:
+                    periods = spending_limits.validate_component_periods(
+                        component_data["spending_limit_periods"], billing_type
+                    )
+                except rf_exceptions.ValidationError as error:
+                    raise rf_exceptions.ValidationError(
+                        {f"{path}.spending_limit_periods": error.detail}
+                    )
+                if periods and option:
+                    raise _import_error(
+                        f"{path}.spending_limit_periods",
+                        _(
+                            "Resource option %s is shown as the limit of this "
+                            "component, so it cannot take spending limits."
+                        )
+                        % option,
+                    )
+                values["spending_limit_periods"] = periods
+                if created:
+                    component.spending_limit_periods = periods
+                    component.save(update_fields=["spending_limit_periods"])
             if option and billing_type != BillingTypes.USAGE:
                 raise _import_error(
                     f"{path}.billing_type",
@@ -22834,3 +22932,114 @@ class OfferingMergeViewSet(core_views.ActionsViewSet):
             merge_uuid = merge.uuid.hex
             transaction.on_commit(lambda: tasks.undo_offering_merge.delay(merge_uuid))
         return self._merge_response(merge, status.HTTP_202_ACCEPTED)
+
+
+class OfferingTemplateViewSet(core_views.ActionsViewSet):
+    """Offering templates: complete offering setups a new offering starts from.
+
+    Staff author them. Anyone who may create an offering for some organization
+    lists and retrieves the published ones, with the public part of their
+    document only.
+    """
+
+    queryset = models.OfferingTemplate.objects.all().select_related("created_by")
+    serializer_class = serializers.OfferingTemplateSerializer
+    lookup_field = "uuid"
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.OfferingTemplateFilter
+
+    create_permissions = [structure_permissions.is_staff]
+    update_permissions = [structure_permissions.is_staff]
+    partial_update_permissions = [structure_permissions.is_staff]
+    destroy_permissions = [structure_permissions.is_staff]
+
+    @access.shows(
+        "Users with the staff flag see every template; those holding "
+        "OFFERING.CREATE on some organization see the published ones; anyone "
+        "else sees none."
+    )
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff:
+            return queryset
+        if marketplace_permissions.may_create_offerings(user):
+            return queryset.filter(is_published=True)
+        return queryset.none()
+
+    def perform_create(self, serializer):
+        offering_templates.save_unique(
+            lambda: serializer.save(created_by=self.request.user)
+        )
+
+    def perform_update(self, serializer):
+        # edited_by is not a field: the serializer sets it on the instance,
+        # and the version snapshot records it.
+        offering_templates.save_unique(
+            lambda: serializer.save(edited_by=self.request.user)
+        )
+
+    @extend_schema(
+        summary="List the offering template presets",
+        description=(
+            "The offering templates shipped with this portal: starting points "
+            "for a template, with whether a template already holds the name "
+            "each would be loaded under."
+        ),
+        responses={200: serializers.OfferingTemplatePresetSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], filter_backends=[], pagination_class=None)
+    def presets(self, request):
+        return response.Response(
+            serializers.OfferingTemplatePresetSerializer(
+                offering_templates.presets(), many=True
+            ).data
+        )
+
+    presets_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        summary="Load offering template presets",
+        description=(
+            "Create an offering template from each preset given: a copy that "
+            "keeps no link to the preset. Refused, with nothing created, when a "
+            "template already holds the name a preset would be loaded under. "
+            "The templates are published only if publish is set."
+        ),
+        request=serializers.LoadOfferingTemplatePresetSerializer,
+        responses={200: serializers.LoadOfferingTemplatePresetResponseSerializer},
+    )
+    @action(detail=False, methods=["post"])
+    def load_preset(self, request):
+        serializer = serializers.LoadOfferingTemplatePresetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        created = offering_templates.load_presets(
+            serializer.validated_data["presets"],
+            publish=serializer.validated_data["publish"],
+            user=request.user,
+        )
+        return response.Response(
+            serializers.LoadOfferingTemplatePresetResponseSerializer(
+                {"created": len(created), "created_names": created}
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    load_preset_permissions = [structure_permissions.is_staff]
+    load_preset_serializer_class = serializers.LoadOfferingTemplatePresetSerializer
+
+    @extend_schema(
+        summary="List the template's versions",
+        description="Every version of the template's document, oldest first.",
+        responses={200: serializers.OfferingTemplateVersionSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    def versions(self, request, uuid=None):
+        template = self.get_object()
+        return response.Response(
+            serializers.OfferingTemplateVersionSerializer(
+                template.versions.select_related("created_by"), many=True
+            ).data
+        )
+
+    versions_permissions = [structure_permissions.is_staff]

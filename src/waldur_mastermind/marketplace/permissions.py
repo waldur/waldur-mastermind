@@ -20,6 +20,7 @@ from waldur_core.permissions.utils import (
 )
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure.managers import get_connected_customers_by_permission
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderTypes,
@@ -891,3 +892,15 @@ def can_view_offering_user_attribute_config(request, view, obj=None):
     ):
         return
     raise exceptions.PermissionDenied()
+
+
+def may_create_offerings(user) -> bool:
+    """Whether ``user`` may create an offering for some organization: the
+    people a published offering template is for."""
+    if not user.is_active:
+        return False
+    if user.is_staff:
+        return True
+    return get_connected_customers_by_permission(
+        user, PermissionEnum.CREATE_OFFERING
+    ).exists()
