@@ -1079,6 +1079,22 @@ def _map_ipv4_via_cidr(ip_addr: ipaddress.IPv4Address, public_cidr: str):
 
 
 def get_external_ip(offering, floating_ip_address):
+    try:
+        return _get_external_ip(offering, floating_ip_address)
+    except (ValueError, KeyError, TypeError) as e:
+        # A malformed CIDR in an external subnet or in the offering's
+        # ipv4_external_ip_mapping must not abort the pull that saved the
+        # router, port or floating IP this is computed for.
+        logger.warning(
+            "Unable to map %s through the external IP mapping of offering %s: %s",
+            floating_ip_address,
+            offering.uuid,
+            e,
+        )
+        return None
+
+
+def _get_external_ip(offering, floating_ip_address):
     ip_addr = ipaddress.ip_address(floating_ip_address)
     external_subnets = (
         list(
@@ -1120,68 +1136,307 @@ def get_external_ip(offering, floating_ip_address):
     return None
 
 
+def _get_scope_resource(scope) -> marketplace_models.Resource | None:
+    return (
+        marketplace_models.Resource.objects.filter(
+            content_type=ContentType.objects.get_for_model(scope), object_id=scope.id
+        )
+        .select_related("offering__parent")
+        .order_by("-created")
+        .first()
+    )
+
+
+def _get_external_ip_mapping_offering(
+    tenant: openstack_models.Tenant, instance_resource=None
+) -> marketplace_models.Offering | None:
+    """The tenant offering whose external subnets and secret options map
+    the tenant's addresses into the public range: the parent of the VM's
+    offering for a VM's floating IP, otherwise the tenant resource's offering."""
+    if instance_resource and instance_resource.offering.parent:
+        return instance_resource.offering.parent
+    tenant_resource = _get_scope_resource(tenant)
+    if tenant_resource:
+        return tenant_resource.offering
+    return None
+
+
+def _get_floating_ip_mapping_offering(floating_ip, tenant_offering=None):
+    port = floating_ip.port
+    if port and port.instance_id:
+        instance_resource = _get_scope_resource(port.instance)
+        if instance_resource and instance_resource.offering.parent:
+            return instance_resource.offering.parent
+    if tenant_offering:
+        return tenant_offering
+    return _get_external_ip_mapping_offering(floating_ip.tenant)
+
+
+def _update_floating_ip_external_address(floating_ip, tenant_offering=None):
+    """Recompute a floating IP's mapped address. Without an offering to map
+    it through (e.g. a tenant imported before its marketplace resource) the
+    stored value is kept rather than cleared."""
+    if floating_ip.address:
+        offering = _get_floating_ip_mapping_offering(floating_ip, tenant_offering)
+        if not offering:
+            return
+        external_address = get_external_ip(offering, floating_ip.address)
+    else:
+        # Without an address there is nothing to map, whatever the offering.
+        external_address = None
+    if floating_ip.external_address == external_address:
+        return
+    # update() rather than save(): the floating IP's post_save handler is what
+    # calls this, and only external_address changes here.
+    openstack_models.FloatingIP.objects.filter(pk=floating_ip.pk).update(
+        external_address=external_address
+    )
+    floating_ip.external_address = external_address
+
+
 def update_external_addresses_of_resource(resource: marketplace_models.Resource):
+    """Recompute the mapped addresses of a VM's floating IPs and store them on
+    its resource, where the resource search finds them."""
     instance = cast(openstack_models.Instance, resource.scope)
 
     if not instance:
         return
 
-    floating_ips = instance.floating_ips.exclude(address__isnull=True).order_by(
+    offering = _get_external_ip_mapping_offering(instance.tenant, resource)
+    external_addresses = []
+    for floating_ip in instance.floating_ips.exclude(address__isnull=True).order_by(
         "address"
-    )
-    resource.backend_metadata["external_address"] = []
+    ):
+        if offering:
+            _update_floating_ip_external_address(floating_ip, offering)
+        if floating_ip.external_address:
+            external_addresses.append(floating_ip.external_address)
 
-    for floating_ip in floating_ips:
-        if not resource.offering.parent:
+    if resource.backend_metadata.get("external_address") != external_addresses:
+        resource.backend_metadata["external_address"] = external_addresses
+        resource.save(update_fields=["backend_metadata"])
+
+
+def _ips_of_port(port: openstack_models.Port) -> list[str]:
+    return [
+        fixed_ip["ip_address"]
+        for fixed_ip in port.fixed_ips or []
+        if isinstance(fixed_ip, dict) and fixed_ip.get("ip_address")
+    ]
+
+
+# When an address belongs to several objects, the most specific one names it:
+# a router's or load balancer's address is also a fixed IP of one of its ports.
+_IP_INDEX_PRIORITY = {"floating_ip": 0, "router": 1, "load_balancer": 1, "port": 2}
+
+
+def update_tenant_ip_addresses(tenant: openstack_models.Tenant):
+    """Store on the tenant's resource every address of the tenant that does
+    not belong to a VM: floating IPs that are unattached or attached to a
+    router, load balancer or other port, their mapped public addresses, router
+    addresses and their mapped public addresses, load balancer VIPs and the
+    fixed IPs of ports without a VM. A VM's own addresses stay on the VM's
+    resource, so the search finds the VM itself.
+
+    backend_metadata["ip_addresses"] is the flat list the search matches;
+    backend_metadata["ip_index"] says which object each address belongs to,
+    so a search result can name it and link to it."""
+    resource = _get_scope_resource(tenant)
+    if not resource:
+        return
+
+    offering = resource.offering
+    entries: dict[str, dict] = {}
+
+    def add(address, obj, obj_type, mapped_from=None, attached_to=None):
+        if not address:
+            return
+        entry = {
+            "address": address,
+            "type": obj_type,
+            "uuid": obj.uuid.hex,
+            "name": obj.name,
+        }
+        if mapped_from:
+            entry["mapped_from"] = mapped_from
+        if attached_to:
+            entry["attached_to"] = attached_to
+        current = entries.get(address)
+        if (
+            current is None
+            or _IP_INDEX_PRIORITY[obj_type] < _IP_INDEX_PRIORITY[current["type"]]
+        ):
+            entries[address] = entry
+
+    routers = list(tenant.routers.prefetch_related("ports"))
+    load_balancers = list(tenant.load_balancers.all())
+    port_owners = {}
+    for router in routers:
+        for port in router.ports.all():
+            port_owners[port.id] = {"type": "router", "name": router.name}
+    for load_balancer in load_balancers:
+        if load_balancer.vip_port_id:
+            port_owners[load_balancer.vip_port_id] = {
+                "type": "load_balancer",
+                "name": load_balancer.name,
+            }
+
+    for floating_ip in tenant.floating_ips.select_related("port"):
+        port = floating_ip.port
+        if port and port.instance_id:
             continue
-
-        external_ip = get_external_ip(
-            resource.offering.parent,
-            floating_ip.address,
+        attached_to = None
+        if port:
+            attached_to = port_owners.get(port.id) or {
+                "type": "port",
+                "name": port.name,
+            }
+        add(floating_ip.address, floating_ip, "floating_ip", attached_to=attached_to)
+        add(
+            floating_ip.external_address,
+            floating_ip,
+            "floating_ip",
+            mapped_from=floating_ip.address,
+            attached_to=attached_to,
         )
 
-        floating_ip.external_address = external_ip
-        resource.backend_metadata["external_address"].append(external_ip)
+    for router in routers:
+        for fixed_ip in router.fixed_ips or []:
+            add(fixed_ip, router, "router")
+            external_ip = get_external_ip(offering, fixed_ip)
+            if external_ip != fixed_ip:
+                add(external_ip, router, "router", mapped_from=fixed_ip)
 
-        floating_ip.save()
-        resource.save()
+    for load_balancer in load_balancers:
+        add(load_balancer.vip_address, load_balancer, "load_balancer")
+
+    for port in tenant.ports.filter(instance__isnull=True):
+        for address in _ips_of_port(port):
+            add(address, port, "port")
+
+    ip_index = [entries[address] for address in sorted(entries)]
+    ip_addresses = [entry["address"] for entry in ip_index]
+    if (
+        resource.backend_metadata.get("ip_addresses") != ip_addresses
+        or resource.backend_metadata.get("ip_index") != ip_index
+    ):
+        resource.backend_metadata["ip_addresses"] = ip_addresses
+        resource.backend_metadata["ip_index"] = ip_index
+        resource.save(update_fields=["backend_metadata"])
 
 
-def update_external_addresses_of_floating_ip(floating_ip: openstack_models.FloatingIP):
-    if not floating_ip.address:
-        if floating_ip.external_address:
-            floating_ip.external_address = None
-            floating_ip.save()
+class _TenantIpAddressesUpdate:
+    """An on_commit callback that recognises its duplicates by tenant."""
+
+    def __init__(self, tenant_id):
+        self.tenant_id = tenant_id
+
+    def __call__(self):
+        # Looked up again: the tenant is gone when its own deletion cascaded
+        # to the object whose change scheduled this.
+        tenant = openstack_models.Tenant.objects.filter(id=self.tenant_id).first()
+        if tenant:
+            update_tenant_ip_addresses(tenant)
+
+
+def schedule_tenant_ip_addresses_update(tenant_id):
+    """Rebuild the tenant's searchable addresses once the transaction commits,
+    and only once per transaction: a pull or a tenant deletion changes many
+    of its ports and floating IPs in one transaction, and each change would
+    otherwise rescan the whole tenant. Outside a transaction it runs at once."""
+    connection = transaction.get_connection()
+    # Pending callbacks are (savepoint ids, callback, robust); Django drops
+    # those of a rolled-back savepoint, so a duplicate found here will run.
+    if connection.in_atomic_block and any(
+        isinstance(callback, _TenantIpAddressesUpdate)
+        and callback.tenant_id == tenant_id
+        for _, callback, _ in connection.run_on_commit
+    ):
         return
+    transaction.on_commit(_TenantIpAddressesUpdate(tenant_id))
 
-    if not floating_ip.port or not floating_ip.port.instance:
-        return
 
-    try:
-        instance = floating_ip.port.instance
-        resource = marketplace_models.Resource.objects.filter(scope=instance).get()
-        update_external_addresses_of_resource(resource)
-    except marketplace_models.Resource.DoesNotExist:
-        return
+def update_external_addresses_of_instances(instance_ids):
+    for instance in openstack_models.Instance.objects.filter(id__in=instance_ids):
+        resource = _get_scope_resource(instance)
+        if resource:
+            update_external_addresses_of_resource(resource)
+
+
+def update_external_addresses_of_floating_ip(
+    floating_ip: openstack_models.FloatingIP, previous_port_id=None
+):
+    """Recompute a floating IP's mapped address, whatever its port is attached
+    to, and refresh the searchable addresses of the VMs it was and is attached
+    to and of its tenant."""
+    _update_floating_ip_external_address(floating_ip)
+
+    port_ids = {floating_ip.port_id, previous_port_id} - {None}
+    instance_ids = set(
+        openstack_models.Port.objects.filter(
+            id__in=port_ids, instance__isnull=False
+        ).values_list("instance_id", flat=True)
+    )
+    update_external_addresses_of_instances(instance_ids)
+    schedule_tenant_ip_addresses_update(floating_ip.tenant_id)
+
+
+def update_external_addresses_of_tenant(tenant: openstack_models.Tenant):
+    """Recompute the mapped addresses of all floating IPs of a tenant."""
+    tenant_offering = _get_external_ip_mapping_offering(tenant)
+    instance_ids = set()
+    for floating_ip in tenant.floating_ips.select_related("port"):
+        _update_floating_ip_external_address(floating_ip, tenant_offering)
+        if floating_ip.port and floating_ip.port.instance_id:
+            instance_ids.add(floating_ip.port.instance_id)
+
+    update_external_addresses_of_instances(instance_ids)
+    schedule_tenant_ip_addresses_update(tenant.id)
+
+
+def _tenants_of_offering(parent_offering: marketplace_models.Offering):
+    tenant_ct = ContentType.objects.get_for_model(openstack_models.Tenant)
+    tenant_ids = set(
+        marketplace_models.Resource.objects.filter(
+            offering=parent_offering, content_type=tenant_ct
+        )
+        .exclude(object_id__isnull=True)
+        .values_list("object_id", flat=True)
+    )
+    instance_ids = (
+        marketplace_models.Resource.objects.filter(
+            offering__parent=parent_offering,
+            offering__type=OPENSTACK_INSTANCE_OFFERING,
+            content_type=ContentType.objects.get_for_model(openstack_models.Instance),
+        )
+        .exclude(object_id__isnull=True)
+        .values_list("object_id", flat=True)
+    )
+    tenant_ids.update(
+        openstack_models.Instance.objects.filter(id__in=instance_ids).values_list(
+            "tenant_id", flat=True
+        )
+    )
+    return openstack_models.Tenant.objects.filter(id__in=tenant_ids)
 
 
 def update_external_addresses_of_offering_floating_ips(
     parent_offering: marketplace_models.Offering,
 ):
+    for tenant in _tenants_of_offering(parent_offering):
+        update_external_addresses_of_tenant(tenant)
+
+
+def update_external_addresses_of_service_settings(service_settings):
+    """Recompute mapped addresses of every tenant offered from these settings,
+    e.g. after an external subnet's public range has changed."""
     offerings = marketplace_models.Offering.objects.filter(
-        parent=parent_offering, type=OPENSTACK_INSTANCE_OFFERING
+        type=OPENSTACK_TENANT_OFFERING,
+        content_type=ContentType.objects.get_for_model(service_settings),
+        object_id=service_settings.id,
     )
-
-    if not offerings:
-        return
-
-    resources = marketplace_models.Resource.objects.filter(
-        offering__in=offerings,
-        content_type=ContentType.objects.get_for_model(openstack_models.Instance),
-    ).exclude(object_id__isnull=True)
-
-    for resource in resources:
-        update_external_addresses_of_resource(resource)
+    for offering in offerings:
+        update_external_addresses_of_offering_floating_ips(offering)
 
 
 def set_ports_status_for_order(order, status):

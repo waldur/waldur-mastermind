@@ -578,6 +578,8 @@ class ExternalSubnet(
         ),
     )
 
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
     class Meta:
         unique_together = ("network", "backend_id")
 

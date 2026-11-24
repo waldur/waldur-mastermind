@@ -1069,6 +1069,38 @@ class PullFloatingIpExternalMappingTest(test.APITestCase):
         self.assertEqual(floating_ip.port, instance_port)
         self.assertEqual(floating_ip.external_address, "200.200.200.50")
 
+    def test_pull_detaching_floating_ip_stops_vm_being_found_by_it(self):
+        # A floating IP disassociated outside Waldur is detached by the pull's
+        # stale-ids branch, which must reach the same handlers as a save.
+        instance = self.fixture.instance
+        resource = marketplace_models.Resource.objects.get(
+            object_id=instance.id, offering=self.offering
+        )
+        port = openstack_factories.PortFactory(
+            tenant=self.fixture.tenant,
+            backend_id="port_vm",
+            instance=instance,
+        )
+        floating_ip = openstack_factories.FloatingIPFactory(
+            tenant=self.fixture.tenant,
+            address="100.100.100.51",
+            port=port,
+            state=CoreStates.OK,
+            backend_id="fip_stale",
+        )
+        resource.refresh_from_db()
+        self.assertEqual(
+            resource.backend_metadata["external_address"], ["200.200.200.51"]
+        )
+        self.mocked_neutron.list_floatingips.return_value = {"floatingips": []}
+
+        self.backend.pull_instance_floating_ips(instance)
+
+        floating_ip.refresh_from_db()
+        self.assertIsNone(floating_ip.port)
+        resource.refresh_from_db()
+        self.assertEqual(resource.backend_metadata["external_address"], [])
+
 
 class ExternalIPMappingAddressFamilyTest(test.APITestCase):
     # The mapping is a 1:1 NAT of IPv4 addresses into a public range. IPv6 is

@@ -678,9 +678,109 @@ def update_floating_ip_external_addresses(
         or instance.tracker.has_changed("port_id")
         or (created and instance.address)
     ):
+        # The tenant's address index names the floating IP.
+        if not created and instance.tracker.has_changed("name"):
+            utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
         return
 
-    utils.update_external_addresses_of_floating_ip(instance)
+    # Detaching refreshes the VM the floating IP was attached to as well, so the
+    # VM is no longer found by an address it does not have any more.
+    previous_port_id = (
+        instance.tracker.previous("port_id")
+        if not created and instance.tracker.has_changed("port_id")
+        else None
+    )
+    utils.update_external_addresses_of_floating_ip(instance, previous_port_id)
+
+
+def update_ip_addresses_on_floating_ip_delete(sender, instance: FloatingIP, **kwargs):
+    port = openstack_models.Port.objects.filter(
+        id=instance.port_id, instance__isnull=False
+    ).first()
+    if port:
+        utils.update_external_addresses_of_instances({port.instance_id})
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def update_ip_addresses_on_port_change(
+    sender, instance: openstack_models.Port, created=False, **kwargs
+):
+    changed = set(instance.tracker.changed())
+    if not created and not changed & {"fixed_ips", "instance_id", "name"}:
+        return
+    if not created and "instance_id" in changed:
+        # The port's floating IPs moved with it: the VM it left must stop
+        # being found by them and the VM it joined must start.
+        utils.update_external_addresses_of_instances(
+            {instance.tracker.previous("instance_id"), instance.instance_id} - {None}
+        )
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def update_ip_addresses_on_port_delete(
+    sender, instance: openstack_models.Port, **kwargs
+):
+    if instance.instance_id:
+        utils.update_external_addresses_of_instances({instance.instance_id})
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def update_ip_addresses_on_router_change(
+    sender, instance: Router, created=False, **kwargs
+):
+    if not created and not set(instance.tracker.changed()) & {"fixed_ips", "name"}:
+        return
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def update_ip_addresses_on_router_delete(sender, instance: Router, **kwargs):
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def update_ip_addresses_on_load_balancer_change(
+    sender, instance: openstack_models.LoadBalancer, created=False, **kwargs
+):
+    # vip_port decides which floating IPs the index shows as attached to it.
+    if not created and not set(instance.tracker.changed()) & {
+        "vip_address",
+        "vip_port_id",
+        "name",
+    }:
+        return
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def update_ip_addresses_on_load_balancer_delete(
+    sender, instance: openstack_models.LoadBalancer, **kwargs
+):
+    utils.schedule_tenant_ip_addresses_update(instance.tenant_id)
+
+
+def _update_external_addresses_of_external_network(network_id):
+    network = openstack_models.ExternalNetwork.objects.filter(id=network_id).first()
+    if network:
+        utils.update_external_addresses_of_service_settings(network.settings)
+
+
+def update_external_addresses_on_external_subnet_change(
+    sender, instance: openstack_models.ExternalSubnet, created=False, **kwargs
+):
+    # cidr matters even without a public range: an IPv6 address on an
+    # external subnet is its own external address.
+    if created:
+        if not (instance.cidr or instance.public_ip_range):
+            return
+    elif not set(instance.tracker.changed()) & {"cidr", "public_ip_range"}:
+        return
+    _update_external_addresses_of_external_network(instance.network_id)
+
+
+def update_external_addresses_on_external_subnet_delete(
+    sender, instance: openstack_models.ExternalSubnet, **kwargs
+):
+    if not (instance.cidr or instance.public_ip_range):
+        return
+    _update_external_addresses_of_external_network(instance.network_id)
 
 
 def update_instances_ip_external_addresses(
