@@ -3093,6 +3093,40 @@ def send_user_attribute_update_message(sender, instance, created=False, **kwargs
             )
 
 
+def send_user_account_status_message(sender, instance, created=False, **kwargs):
+    """Publish OFFERING_USER events when a Waldur account is activated or deactivated.
+
+    Account status is not personal data, so unlike attribute updates it is sent
+    to every offering of the user, whatever its OfferingUserAttributeConfig.
+    The offering user's own state is not changed.
+    """
+    if created or get_skip_side_effects():
+        return
+
+    user = instance
+    if not user.tracker.has_changed("is_active"):
+        return
+
+    for offering_user in models.OfferingUser.objects.filter(user=user).select_related(
+        "offering"
+    ):
+        payload = {
+            "offering_user_uuid": offering_user.uuid.hex,
+            "user_uuid": user.uuid.hex,
+            "username": offering_user.username,
+            "action": "account_status_update",
+            "user_is_active": user.is_active,
+        }
+
+        messages = marketplace_utils.prepare_messages(
+            offering_user.offering, payload, ObservableObjectType.OFFERING_USER
+        )
+        if messages:
+            transaction.on_commit(
+                partial(logging_tasks.publish_messages.delay, messages)
+            )
+
+
 def notify_users_about_tos_update_signal(sender, instance, created, **kwargs):
     """Notify users when ToS is updated and requires re-consent."""
 

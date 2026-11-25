@@ -228,6 +228,40 @@ class TestUserAttributeUpdateMessage(TestCase):
         self.assertNotIn("first_name", p2["changed_attributes"])
         self.assertNotIn("first_name", p2["attributes"])
 
+    def _account_status_payloads(self, mock_publish):
+        payloads = [
+            json.loads(message["payload"])
+            for call in mock_publish.call_args_list
+            for message in call[0][0]
+        ]
+        return [p for p in payloads if p.get("action") == "account_status_update"]
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_deactivating_the_account_sends_its_status(self, mock_publish):
+        """Sent even when the offering exposes no attributes: status is not personal data."""
+        config = models.OfferingUserAttributeConfig.objects.get(offering=self.offering)
+        config.expose_username = False
+        config.expose_full_name = False
+        config.expose_email = False
+        config.save()
+
+        self.user.is_active = False
+        self.user.save()
+
+        [payload] = self._account_status_payloads(mock_publish)
+        self.assertEqual(payload["offering_user_uuid"], self.offering_user.uuid.hex)
+        self.assertEqual(payload["user_uuid"], self.user.uuid.hex)
+        self.assertEqual(payload["username"], "test-user")
+        self.assertFalse(payload["user_is_active"])
+        self.assertNotIn("attributes", payload)
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_unrelated_user_change_sends_no_account_status(self, mock_publish):
+        self.user.first_name = "Bob"
+        self.user.save()
+
+        self.assertEqual(self._account_status_payloads(mock_publish), [])
+
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_user_attribute_change_skips_non_profile_fields(self, mock_publish):
         self.user.is_staff = True
