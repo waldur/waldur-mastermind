@@ -312,7 +312,7 @@ Sent by:
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
 | `resource_uuid` | string | yes | UUID of the resource |
-| `backend_id` | string | yes | Backend resource identifier |
+| `backend_id` | string | yes | Backend resource identifier (SLURM account name) |
 | `offering_uuid` | string | yes | UUID of the offering |
 | `policy_uuid` | string | yes | UUID of the policy |
 | `action` | string: `apply_periodic_settings` | yes | Action: 'apply_periodic_settings' |
@@ -351,7 +351,7 @@ Sent by:
 
 #### ApiKeyCommandMessage
 
-A command on one of a resource's API keys: create, rotate, pause, resume, update or delete.
+A command on one of a resource's API keys: create, rotate, pause, resume, update or delete. Carried on the resource_api_key_rotation observable type, which is named for the first command and kept so subscriptions do not change.
 
 Sent by:
 
@@ -366,7 +366,7 @@ Sent by:
 | `client_id` | string | yes | Backend client id of the key; blank on a key being created |
 | `limits` | object or null | no | Monthly limits per component, null when the key has none; only on commands that carry the key's settings |
 | `spending_limits` | object or null | no | Spending limits for every period, null when the key has none; only on commands that carry the key's settings |
-| `allowed_models` | array of string | no | Models the key may call (['*'] for all, [] for none); only on commands that carry the key's settings |
+| `allowed_models` | array of string | no | Models the key may call (['*'] for all, [] for none): the key's own list narrowed by its resource's model selection. Only on commands that carry the key's settings; absent from Waldur versions older than ['*'], where absence allows every model |
 
 ### Object type `service_provider_project_group`
 
@@ -383,7 +383,7 @@ Sent by:
 
 | Field | Type | Required | Description |
 | --- | --- | --- | --- |
-| `action` | string: `create`, `update`, `delete`, `switch` | yes | Action: 'create', 'update', 'delete' or 'switch' |
+| `action` | string: `create`, `update`, `delete`, `switch` | yes | Action: 'create' (the group got its first GID), 'update' (its name or GID changed), 'delete', or 'switch' (project groups switched on or off for the provider) |
 | `service_provider_uuid` | string | yes | UUID of the service provider |
 | `customer_uuid` | string | yes | UUID of the provider's organization |
 | `project_group_uuid` | string | no | UUID of the group; absent on 'switch' |
