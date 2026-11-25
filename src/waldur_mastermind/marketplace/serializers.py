@@ -5712,6 +5712,12 @@ class ProviderOfferingDetailsSerializer(
         read_only=True,
         allow_null=True,
     )
+    template_uuid = serializers.UUIDField(
+        source="template.uuid", read_only=True, allow_null=True
+    )
+    template_name = serializers.CharField(
+        source="template.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = models.Offering
@@ -5804,6 +5810,9 @@ class ProviderOfferingDetailsSerializer(
             "offering_group",
             "offering_group_uuid",
             "offering_group_title",
+            "template_uuid",
+            "template_name",
+            "template_version",
         )
         related_paths = {
             "customer": ("uuid", "name"),
@@ -5822,6 +5831,7 @@ class ProviderOfferingDetailsSerializer(
             "paused_reason",
             "citation_count",
             "project",
+            "template_version",
         )
         extra_kwargs = {
             "url": {
@@ -19156,6 +19166,7 @@ class ExportOfferingDataSerializer(serializers.Serializer):
     longitude = serializers.FloatField(allow_null=True)
     access_url = serializers.URLField(allow_blank=True)
     paused_reason = serializers.CharField(allow_blank=True)
+    backend_id = serializers.CharField(allow_blank=True, required=False)
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(required=False)
 
@@ -21640,6 +21651,15 @@ class OfferingTemplateParameterSerializer(serializers.Serializer):
             "offering.backend_id; digits address list items."
         ),
     )
+    choices = serializers.ListField(
+        child=serializers.JSONField(),
+        required=False,
+        help_text="The values allowed, when the parameter is limited to some.",
+    )
+    pattern = serializers.CharField(
+        required=False,
+        help_text="A regular expression a string value must match in full.",
+    )
 
 
 class OfferingTemplateSerializer(serializers.ModelSerializer):
@@ -21807,6 +21827,95 @@ class LoadOfferingTemplatePresetSerializer(serializers.Serializer):
 class LoadOfferingTemplatePresetResponseSerializer(serializers.Serializer):
     created = serializers.IntegerField()
     created_names = serializers.ListField(child=serializers.CharField())
+
+
+class OfferingTemplateCreateOfferingSerializer(serializers.Serializer):
+    customer = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.Customer.objects.all(),
+        help_text="The organization the offering is created for.",
+    )
+    category = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Category.objects.all(),
+        help_text="The category the offering is listed in.",
+    )
+    name = serializers.CharField(
+        max_length=models.Offering._meta.get_field("name").max_length,
+        help_text="Name of the new offering.",
+    )
+    parameters = serializers.DictField(
+        required=False,
+        default=dict,
+        help_text=(
+            "A value for each of the template's parameters, by key. A "
+            "parameter left out takes its default."
+        ),
+    )
+    dry_run = serializers.BooleanField(
+        default=False,
+        help_text=(
+            "Check everything and report what would be created, creating nothing."
+        ),
+    )
+
+
+class OfferingTemplateCreateOfferingResponseSerializer(serializers.Serializer):
+    dry_run = serializers.BooleanField()
+    offering_uuid = serializers.UUIDField(
+        allow_null=True, help_text="The new offering; null on a dry run."
+    )
+    offering_name = serializers.CharField()
+    template_version = serializers.IntegerField()
+    parameters = serializers.DictField(
+        help_text="The value of every parameter, defaults included."
+    )
+    document = serializers.JSONField(
+        help_text=(
+            "The template's document with the parameters filled in: what the "
+            "offering is created from, in the import_offering format."
+        )
+    )
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="What the import of the document reported.",
+    )
+    findings = OfferingConfigurationFindingSerializer(
+        many=True,
+        help_text=(
+            "What the site-agent consistency rules find in the filled-in "
+            "document, errors first. A create with an error is refused."
+        ),
+    )
+
+
+class OfferingTemplateDifferenceSerializer(serializers.Serializer):
+    path = serializers.CharField(
+        help_text=(
+            "Where the offering differs, such as components[cpu].unit_factor: "
+            "list items are named by their type, name or version."
+        )
+    )
+    template = serializers.JSONField(
+        allow_null=True, help_text="What the template sets; null when it has none."
+    )
+    offering = serializers.JSONField(
+        allow_null=True, help_text="What the offering has; null when it has none."
+    )
+
+
+class OfferingTemplateDiffSerializer(serializers.Serializer):
+    template_uuid = serializers.UUIDField()
+    template_name = serializers.CharField()
+    template_version = serializers.IntegerField(
+        help_text="The version the offering was created from."
+    )
+    latest_version = serializers.IntegerField()
+    created_version_differences = OfferingTemplateDifferenceSerializer(
+        many=True,
+        help_text="Differences from the version the offering was created from.",
+    )
+    latest_version_differences = OfferingTemplateDifferenceSerializer(many=True)
 
 
 class OfferingSaveAsTemplateSerializer(serializers.Serializer):

@@ -88,6 +88,14 @@
         "default": "anonymized",
         "paths": [
           "plugin_options.username_generation_policy"
+        ],
+        "choices": [
+          "anonymized",
+          "waldur_username",
+          "full_name",
+          "identity_claim",
+          "freeipa",
+          "service_provider"
         ]
       },
       {
