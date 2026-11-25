@@ -324,6 +324,20 @@ for `*` and narrows nothing.
   before it with an empty `models` meant every model, and now means none. Check
   pending option orders of such offerings when upgrading.
 
+**An offering's change is sent asynchronously.** Saving the offering only
+schedules the `send_offering_api_key_models` task, which runs once the save
+commits. It compares the offering's settings from before the save with the
+offering as it is when the task runs, and goes through the offering's
+resources one at a time, each locked in its own transaction, so the save
+neither waits for the keys nor holds their rows locked. Because the task reads
+the offering as it is by then, key management turned off before it runs sends
+nothing, even for a change saved while it was on. A resource whose keys fail is
+logged and its keys are marked `models_outdated`, so the hourly
+`send_outdated_api_key_models` sweep sends them their models; the other
+resources are still compared. The task is acknowledged only once it finishes,
+so a worker restarted mid-run has it delivered again; running it twice repeats
+work but sends nothing different.
+
 ### States
 
 The FSM reuses the **resource state vocabulary** so the portal renders it with

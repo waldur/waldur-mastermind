@@ -9,6 +9,7 @@ less any model the offering no longer lists.
 from importlib import import_module
 from unittest import mock
 
+from django.db import transaction
 from django.db.migrations.loader import MigrationLoader
 from django.test import override_settings
 from rest_framework import status, test
@@ -19,6 +20,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import (
     model_lists,
     models,
+    resource_api_keys,
     serializers,
     tasks,
     utils,
@@ -39,6 +41,7 @@ from waldur_mastermind.marketplace.tests.test_resource_api_key_management import
     detail_url,
     list_url,
 )
+from waldur_mastermind.marketplace.tests.utils import real_on_commit
 
 States = models.ResourceApiKey.States
 Actions = models.ResourceApiKey.Actions
@@ -916,6 +919,168 @@ class SelectionChangeTest(SelectionTestBase):
         ]
         self.assertEqual(len(key_payloads), 1)
         self.assertEqual(key_payloads[0]["allowed_models"], ["mistral"])
+
+
+class Rollback(Exception):
+    pass
+
+
+class OfferingChangeTaskTest(SelectionTestBase):
+    """An offering's save leaves its keys to a task run once the save commits."""
+
+    def setUp(self):
+        super().setUp()
+        self.key.allowed_models = ["llama-3", "qwen"]
+        self.key.save()
+
+    def remove_qwen(self):
+        self.offering.resource_options = models_options(choices=["llama-3", "mistral"])
+        self.offering.save()
+
+    def test_the_save_schedules_the_task_and_sends_nothing_itself(self):
+        before_plugin_options = dict(self.offering.plugin_options)
+        before_resource_options = self.offering.resource_options
+        with (
+            mock.patch.object(tasks.send_offering_api_key_models, "delay") as delay,
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
+                self.remove_qwen()
+                delay.assert_not_called()
+            delay.assert_called_once_with(
+                self.offering.uuid.hex, before_plugin_options, before_resource_options
+            )
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        self.assertEqual(self.key.state, States.OK)
+
+    def test_a_save_that_rolls_back_schedules_nothing(self):
+        with mock.patch.object(tasks.send_offering_api_key_models, "delay") as delay:
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
+                with self.assertRaises(Rollback), transaction.atomic():
+                    self.remove_qwen()
+                    raise Rollback()
+        delay.assert_not_called()
+
+    def test_a_save_that_changes_no_models_schedules_nothing(self):
+        with mock.patch.object(tasks.send_offering_api_key_models, "delay") as delay:
+            with real_on_commit(), self.captureOnCommitCallbacks(execute=True):
+                self.offering.plugin_options = {
+                    "enable_api_key_provisioning": True,
+                    "create_orders_on_resource_option_change": True,
+                }
+                self.offering.save()
+        delay.assert_not_called()
+
+    def test_the_task_compares_the_offering_as_it_is_when_it_runs(self):
+        before_resource_options = self.offering.resource_options
+        # Saved by a path that sends no signal, as if the task ran later.
+        models.Offering.objects.filter(pk=self.offering.pk).update(
+            resource_options=models_options(choices=["llama-3", "mistral"])
+        )
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.send_offering_api_key_models(
+                self.offering.uuid.hex,
+                self.offering.plugin_options,
+                before_resource_options,
+            )
+        payload = self.published_payload(prepare)
+        self.assertEqual(payload["client_id"], "cid-1")
+        self.assertEqual(payload["allowed_models"], ["llama-3"])
+
+    def test_the_task_for_a_deleted_offering_sends_nothing(self):
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.send_offering_api_key_models(
+                "0" * 32,
+                self.offering.plugin_options,
+                self.offering.resource_options,
+            )
+        prepare.assert_not_called()
+
+    def test_one_resource_failing_leaves_the_others_sent(self):
+        other = factories.ResourceFactory(
+            offering=self.offering,
+            state=ResourceStates.OK,
+            options={"models": ALL_MODELS},
+        )
+        models.ResourceApiKey.objects.create(
+            resource=other,
+            client_id="cid-2",
+            state=States.OK,
+            allowed_models=["llama-3", "qwen"],
+        )
+        compare = resource_api_keys.resource_models_changed
+        failed = []
+
+        def fail_on_the_first(resource, *args):
+            if not failed:
+                failed.append(resource)
+                raise RuntimeError("boom")
+            compare(resource, *args)
+
+        with (
+            mock.patch.object(
+                resource_api_keys,
+                "resource_models_changed",
+                side_effect=fail_on_the_first,
+            ),
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+            self.assertLogs(resource_api_keys.logger, "ERROR") as logs,
+        ):
+            self.remove_qwen()
+        [failing] = failed
+        sent_key = models.ResourceApiKey.objects.get(
+            resource=other if failing.pk == self.resource.pk else self.resource
+        )
+        payload = self.published_payload(prepare)
+        self.assertEqual(payload["client_id"], sent_key.client_id)
+        self.assertEqual(payload["allowed_models"], ["llama-3"])
+        self.assertIn(str(failing.pk), logs.output[0])
+        unsent_key = models.ResourceApiKey.objects.get(resource=failing)
+        self.assertEqual(unsent_key.state, States.OK)
+        self.assertTrue(unsent_key.models_outdated)
+        self.assertFalse(sent_key.models_outdated)
+
+    def test_a_failing_resource_is_left_to_the_hourly_sweep(self):
+        paused = models.ResourceApiKey.objects.create(
+            resource=self.resource,
+            client_id="cid-paused",
+            state=States.PAUSED,
+            allowed_models=["llama-3", "qwen"],
+        )
+        with (
+            mock.patch.object(
+                resource_api_keys,
+                "resource_models_changed",
+                side_effect=RuntimeError("boom"),
+            ),
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+            self.assertLogs(resource_api_keys.logger, "ERROR"),
+        ):
+            self.remove_qwen()
+        prepare.assert_not_called()
+        self.key.refresh_from_db()
+        paused.refresh_from_db()
+        self.assertTrue(self.key.models_outdated)
+        self.assertFalse(paused.models_outdated)
+
+        with (
+            mock.patch(PREPARE, return_value=MESSAGES) as prepare,
+            mock.patch(PUBLISH),
+        ):
+            tasks.send_outdated_api_key_models()
+        payload = self.published_payload(prepare)
+        self.assertEqual(payload["client_id"], "cid-1")
+        self.assertEqual(payload["allowed_models"], ["llama-3"])
 
 
 # pytest may run with --no-migrations, which leaves the loader without them.

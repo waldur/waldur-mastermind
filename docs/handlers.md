@@ -792,7 +792,7 @@ td:nth-child(4) {
 | `trigger_scim_sync_on_resource_ok` | `Django Signal (post_save)` | `marketplace.Resource` | Trigger SCIM entitlements synchronization when resource transitions to OK. |
 | `trigger_user_action_recalculation_on_order_state_change` | `Django Signal (post_save)` | `marketplace.Order` | Trigger immediate UserAction recalculation when Order state changes. |
 | `update_api_keys_on_resource_models_change` | `Django Signal (post_save)` | `marketplace.Resource` | Send a resource's keys the models its changed selection leaves them. |
-| `update_api_keys_when_offering_models_change` | `Django Signal (post_save)` | `marketplace.Offering` | Send keys their effective models when the offering changes them: key |
+| `update_api_keys_when_offering_models_change` | `Django Signal (post_save)` | `marketplace.Offering` | Schedule an update of the offering's API keys when its settings change their models. |
 | `update_argocd_secret_when_resource_options_changed` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `update_cache_when_invoice_item_is_deleted` | `Django Signal (post_delete)` | `invoices.InvoiceItem` | No description |
 | `update_cache_when_invoice_item_is_updated` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |

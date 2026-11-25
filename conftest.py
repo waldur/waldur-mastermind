@@ -125,3 +125,18 @@ def _eager_component_usage_billing(monkeypatch):
             *args, **kwargs
         ),
     )
+
+
+@pytest.fixture(autouse=True)
+def _eager_offering_api_key_models(monkeypatch):
+    # In production, saving an offering that changes its keys' models schedules
+    # send_offering_api_key_models on the celery worker once the save commits.
+    # Run it inline here, as the billing task above, so tests that save an
+    # offering see its keys sent their models.
+    from waldur_mastermind.marketplace import tasks
+
+    monkeypatch.setattr(
+        tasks.send_offering_api_key_models,
+        "delay",
+        lambda *args, **kwargs: tasks.send_offering_api_key_models(*args, **kwargs),
+    )

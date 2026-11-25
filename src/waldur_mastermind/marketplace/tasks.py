@@ -208,6 +208,29 @@ def send_outdated_api_key_models():
     resource_api_keys.send_outdated_keys_models()
 
 
+@shared_task(
+    name="waldur_mastermind.marketplace.send_offering_api_key_models",
+    # Safe to run twice: it recomputes from the offering as it is when it runs,
+    # so a redelivery after a worker restart only repeats work.
+    acks_late=True,
+)
+def send_offering_api_key_models(
+    offering_uuid: str, plugin_options: dict | None, resource_options: dict | None
+):
+    """Update each of the offering's API keys to the models it may still use
+    under the offering's saved settings.
+
+    Scheduled once the offering's save commits, with its settings from before
+    the save; it compares them with the offering as it is when the task runs.
+    """
+    offering = models.Offering.objects.filter(uuid=offering_uuid).first()
+    if offering is None:
+        return
+    resource_api_keys.offering_models_changed(
+        offering, plugin_options, resource_options
+    )
+
+
 def process_order_on_commit(order: models.Order, user):
     serialized_order = core_utils.serialize_instance(order)
     serialized_user = core_utils.serialize_instance(user)

@@ -3966,10 +3966,15 @@ def update_api_keys_on_resource_models_change(
 def update_api_keys_when_offering_models_change(
     sender, instance: Offering, created=False, **kwargs
 ):
-    """Send keys their effective models when the offering changes them: key
-    management is turned on, the models option becomes or stops being a
-    multiple choice, or models are added to or removed from its choices.
-    Turning key management off sends nothing: its keys take no governed command.
+    """Schedule an update of the offering's API keys when its settings change their models.
+
+    Their models change when key management is turned on, the models option
+    becomes or stops being a multiple choice, or models are added to or
+    removed from its choices. Turning key management off sends nothing: its
+    keys take no governed command.
+
+    The keys are looked at by a task once the save commits, one resource at a
+    time, so the save neither waits for them nor holds their locks.
     """
     if (
         created
@@ -3991,8 +3996,13 @@ def update_api_keys_when_offering_models_change(
             model_lists.offered_models(instance),
         )
     ):
-        resource_api_keys.offering_models_changed(
-            instance, plugin_options, resource_options
+        transaction.on_commit(
+            partial(
+                tasks.send_offering_api_key_models.delay,
+                instance.uuid.hex,
+                plugin_options,
+                resource_options,
+            )
         )
 
 
