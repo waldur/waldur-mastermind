@@ -1161,7 +1161,10 @@ def offering_models_changed(
     before the change: key management turned on, the models option becoming or
     stopping being a multiple choice, or models added to or removed from its
     choices. Each resource is locked while its keys are compared, so a key
-    reported or a selection saved meanwhile reads the offering as saved.
+    reported or a selection saved meanwhile reads the offering as saved. The
+    resources are looked at one at a time, each in its own transaction, so one
+    that fails leaves the others to be compared; its keys are marked
+    ``models_outdated`` for the hourly sweep to update.
 
     Without key management nothing narrowed a key's list, so a key is taken to
     hold its own list as stored, a model the offering stopped listing included.
@@ -1177,14 +1180,57 @@ def offering_models_changed(
         .values_list("pk", flat=True)
     )
     for resource_id in resource_ids:
-        with transaction.atomic():
-            resource = models.Resource.objects.select_for_update().get(pk=resource_id)
-            # The offering as it is being saved, without a query per resource.
-            resource.offering = offering
-            before = model_lists.allowed(
-                plugin_options, resource_options, resource.options
+        # One resource failing must not leave the others' keys unsent.
+        try:
+            _offering_models_changed_for(
+                resource_id, offering, plugin_options, resource_options, before_choices
             )
-            resource_models_changed(resource, before, before_choices)
+        except Exception:
+            logger.exception(
+                "Could not update the models of resource %s's API keys after "
+                "offering %s changed them",
+                resource_id,
+                offering.uuid,
+            )
+            _mark_resource_keys_outdated(resource_id)
+
+
+def _mark_resource_keys_outdated(resource_id: int) -> None:
+    """Leave a resource's keys to the hourly sweep after comparing them failed.
+
+    The sweep sends a marked key the models it may use under the offering as it
+    is then, so a key whose models did not change gets at most a redundant
+    update, and one whose models did is not left on a model it lost.
+    """
+    try:
+        with transaction.atomic():
+            models.ResourceApiKey.objects.filter(resource_id=resource_id).exclude(
+                state__in=(States.PAUSED, States.DELETING, States.DELETED)
+            ).update(models_outdated=True)
+    except Exception:
+        logger.exception(
+            "Could not mark the API keys of resource %s as having outdated models",
+            resource_id,
+        )
+
+
+def _offering_models_changed_for(
+    resource_id: int,
+    offering: models.Offering,
+    plugin_options: dict | None,
+    resource_options: dict | None,
+    before_choices: list[str] | None,
+) -> None:
+    with transaction.atomic():
+        resource = (
+            models.Resource.objects.select_for_update().filter(pk=resource_id).first()
+        )
+        if resource is None:
+            return
+        # The offering as it was loaded, without a query per resource.
+        resource.offering = offering
+        before = model_lists.allowed(plugin_options, resource_options, resource.options)
+        resource_models_changed(resource, before, before_choices)
 
 
 def rotate_due_keys() -> None:
