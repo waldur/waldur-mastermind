@@ -190,6 +190,7 @@ from waldur_mastermind.marketplace_rancher.const import (
 from waldur_mastermind.marketplace_site_agent import (
     agent_configuration as site_agent_configuration,
 )
+from waldur_mastermind.marketplace_site_agent import consistency
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_pid import models as pid_models
 
@@ -19812,6 +19813,25 @@ class SiteAgentOfferingSecretSerializer(serializers.Serializer):
     )
 
 
+class OfferingConfigurationFindingSerializer(serializers.Serializer):
+    """One finding of the site-agent consistency rules."""
+
+    rule = serializers.ChoiceField(
+        choices=consistency.RULES, help_text="The rule that found it."
+    )
+    severity = serializers.ChoiceField(
+        choices=[consistency.ERROR, consistency.WARNING],
+        help_text="error: the agent cannot work as configured, and creating an "
+        "offering from a template is refused. warning: worth a look.",
+    )
+    field = serializers.CharField(
+        help_text="Dotted path into the offering document, list items by index, "
+        "such as components.0.type or agent_configuration.backend_settings."
+        "cluster_name."
+    )
+    message = serializers.CharField()
+
+
 class SiteAgentOfferingConfigSerializer(serializers.Serializer):
     """What a site agent loads for one offering."""
 
@@ -21635,6 +21655,12 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
         ),
     )
     parameters = serializers.SerializerMethodField()
+    configuration_findings = serializers.SerializerMethodField(
+        help_text=(
+            "What the site-agent consistency rules find in the document. Paths "
+            "a parameter fills are skipped. Staff only."
+        )
+    )
     created_by = serializers.SlugRelatedField(
         slug_field="uuid", read_only=True, allow_null=True
     )
@@ -21649,6 +21675,7 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
             "offering_type",
             "document",
             "parameters",
+            "configuration_findings",
             "schema_version",
             "version",
             "is_published",
@@ -21681,11 +21708,16 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if request is None or not has_staff_access(request):
             fields.pop("created_by", None)
+            fields.pop("configuration_findings", None)
         return fields
 
     @extend_schema_field(OfferingTemplateParameterSerializer(many=True))
     def get_parameters(self, template):
         return (template.document or {}).get(offering_templates.PARAMETERS_KEY) or []
+
+    @extend_schema_field(OfferingConfigurationFindingSerializer(many=True))
+    def get_configuration_findings(self, template):
+        return consistency.check_document(template.document or {})
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
