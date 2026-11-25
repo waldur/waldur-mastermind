@@ -59,6 +59,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`RestrictedSerializerMixin`](#restrictedserializermixin) | `waldur_core.core.serializers` | This mixin allows to specify list of fields to be rendered by serializer |
 | [`SlugSerializerMixin`](#slugserializermixin) | `waldur_core.core.serializers` | Ensures that slug is editable only by staff |
 | [`TranslatedModelSerializerMixin`](#translatedmodelserializermixin) | `waldur_core.core.serializers` | A `ModelSerializer` is just a regular `Serializer`, except that:  * A set of ... |
+| [`UserClaimsValidatorMixin`](#userclaimsvalidatormixin) | `waldur_core.core.serializers` | Provides validate_user_claims for serializers with a user_claims field |
 | [`UserEmailPatternsValidatorMixin`](#useremailpatternsvalidatormixin) | `waldur_core.core.serializers` | Provides validate_user_email_patterns for serializers with a user_email_patte... |
 | [`ExtensionTaskMixin`](#extensiontaskmixin) | `waldur_core.core.tasks` | This mixin allows to skip task scheduling if extension is disabled |
 | [`ExportMixin`](#exportmixin) | `waldur_core.core.tests.test_access` | No description available |
@@ -136,6 +137,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
 | [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration` | No description available |
 | [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
+| [`ConformanceMixin`](#conformancemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_contract_conformance` | Capture what a consumer queue receives and check it against a contract |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`SiteAgentFixtureMixin`](#siteagentfixturemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_pat_template` | No description available |
 | [`RegisteredScopeMixin`](#registeredscopemixin) | `waldur_mastermind.matrix_chat.tests.test_room_scopes` | Registers Customer, for the test only, as a kind of room scope whose members ... |
@@ -954,6 +956,17 @@ you need you should either declare the extra/differing fields explicitly on
 the serializer class, or simply use a `Serializer` class.
 
 **Base classes:** `ModelSerializer`
+
+### UserClaimsValidatorMixin
+
+**Module:** `waldur_core.core.serializers`
+
+**Description:**
+
+Provides validate_user_claims for serializers with a user_claims field.
+
+The field maps a claim name to its accepted values; a bare '*' is refused,
+since it would match every value the claim carries.
 
 ### UserEmailPatternsValidatorMixin
 
@@ -1808,6 +1821,14 @@ Mixin to execute scripts in containers for marketplace script processing.
 
 An offering with a SLURM agent configuration, its owner, service provider
 manager and offering manager, with the roles' grants from permissions.yaml.
+
+### ConformanceMixin
+
+**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_contract_conformance`
+
+**Description:**
+
+Capture what a consumer queue receives and check it against a contract.
 
 ### ResourceGlauthAccessMixin
 

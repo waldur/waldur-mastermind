@@ -733,6 +733,7 @@ td:nth-child(4) {
 | `send_resource_update_message_to_queue` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `send_role_granted_message_to_queue` | `Custom Signal (role_granted)` | `—` | No description |
 | `send_role_revoked_message_to_queue` | `Custom Signal (role_revoked)` | `—` | No description |
+| `send_user_account_status_message` | `Django Signal (post_save)` | `core.User` | Publish OFFERING_USER events when a Waldur account is activated or deactivated. |
 | `send_user_attribute_update_message` | `Django Signal (post_save)` | `core.User` | Publish OFFERING_USER events when User profile attributes change. |
 | `set_mtu_when_network_has_been_created` | `Django Signal (post_save)` | `openstack.Network` | No description |
 | `set_project_name_on_invoice_item_creation` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
@@ -911,7 +912,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 827
+Total unique handlers found: 828
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -919,7 +920,7 @@ Total unique handlers found: 827
 - **waldur_core**: 353 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 410 handlers
+- **waldur_mastermind**: 411 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers

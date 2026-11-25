@@ -4,342 +4,514 @@
 
 Make payments menu visible for staff users only.
 
+Scope: deployment (one value for the whole portal)
+
 ## customer.show_banking_data
 
 Display banking related data under customer profile.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## customer.show_domain
 
 Allows to hide domain field in organization detail.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## customer.show_invoices_with_vat
 
 Show costs and prices with VAT included and present monthly invoices instead of accounting records. When off, costs are shown without VAT.
+
+Scope: deployment (one value for the whole portal)
 
 ## customer.show_onboarding
 
 Enable onboarding functionality.
 
+Scope: deployment (one value for the whole portal)
+
 ## customer.show_openportal_remote_projects
 
 Show the Remote Projects pages of a portal that sends projects to other portals over OpenPortal. Needs the OpenPortal plugin to be enabled.
+
+Scope: deployment (one value for the whole portal)
 
 ## customer.show_organisation_reporting
 
 Show the Reporting menu with organization-scoped reports to users with the CUSTOMER.VIEW_REPORTING permission on the organization.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## customer.show_permission_reviews
 
 Allows to show permission reviews tab and popups for organizations.
+
+Scope: deployment (one value for the whole portal)
 
 ## customer.show_project_digest
 
 Enable display of project digest configuration in organization settings.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## dashboard.spend_forecast
 
 Show credit burn-down with a projected exhaustion date on the project dashboard.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## dashboard.usage_include_terminated
 
 Let usage charts include terminated resources: an organization dashboard switch, and a removed project's own usage. While off, the usage endpoints ignore include_terminated.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## dashboard.usage_limit_horizon
 
 Show a saturation bar per offering component against a timeline, with the current date and the next limit reset marked.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## dashboard.usage_per_offering_bars
 
 Show usage against the remaining cap as one stacked bar per offering.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## dashboard.usage_period_over_period
 
 Show usage for the current period overlaid on the previous one, per offering component.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## dashboard.usage_treemap
 
 Show usage as a treemap of offering, billing type and component.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## deployment.enable_cookie_notice
 
 Enable cookie notice in marketplace.
+
+Scope: deployment (one value for the whole portal)
 
 ## deployment.enable_disclaimer_area
 
 Enable disclaimer area below the footer.
 
+Scope: deployment (one value for the whole portal)
+
 ## deployment.send_metrics
 
 Send telemetry metrics.
+
+Scope: deployment (one value for the whole portal)
 
 ## invitations.civil_number_required
 
 Make civil number field mandatory in invitation creation form.
 
+Scope: deployment (one value for the whole portal)
+
 ## invitations.conceal_civil_number
 
 Conceal civil number in invitation creation dialog.
+
+Scope: deployment (one value for the whole portal)
 
 ## invitations.show_course_accounts
 
 Show course accounts of the scopes.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## invitations.show_service_accounts
 
 Show service accounts of the scopes.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## marketplace.allow_display_of_images_in_markdown
 
 Allow display of images in markdown format.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.call_only
 
 List calls that are run outside Waldur: each call links to an external URL where applications are made, and rounds, proposals and reviews are hidden.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.catalogue_only
 
 Run the marketplace as a catalog: offerings can be browsed but not ordered, order lists and pricing are hidden, and anonymous visitors land on the marketplace instead of the login page.
 
+Scope: deployment (one value for the whole portal)
+
 ## marketplace.conceal_audit_log_from_end_users
 
 Hide audit log tab from non-staff and non-support users.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.conceal_offering_pricing_tab_in_public_view
 
 Conceal offering pricing tab in the offering's public view.
 
+Scope: deployment (one value for the whole portal)
+
 ## marketplace.conceal_pending_consumer_orders
 
 Hide pending consumer orders section from the pending confirmations drawer.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## marketplace.conceal_pending_provider_orders
 
 Hide pending provider orders section from the pending confirmations drawer.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.conceal_prices
 
 Do not render prices in order details.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.conceal_resource_metadata
 
 Conceal resource metadata from non-staff users in resource detail view.
 
+Scope: deployment (one value for the whole portal)
+
 ## marketplace.display_offering_partitions
 
 Enable display of offering partitions in UI.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## marketplace.display_software_catalog
 
 Enable display of software catalog in UI.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.display_user_tos
 
 Enable display of user terms of service in UI.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.hide_marketplace_from_end_users
 
 Hide marketplace functionality from end users but allow staff access.
 
+Scope: deployment (one value for the whole portal)
+
 ## marketplace.hide_organization_information_from_project_members
 
 Hide organization information from project-level users. Organization owners, managers, and staff retain full access.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.import_resources
 
 Allow to import resources from service provider to project.
 
+Scope: deployment (one value for the whole portal)
+
 ## marketplace.lexis_links
 
 Enabled LEXIS link integrations for offerings.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## marketplace.realtime_updates
 
 Enable push-driven UI updates over the event-consumer WebSocket (experimental). When disabled, the UI relies on polling and manual refresh as before. Requires RabbitMQ web-STOMP to be reachable at /rmqws-stomp on the API host.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.show_call_management_functionality
 
 Show call management: the call-managing organization's workspace, providers' requests for offerings, and proposal reports. Independent of SERVICE_ACCESS_MODE, which governs how applicants reach services.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.show_experimental_ui_components
 
 Enabled display of experimental or mocked components in marketplace.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.show_managed_projects
 
 Show the Managed projects and Project templates pages of a portal that receives projects from other portals over OpenPortal. Needs the OpenPortal plugin to be enabled.
+
+Scope: deployment (one value for the whole portal)
 
 ## marketplace.show_openstack_duplicate_offerings
 
 Show the staff diagnostics page listing tenants with duplicate per-tenant OpenStack offerings.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.show_posix_id_pools
 
 Render POSIX ID pool management UI for service providers.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## marketplace.show_provider_accounts
 
 Render service provider account management UI: provider accounts, username conflicts, the shared GLAuth directory and provider account settings.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## marketplace.show_resource_end_date
 
 Show resource end date as a non optional column in resources list.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## openstack.hide_volume_type_selector
 
 Allow to hide OpenStack volume type selector when instance or volume is provisioned.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## openstack.show_migrations
 
 Show OpenStack tenant migrations action and tab
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## project.enforce_allowed_domains
 
 Enforce the rules of an OpenPortal award on local team changes. Despite its name, this flag gates both the award's membership and role lock and its allowed email domains: adding, removing or re-roling members and inviting users is refused if the award does not permit it.
 
+Scope: deployment (one value for the whole portal)
+
 ## project.estimated_cost
 
 Render estimated cost column in projects list.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## project.mandatory_start_date
 
 Make the project start date mandatory.
 
+Scope: deployment (one value for the whole portal)
+
 ## project.oecd_fos_2007_code
 
 Enable OECD code.
+
+Scope: deployment (one value for the whole portal)
 
 ## project.science_domain
 
 Enable science domain/sub-domain selection for projects.
 
+Scope: deployment (one value for the whole portal)
+
 ## project.show_credit_in_create_dialog
 
 Show credit field in project create dialog.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## project.show_custom_metrics
 
 Show custom metrics: the project Metrics tab and the offering metrics a provider adopts.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## project.show_description_in_create_dialog
 
 Show description field in project create dialog.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## project.show_end_date_in_create_dialog
 
 Show end date field in project create dialog.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## project.show_image_in_create_dialog
 
 Show image field in project create dialog.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## project.show_industry_flag
 
 Show industry flag.
 
+Scope: deployment (one value for the whole portal)
+
 ## project.show_kind_in_create_dialog
 
 Show kind field in project create dialog.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## project.show_matrix_chat
 
 Render the project Matrix chat UI. Backend access is gated separately on the MATRIX_ENABLED setting.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## project.show_permission_reviews
 
 Allows to show permission reviews tab and popups for projects.
+
+Scope: deployment (one value for the whole portal)
 
 ## project.show_start_date_in_create_dialog
 
 Show start date field in project create dialog.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## project.show_type_in_create_dialog
 
 Show type field in project create dialog.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## rancher.apps
 
 Render Rancher apps as a separate tab in resource details page.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## rancher.volume_mount_point
 
 Allow to select mount point for data volume when Rancher cluster is provisioned.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## reseller.affiliates
 
 Show affiliate program menus and pages. Backend enforcement is controlled separately by the AFFILIATES_ENABLED setting.
 
+Scope: deployment (one value for the whole portal)
+
 ## reseller.arrow
 
 Enable Arrow integration menu in administration.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## sram.integration
 
 Render the SRAM integration administration page and SRAM markers in team lists. Backend access is gated separately on the SRAM_INTEGRATION_ENABLED setting.
 
+Scope: deployment (one value for the whole portal)
+
 ## support.conceal_change_request
 
 Conceal "Change request" from a selection of issue types for non-staff/non-support users.
+
+Scope: deployment (one value for the whole portal)
 
 ## support.enable_llm_assistant
 
 Enable AI Assistant
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## support.pricelist
 
 Render marketplace plan components pricelist in support workspace.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## support.vm_type_overview
 
 Enable VM type overview in support workspace.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## user.conceal_api_token
 
 Hide API token management tab from non-staff and non-support users.
+
+Scope: deployment (one value for the whole portal)
 
 ## user.conceal_permission_requests
 
 Hide permission requests tab from non-staff and non-support users.
 
+Scope: deployment (one value for the whole portal)
+
 ## user.conceal_remote_accounts
 
 Hide remote accounts tab from non-staff and non-support users.
+
+Scope: deployment (one value for the whole portal)
 
 ## user.disable_user_termination
 
 Disable user termination in user workspace.
 
+Scope: deployment (one value for the whole portal)
+
 ## user.notifications
 
 Enable email and webhook notifications management in user workspace.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## user.pending_user_actions
 
 Show pending user actions.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## user.preferred_language
 
 Render preferred language column in users list.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## user.show_data_access
 
 Enable Data Access tab showing who can access user profile data.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## user.show_identity_bridge
 
 Show identity bridge information in user profiles and admin views.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## user.show_micro_apps
 
 List the deployment's micro-apps in the quick shortcuts menu, to the users each app is meant for.
 
+Scope: deployment (one value for the whole portal)
+
 ## user.show_slug
 
 Enable display of slug field in user summary.
+
+Scope: user (can also be turned on for selected users by feature rules)
 
 ## user.show_username
 
 Enable display of username field in user tables.
 
+Scope: user (can also be turned on for selected users by feature rules)
+
 ## user.ssh_keys
 
 Enable SSH keys management in user workspace.
+
+Scope: user (can also be turned on for selected users by feature rules)

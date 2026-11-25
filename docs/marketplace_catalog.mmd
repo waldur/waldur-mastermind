@@ -63,6 +63,9 @@ classDiagram
         +SecretOptionsField secret_options
         +JSONField backend_id_rules
         +JSONField agent_configuration
+        +OfferingTemplate template [FK]
+        +int template_version
+        +JSONField template_parameters
         +string privacy_policy_link
         +string helpdesk_url
         +string documentation_url

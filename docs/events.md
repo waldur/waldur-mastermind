@@ -14,6 +14,10 @@
 - admin_object_created
 - admin_object_deleted
 - admin_object_updated
+- feature_rule_created
+- feature_rule_deleted
+- feature_rule_updated
+- micro_app_setting_updated
 
 ## Auth
 
