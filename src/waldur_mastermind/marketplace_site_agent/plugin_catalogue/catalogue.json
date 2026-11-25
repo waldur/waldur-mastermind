@@ -325,14 +325,11 @@
         "admin_access_key",
         "admin_secret_key",
         "croit_reporting.password",
-        "croit_reporting.token",
-        "password",
-        "token"
+        "croit_reporting.token"
       ],
       "sensitive_component_settings": [],
       "sensitive_settings": [
         "admin_path",
-        "api_url",
         "croit_reporting.api_url",
         "croit_reporting.bucket_state_file",
         "croit_reporting.verify_ssl",
@@ -442,7 +439,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Settings for the ``ceph_s3`` (management), ``croit_usage`` and ``rgw_usage`` (reporting) backends.",
+        "description": "Settings for the ``ceph_s3``, ``croit_usage`` and ``rgw_usage`` backends.\n\n``ceph_s3`` is the management backend; the other two are reporting backends.",
         "properties": {
           "admin_access_key": {
             "anyOf": [
@@ -454,7 +451,7 @@
               }
             ],
             "default": null,
-            "description": "RGW admin access key (radosgw flavour)",
+            "description": "RGW admin access key (required)",
             "secret": true,
             "title": "Admin Access Key"
           },
@@ -482,7 +479,7 @@
               }
             ],
             "default": null,
-            "description": "RGW admin secret key (radosgw flavour)",
+            "description": "RGW admin secret key (required)",
             "secret": true,
             "title": "Admin Secret Key"
           },
@@ -498,20 +495,6 @@
             "default": null,
             "description": "Prefix for resource (allocation) backend ids",
             "title": "Allocation Prefix"
-          },
-          "api_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit API URL (croit flavour)",
-            "sensitive": true,
-            "title": "Api Url"
           },
           "backend_id_max_retries": {
             "anyOf": [
@@ -563,7 +546,7 @@
               }
             ],
             "default": null,
-            "description": "croit connection for croit_usage reporting when management uses the radosgw flavour on a croit cluster"
+            "description": "croit connection for croit_usage reporting: croit is read for its statistics only"
           },
           "customer_prefix": {
             "anyOf": [
@@ -614,7 +597,7 @@
               }
             ],
             "default": null,
-            "description": "Default storage class for new users",
+            "description": "Default storage class for new users; needs default_placement",
             "title": "Default Storage Class"
           },
           "default_tenant": {
@@ -634,9 +617,7 @@
             "anyOf": [
               {
                 "enum": [
-                  "croit",
                   "radosgw",
-                  "CROIT",
                   "RADOSGW"
                 ],
                 "type": "string"
@@ -646,22 +627,8 @@
               }
             ],
             "default": null,
-            "description": "'croit' (default) or 'radosgw'",
+            "description": "'radosgw', the only one (may be left out)",
             "title": "Flavour"
-          },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit password (croit flavour)",
-            "secret": true,
-            "title": "Password"
           },
           "periodic_limits": {
             "anyOf": [
@@ -700,7 +667,7 @@
               }
             ],
             "default": null,
-            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (radosgw flavour, Ceph 20.2.2 or later)",
+            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (Ceph 20.2.2 or later)",
             "title": "Rgw Accounts"
           },
           "s3_endpoint": {
@@ -786,33 +753,6 @@
             "default": null,
             "description": "HTTP timeout in seconds (default 30)",
             "title": "Timeout"
-          },
-          "token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit API token, instead of username/password",
-            "secret": true,
-            "title": "Token"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit username (croit flavour)",
-            "title": "Username"
           },
           "verify_ssl": {
             "anyOf": [
@@ -847,14 +787,11 @@
         "admin_access_key",
         "admin_secret_key",
         "croit_reporting.password",
-        "croit_reporting.token",
-        "password",
-        "token"
+        "croit_reporting.token"
       ],
       "sensitive_component_settings": [],
       "sensitive_settings": [
         "admin_path",
-        "api_url",
         "croit_reporting.api_url",
         "croit_reporting.bucket_state_file",
         "croit_reporting.verify_ssl",
@@ -964,7 +901,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Settings for the ``ceph_s3`` (management), ``croit_usage`` and ``rgw_usage`` (reporting) backends.",
+        "description": "Settings for the ``ceph_s3``, ``croit_usage`` and ``rgw_usage`` backends.\n\n``ceph_s3`` is the management backend; the other two are reporting backends.",
         "properties": {
           "admin_access_key": {
             "anyOf": [
@@ -976,7 +913,7 @@
               }
             ],
             "default": null,
-            "description": "RGW admin access key (radosgw flavour)",
+            "description": "RGW admin access key (required)",
             "secret": true,
             "title": "Admin Access Key"
           },
@@ -1004,7 +941,7 @@
               }
             ],
             "default": null,
-            "description": "RGW admin secret key (radosgw flavour)",
+            "description": "RGW admin secret key (required)",
             "secret": true,
             "title": "Admin Secret Key"
           },
@@ -1020,20 +957,6 @@
             "default": null,
             "description": "Prefix for resource (allocation) backend ids",
             "title": "Allocation Prefix"
-          },
-          "api_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit API URL (croit flavour)",
-            "sensitive": true,
-            "title": "Api Url"
           },
           "backend_id_max_retries": {
             "anyOf": [
@@ -1085,7 +1008,7 @@
               }
             ],
             "default": null,
-            "description": "croit connection for croit_usage reporting when management uses the radosgw flavour on a croit cluster"
+            "description": "croit connection for croit_usage reporting: croit is read for its statistics only"
           },
           "customer_prefix": {
             "anyOf": [
@@ -1136,7 +1059,7 @@
               }
             ],
             "default": null,
-            "description": "Default storage class for new users",
+            "description": "Default storage class for new users; needs default_placement",
             "title": "Default Storage Class"
           },
           "default_tenant": {
@@ -1156,9 +1079,7 @@
             "anyOf": [
               {
                 "enum": [
-                  "croit",
                   "radosgw",
-                  "CROIT",
                   "RADOSGW"
                 ],
                 "type": "string"
@@ -1168,22 +1089,8 @@
               }
             ],
             "default": null,
-            "description": "'croit' (default) or 'radosgw'",
+            "description": "'radosgw', the only one (may be left out)",
             "title": "Flavour"
-          },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit password (croit flavour)",
-            "secret": true,
-            "title": "Password"
           },
           "periodic_limits": {
             "anyOf": [
@@ -1222,7 +1129,7 @@
               }
             ],
             "default": null,
-            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (radosgw flavour, Ceph 20.2.2 or later)",
+            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (Ceph 20.2.2 or later)",
             "title": "Rgw Accounts"
           },
           "s3_endpoint": {
@@ -1308,33 +1215,6 @@
             "default": null,
             "description": "HTTP timeout in seconds (default 30)",
             "title": "Timeout"
-          },
-          "token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit API token, instead of username/password",
-            "secret": true,
-            "title": "Token"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit username (croit flavour)",
-            "title": "Username"
           },
           "verify_ssl": {
             "anyOf": [
@@ -8483,14 +8363,11 @@
         "admin_access_key",
         "admin_secret_key",
         "croit_reporting.password",
-        "croit_reporting.token",
-        "password",
-        "token"
+        "croit_reporting.token"
       ],
       "sensitive_component_settings": [],
       "sensitive_settings": [
         "admin_path",
-        "api_url",
         "croit_reporting.api_url",
         "croit_reporting.bucket_state_file",
         "croit_reporting.verify_ssl",
@@ -8600,7 +8477,7 @@
           }
         },
         "additionalProperties": false,
-        "description": "Settings for the ``ceph_s3`` (management), ``croit_usage`` and ``rgw_usage`` (reporting) backends.",
+        "description": "Settings for the ``ceph_s3``, ``croit_usage`` and ``rgw_usage`` backends.\n\n``ceph_s3`` is the management backend; the other two are reporting backends.",
         "properties": {
           "admin_access_key": {
             "anyOf": [
@@ -8612,7 +8489,7 @@
               }
             ],
             "default": null,
-            "description": "RGW admin access key (radosgw flavour)",
+            "description": "RGW admin access key (required)",
             "secret": true,
             "title": "Admin Access Key"
           },
@@ -8640,7 +8517,7 @@
               }
             ],
             "default": null,
-            "description": "RGW admin secret key (radosgw flavour)",
+            "description": "RGW admin secret key (required)",
             "secret": true,
             "title": "Admin Secret Key"
           },
@@ -8656,20 +8533,6 @@
             "default": null,
             "description": "Prefix for resource (allocation) backend ids",
             "title": "Allocation Prefix"
-          },
-          "api_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit API URL (croit flavour)",
-            "sensitive": true,
-            "title": "Api Url"
           },
           "backend_id_max_retries": {
             "anyOf": [
@@ -8721,7 +8584,7 @@
               }
             ],
             "default": null,
-            "description": "croit connection for croit_usage reporting when management uses the radosgw flavour on a croit cluster"
+            "description": "croit connection for croit_usage reporting: croit is read for its statistics only"
           },
           "customer_prefix": {
             "anyOf": [
@@ -8772,7 +8635,7 @@
               }
             ],
             "default": null,
-            "description": "Default storage class for new users",
+            "description": "Default storage class for new users; needs default_placement",
             "title": "Default Storage Class"
           },
           "default_tenant": {
@@ -8792,9 +8655,7 @@
             "anyOf": [
               {
                 "enum": [
-                  "croit",
                   "radosgw",
-                  "CROIT",
                   "RADOSGW"
                 ],
                 "type": "string"
@@ -8804,22 +8665,8 @@
               }
             ],
             "default": null,
-            "description": "'croit' (default) or 'radosgw'",
+            "description": "'radosgw', the only one (may be left out)",
             "title": "Flavour"
-          },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit password (croit flavour)",
-            "secret": true,
-            "title": "Password"
           },
           "periodic_limits": {
             "anyOf": [
@@ -8858,7 +8705,7 @@
               }
             ],
             "default": null,
-            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (radosgw flavour, Ceph 20.2.2 or later)",
+            "description": "Provision an RGW account with its own root user per resource, so consumers manage IAM users and policies themselves (Ceph 20.2.2 or later)",
             "title": "Rgw Accounts"
           },
           "s3_endpoint": {
@@ -8944,33 +8791,6 @@
             "default": null,
             "description": "HTTP timeout in seconds (default 30)",
             "title": "Timeout"
-          },
-          "token": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit API token, instead of username/password",
-            "secret": true,
-            "title": "Token"
-          },
-          "username": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "default": null,
-            "description": "croit username (croit flavour)",
-            "title": "Username"
           },
           "verify_ssl": {
             "anyOf": [
