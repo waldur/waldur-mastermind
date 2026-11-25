@@ -3232,7 +3232,7 @@ class Order(
             return self.plan.fixed_price
         return 0
 
-    def _compute_old_cost_estimate(self) -> float:
+    def _compute_old_cost_estimate(self) -> Decimal:
         """Price old_limits over the same window `cost` is priced over.
 
         Renewals use their own pre-extension duration (old subscription
@@ -3240,10 +3240,10 @@ class Order(
         today through the resource's real end date, matching _get_cost_dates().
         """
         if "old_limits" not in self.attributes:
-            return 0
+            return Decimal(0)
         plan = self.old_plan or self.plan
         if not plan:
-            return 0
+            return Decimal(0)
 
         old_end_date_str = self.attributes.get("old_end_date")
         if old_end_date_str:
@@ -3265,7 +3265,7 @@ class Order(
         return plan.get_estimate(self.attributes["old_limits"], start_date, end_date)
 
     @property
-    def old_cost_estimate(self) -> float:
+    def old_cost_estimate(self) -> Decimal:
         """The old-limits estimate, snapshotted by init_cost() at creation.
 
         Must not recompute live: _compute_old_cost_estimate() prices from

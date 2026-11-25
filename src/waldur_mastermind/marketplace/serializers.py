@@ -8,7 +8,7 @@ import math
 import re
 import uuid as uuid_lib
 from collections.abc import Callable, Mapping
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from typing import Literal, cast
 
 import jwt
@@ -207,6 +207,9 @@ from . import (
     spending_limits,
     utils,
 )
+
+# The smallest price step, used to render prices with a fixed number of places.
+PRICE_QUANTUM = Decimal(1).scaleb(-common_mixins.PRICE_DECIMAL_PLACES)
 
 logger = logging.getLogger(__name__)
 
@@ -3329,6 +3332,11 @@ class BasePlanSerializer(
         required=False, allow_blank=True, max_length=DESCRIPTION_LENGTH
     )
     components = NestedPlanComponentSerializer(many=True, read_only=True)
+    # The model properties sum Decimal prices, so a priced plan gave a Decimal, which
+    # rendered as a string, and a free plan the int 0, which rendered as a number. The
+    # schema declares a number, so render one.
+    init_price = serializers.FloatField(read_only=True)
+    switch_price = serializers.FloatField(read_only=True)
     billing_mode = serializers.ChoiceField(
         choices=BillingModes.CHOICES,
         required=False,
@@ -3431,7 +3439,7 @@ class BasePlanSerializer(
         return plan_type
 
     def get_minimal_price(self, plan: models.Plan) -> str:
-        price = 0
+        price = Decimal(0)
 
         components: QuerySet[models.PlanComponent] = plan.components.all()
 
@@ -3453,7 +3461,15 @@ class BasePlanSerializer(
                     # however many the plan sold.
                     price += plan_component.price * (plan_component.amount or 1)
 
-        return price
+        # Always a decimal string, as the schema declares. Returning the sum as is
+        # gave the int 0 for a plan without priced components, which rendered as a
+        # JSON number and broke clients generated from the schema. The precision
+        # allows any sum of prices times amounts: the default 28 digits would raise
+        # InvalidOperation from 1e18 up. Fixed-point format, because str() renders a
+        # zero Decimal as "0E-10".
+        with localcontext() as context:
+            context.prec = 60
+            return f"{price.quantize(PRICE_QUANTUM):f}"
 
 
 class BasePublicPlanSerializer(BasePlanSerializer):
@@ -8172,6 +8188,17 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         source="cost",
         allow_null=True,
     )
+    # The model property is an exact Decimal, but the schema has always declared a
+    # number. Left to ModelSerializer, the Decimal rendered as a string whenever the
+    # creation-time snapshot existed and as a number when it did not, so the type
+    # depended on the order's history and broke clients generated from the schema.
+    old_cost_estimate = serializers.FloatField(
+        read_only=True,
+        help_text="Cost estimate for the old limits, snapshotted when the order was created.",
+    )
+    # Same mix as above: the plan's Decimal sums for a priced plan, the int 0 otherwise.
+    fixed_price = serializers.FloatField(read_only=True)
+    activation_price = serializers.FloatField(read_only=True)
 
     order_subtype = serializers.SerializerMethodField()
 

@@ -328,7 +328,11 @@ class OfferingPlanInfoTest(test.APITestCase):
 
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["plans"][0]["minimal_price"], minimal_price)
+        # Check the rendered JSON, not response.data: the schema declares a decimal
+        # string, and Decimal("0") == 0 would hide an int that renders as a number.
+        self.assertEqual(
+            response.json()["plans"][0]["minimal_price"], f"{minimal_price:.10f}"
+        )
 
     def _check_plan_info(self, billing_type, plan_type):
         self.offering_component.billing_type = billing_type
