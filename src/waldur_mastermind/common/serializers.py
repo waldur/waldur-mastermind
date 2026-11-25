@@ -1,4 +1,6 @@
+import ipaddress
 import logging
+import re
 
 import regex
 from django.core.validators import MinValueValidator
@@ -36,6 +38,194 @@ K8S_TOPOLOGY_DATACENTER_COUNTS = {
 }
 
 
+K8S_CONFIG_FIELD_TYPES = ("single_datacenter_k8s_config", "multi_datacenter_k8s_config")
+K8S_EGRESS_RULES_FIELD_TYPE = "k8s_egress_rules"
+
+K8S_RULE_PROTOCOLS = ("TCP", "UDP", "ICMP")
+K8S_EGRESS_DESTINATION_CIDR = "cidr"
+K8S_EGRESS_DESTINATION_DOMAIN = "domain"
+K8S_EGRESS_DESTINATION_TYPES = (
+    (K8S_EGRESS_DESTINATION_CIDR, "IPv4 or IPv6 network"),
+    (K8S_EGRESS_DESTINATION_DOMAIN, "Domain name"),
+)
+# The ingress rule lists of a cluster configuration. Their egress rows moved to
+# egress_rules (marketplace migration 0330), which is where they belong now.
+K8S_INGRESS_RULE_KEYS = ("public_access_rules", "administrative_access_rules")
+# The offering's egress policy, in the k8s option's default_configs; a
+# k8s_egress_rules resource option carries a copy of it.
+K8S_EGRESS_POLICY_KEYS = (
+    "egress_rules_enabled",
+    "egress_domain_rules_allowed",
+    "egress_baseline_rules",
+)
+
+_DOMAIN_LABEL = r"(?!-)[a-z0-9-]{1,63}(?<!-)"
+# The last label must hold a letter, so an IP address is not taken for a name.
+_DOMAIN_TOP_LABEL = r"(?!-)(?=[a-z0-9-]*[a-z])[a-z0-9-]{1,63}(?<!-)"
+# A hostname of two or more labels, optionally led by a "*." wildcard.
+_DOMAIN_PATTERN = re.compile(
+    rf"^(\*\.)?(?:{_DOMAIN_LABEL}\.)+{_DOMAIN_TOP_LABEL}$", re.IGNORECASE
+)
+# An address with an explicit prefix length: no netmask form, no zone id.
+_CIDR_SHAPE = re.compile(r"^[0-9a-f.:]+/\d{1,3}$", re.IGNORECASE)
+MAX_DOMAIN_LENGTH = 253
+
+
+def validate_egress_destination(destination_type, destination):
+    """Raise a ValidationError unless ``destination`` is a valid value of its type."""
+    if destination_type == K8S_EGRESS_DESTINATION_CIDR:
+        try:
+            if not _CIDR_SHAPE.match(destination):
+                raise ValueError(destination)
+            ipaddress.ip_network(destination, strict=False)
+        except ValueError:
+            raise serializers.ValidationError(
+                {
+                    "destination": _(
+                        "Enter an IPv4 or IPv6 network, such as 10.0.0.0/8 or 2001:db8::/32."
+                    )
+                }
+            )
+    elif len(destination) > MAX_DOMAIN_LENGTH or not _DOMAIN_PATTERN.match(destination):
+        raise serializers.ValidationError(
+            {
+                "destination": _(
+                    "Enter a domain name, such as registry.example.com, or a "
+                    "wildcard covering its subdomains, such as *.example.com."
+                )
+            }
+        )
+
+
+class K8sEgressRuleSerializer(serializers.Serializer):
+    """One outbound destination a Kubernetes cluster may reach.
+
+    Protocol and ports are optional: a rule without them allows any traffic
+    to the destination.
+    """
+
+    uuid = serializers.CharField(
+        max_length=64,
+        required=False,
+        help_text=_("A client-side row id, kept as given. Ignored by the server."),
+    )
+    name = serializers.CharField(max_length=255)
+    destination_type = serializers.ChoiceField(choices=K8S_EGRESS_DESTINATION_TYPES)
+    destination = serializers.CharField(
+        max_length=MAX_DOMAIN_LENGTH,
+        help_text=_(
+            "An IPv4 or IPv6 network for a cidr rule; a domain name, optionally "
+            "led by a *. wildcard, for a domain rule."
+        ),
+    )
+    protocol = serializers.ChoiceField(
+        choices=K8S_RULE_PROTOCOLS,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        help_text=_("Empty for any protocol."),
+    )
+    port_range_min = serializers.IntegerField(
+        min_value=1,
+        max_value=65535,
+        required=False,
+        allow_null=True,
+        help_text=_("Empty for any port."),
+    )
+    port_range_max = serializers.IntegerField(
+        min_value=1,
+        max_value=65535,
+        required=False,
+        allow_null=True,
+        help_text=_("Empty for a single port, port_range_min."),
+    )
+    description = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True
+    )
+
+    def validate(self, attrs):
+        validate_egress_destination(attrs["destination_type"], attrs["destination"])
+        port_min = attrs.get("port_range_min")
+        port_max = attrs.get("port_range_max")
+        if port_max is not None and port_min is None:
+            raise serializers.ValidationError(
+                {"port_range_min": _("Set the first port of the range too.")}
+            )
+        if port_min is not None and port_max is not None and port_min > port_max:
+            raise serializers.ValidationError(
+                {
+                    "port_range_max": _(
+                        "The last port must not be lower than the first one."
+                    )
+                }
+            )
+        if attrs.get("protocol") == "ICMP" and port_min is not None:
+            raise serializers.ValidationError(
+                {"port_range_min": _("ICMP has no ports.")}
+            )
+        if port_min is not None and port_max is None:
+            attrs["port_range_max"] = port_min
+        return attrs
+
+
+class K8sEgressRulesField(serializers.ListField):
+    """The outbound destinations a Kubernetes cluster may reach.
+
+    An empty list leaves outbound traffic unrestricted. Any rule makes
+    outbound traffic deny by default, with these destinations and the
+    offering's baseline rules allowed. The offering's policy,
+    the k8s option's default_configs, decides whether rules may be given at
+    all and whether they may name domains.
+    """
+
+    child = K8sEgressRuleSerializer()
+
+    def __init__(self, *args, **kwargs):
+        default_configs = kwargs.pop("default_configs", None) or {}
+        self.egress_rules_enabled = bool(default_configs.get("egress_rules_enabled"))
+        self.egress_domain_rules_allowed = bool(
+            default_configs.get("egress_domain_rules_allowed")
+        )
+        super().__init__(*args, **kwargs)
+
+    def to_internal_value(self, data):
+        rules = super().to_internal_value(data)
+        if rules and not self.egress_rules_enabled:
+            raise serializers.ValidationError(
+                _("This offering does not accept egress rules.")
+            )
+        if not self.egress_domain_rules_allowed and any(
+            rule["destination_type"] == K8S_EGRESS_DESTINATION_DOMAIN for rule in rules
+        ):
+            raise serializers.ValidationError(
+                _("This offering accepts network (CIDR) egress destinations only.")
+            )
+        # Stored as cleaned: trimmed, ports as numbers, unknown keys dropped.
+        return [dict(rule) for rule in rules]
+
+
+def validate_k8s_ingress_rules(value):
+    """Check the shape of a cluster configuration's ingress rule lists.
+
+    Only the shape: these lists were stored unchecked before, and orders
+    placed then must keep validating. Outbound rules go to egress_rules.
+    """
+    for key in K8S_INGRESS_RULE_KEYS:
+        rules = value.get(key)
+        if rules is None:
+            continue
+        if not isinstance(rules, list) or not all(
+            isinstance(rule, dict) for rule in rules
+        ):
+            raise serializers.ValidationError(
+                {key: _("Expected a list of rule objects.")}
+            )
+        if any(rule.get("direction") == "egress" for rule in rules):
+            raise serializers.ValidationError(
+                {key: _("Outbound rules belong in egress_rules.")}
+            )
+
+
 class K8sConfigField(serializers.DictField):
     """
     Kubernetes cluster configuration chosen in the order form.
@@ -44,16 +234,35 @@ class K8sConfigField(serializers.DictField):
     when the option does not set it, the option type decides. Values that lack
     the topology or datacenters keys are left alone, so orders placed before
     these checks existed still validate.
+
+    The egress_rules list is checked against the offering's egress policy
+    (see K8sEgressRulesField).
     """
 
     default_topology = None
 
     def __init__(self, *args, **kwargs):
-        self.topology_mode = kwargs.pop("topology_mode", None) or self.default_topology
+        self.default_configs = kwargs.pop("default_configs", None) or {}
+        self.topology_mode = (
+            self.default_configs.get("topology_mode") or self.default_topology
+        )
         super().__init__(*args, **kwargs)
 
     def to_internal_value(self, data):
         value = super().to_internal_value(data)
+        validate_k8s_ingress_rules(value)
+        egress_rules = value.get("egress_rules")
+        if egress_rules is not None:
+            try:
+                value["egress_rules"] = K8sEgressRulesField(
+                    default_configs=self.default_configs
+                ).run_validation(egress_rules)
+            except serializers.ValidationError as e:
+                raise serializers.ValidationError({"egress_rules": e.detail})
+        self._validate_topology(value)
+        return value
+
+    def _validate_topology(self, value):
         topology = value.get("topology")
 
         if topology is not None:
@@ -75,7 +284,7 @@ class K8sConfigField(serializers.DictField):
 
         datacenters = value.get("datacenters")
         if not isinstance(datacenters, list):
-            return value
+            return
 
         if topology is None:
             # The customer's pick was not recorded: any supported site count.
@@ -84,7 +293,7 @@ class K8sConfigField(serializers.DictField):
                     "A cluster needs 1 or 3 datacenters, "
                     f"but {len(datacenters)} were given."
                 )
-            return value
+            return
 
         expected = K8S_TOPOLOGY_DATACENTER_COUNTS[topology]
         if len(datacenters) != expected:
@@ -92,7 +301,6 @@ class K8sConfigField(serializers.DictField):
                 f'The "{topology}" cluster topology requires {expected} '
                 f"datacenter(s), but {len(datacenters)} were given."
             )
-        return value
 
 
 class SingleDatacenterK8sConfigField(K8sConfigField):
@@ -140,8 +348,12 @@ FIELD_CLASSES = {
     "storage_folder_manager": StorageFolderManagerField,
     "single_datacenter_k8s_config": SingleDatacenterK8sConfigField,
     "multi_datacenter_k8s_config": MultiDatacenterK8sConfigField,
+    K8S_EGRESS_RULES_FIELD_TYPE: K8sEgressRulesField,
 }
 
+
+# Fields whose cleaned value is stored instead of the submitted one.
+CLEANED_FIELD_CLASSES = (K8sConfigField, K8sEgressRulesField)
 
 # Option types the customer never fills in; any value sent for one is dropped.
 NON_INPUT_FIELD_TYPES = frozenset({"component_sum"})
@@ -445,10 +657,8 @@ def validate_options(options, attributes, optional=False, hidden=None):
             # The submitted value is stored as is, so check it untrimmed.
             params["trim_whitespace"] = False
 
-        if issubclass(field_class, K8sConfigField):
-            params["topology_mode"] = (option.get("default_configs") or {}).get(
-                "topology_mode"
-            )
+        if issubclass(field_class, K8sConfigField | K8sEgressRulesField):
+            params["default_configs"] = option.get("default_configs")
 
         fields[name] = field_class(**params)
 
@@ -497,6 +707,11 @@ def validate_options(options, attributes, optional=False, hidden=None):
     values = strip_hidden_options(
         options, strip_non_input_options(options, attributes), hidden
     )
+    # Values whose field cleans them are stored cleaned, so that consumers
+    # such as a provider's automation get the checked shape.
+    for name, field in serializer.fields.items():
+        if isinstance(field, CLEANED_FIELD_CLASSES) and name in values:
+            values[name] = serializer.validated_data.get(name, values[name])
     return transform_option_values(options, values, hidden)
 
 

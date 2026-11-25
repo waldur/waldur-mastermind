@@ -91,6 +91,7 @@ from waldur_mastermind.marketplace import (
     billing_discount,
     billing_mode,
     derived_limits,
+    k8s_egress,
     spending_limits,
 )
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
@@ -735,14 +736,25 @@ def derived_limit_inputs(resource, new_options=None):
 def resource_options_from_attributes(offering, attributes):
     """A new resource's options: the values of the offering's resource options
     found in the ordered attributes, on every model unless it chose one, and
-    without the values of options those attributes hide."""
+    without the values of options those attributes hide. A k8s_egress_rules
+    option takes the egress rules of the cluster configuration it pairs with."""
     resource_options = (offering.resource_options or {}).get("options") or {}
     attributes = attributes or {}
     return strip_hidden_options(
         resource_options,
         model_lists.with_default_selection(
             offering,
-            {key: attributes[key] for key in resource_options if key in attributes},
+            {
+                **{
+                    key: attributes[key]
+                    for key in resource_options
+                    if key in attributes
+                    and not k8s_egress.is_egress_option(resource_options[key])
+                },
+                # Taken from the validated cluster configuration only, never
+                # from an attribute of the same name, which nothing checked.
+                **k8s_egress.ordered_egress_rules(resource_options, attributes),
+            },
         ),
     )
 

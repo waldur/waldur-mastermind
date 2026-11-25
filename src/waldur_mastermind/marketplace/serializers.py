@@ -104,6 +104,7 @@ from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import (
+    K8S_EGRESS_RULES_FIELD_TYPE,
     K8S_TOPOLOGY_MODES,
     MAX_PATTERN_LENGTH,
     MAX_TRANSFORM_AFFIX_LENGTH,
@@ -111,6 +112,7 @@ from waldur_mastermind.common.serializers import (
     TRANSFORM_CASES,
     TRANSFORM_FIELD_TYPES,
     VISIBLE_IF_FIELD_TYPES,
+    K8sEgressRuleSerializer,
     compile_option_pattern,
     get_hidden_options,
     option_pattern_matches,
@@ -198,6 +200,7 @@ from . import (
     daily_usage,
     derived_limits,
     display_limits,
+    k8s_egress,
     log,
     model_lists,
     models,
@@ -3770,6 +3773,7 @@ FIELD_TYPES = (
     "component_sum",
     "single_datacenter_k8s_config",
     "multi_datacenter_k8s_config",
+    K8S_EGRESS_RULES_FIELD_TYPE,
     "storage_folder_manager",
 )
 
@@ -4026,6 +4030,26 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
         allow_blank=True,
     )
 
+    # Egress policy
+    egress_rules_enabled = serializers.BooleanField(
+        required=False,
+        help_text="Whether customers may restrict the cluster's outbound traffic "
+        "to a list of destinations (egress_rules). Off when omitted.",
+    )
+    egress_domain_rules_allowed = serializers.BooleanField(
+        required=False,
+        help_text="Whether customers' egress rules may name domains; otherwise "
+        "only networks (CIDR). Off when omitted.",
+    )
+    egress_baseline_rules = serializers.ListField(
+        child=K8sEgressRuleSerializer(),
+        required=False,
+        help_text="Destinations every cluster of the offering may reach, such as "
+        "DNS, NTP and image registries. Shown to customers read-only; once a "
+        "cluster has any egress rule, outbound traffic is allowed to these and "
+        "to the customer's destinations only.",
+    )
+
     def validate_available_kubernetes_versions(self, value):
         """Validate Kubernetes version format"""
         if not value or not value.strip():
@@ -4250,6 +4274,13 @@ class OptionFieldSerializer(serializers.Serializer):
     )
     storage_folder_config = StorageFolderConfigSerializer(required=False)
     default_configs = K8sDefaultConfigurationSerializer(required=False)
+    k8s_config_option = serializers.CharField(
+        read_only=True,
+        help_text=_(
+            "For a k8s_egress_rules resource option: the Kubernetes cluster "
+            "order option it pairs with. Set by the server."
+        ),
+    )
     validators = serializers.ListField(
         child=OptionValidatorSerializer(), required=False
     )
@@ -4431,6 +4462,7 @@ class OfferingOptionsSerializer(serializers.Serializer):
                     )
             derived_limits.validate_derived_options(options)
             display_limits.validate_order_options(options)
+            k8s_egress.validate_order_options(options)
         else:
             display_limits.validate_resource_options(options)
         for name, option in options.items():
@@ -6404,8 +6436,11 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             }
             derived_limits.validate_derived_components(options, limit_types)
         if attrs.get("resource_options"):
-            attrs["resource_options"] = derived_limits.pair_resource_options(
-                attrs["resource_options"], options
+            attrs["resource_options"] = k8s_egress.pair_resource_options(
+                derived_limits.pair_resource_options(
+                    attrs["resource_options"], options
+                ),
+                options,
             )
             self._validate_display_limits(attrs)
 
@@ -6716,15 +6751,20 @@ class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
         # A resource option changing a formula input takes its formulas from
         # the order option, which therefore has to stay, and its bounds, which
         # follow the order option's.
-        self._resource_options = derived_limits.pair_resource_options(
-            self.instance.resource_options, options.get("options")
+        self._resource_options = k8s_egress.pair_resource_options(
+            derived_limits.pair_resource_options(
+                self.instance.resource_options, options.get("options")
+            ),
+            options.get("options"),
         )
         return options
 
     def update(self, instance, validated_data):
         if getattr(self, "_resource_options", None) is not None:
             instance.resource_options = self._resource_options
-        return super().update(instance, validated_data)
+        instance = super().update(instance, validated_data)
+        k8s_egress.backfill_resource_values(instance)
+        return instance
 
 
 class OfferingTypeUpdateSerializer(serializers.ModelSerializer):
@@ -6764,8 +6804,9 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
 
     def validate_resource_options(self, resource_options):
         order_options = (self.instance.options or {}).get("options")
-        resource_options = derived_limits.pair_resource_options(
-            resource_options, order_options
+        resource_options = k8s_egress.pair_resource_options(
+            derived_limits.pair_resource_options(resource_options, order_options),
+            order_options,
         )
         self._check_changed_values_are_kept(resource_options, order_options)
         usage_components = self.instance.components.filter(
@@ -6816,6 +6857,13 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
                     )
                     % {"name": name, "count": changed}
                 )
+
+    def update(self, instance, validated_data):
+        instance = super().update(instance, validated_data)
+        # Resources created before a k8s_egress_rules option was added get
+        # the rules they were ordered with.
+        k8s_egress.backfill_resource_values(instance)
+        return instance
 
 
 class OfferingComplianceChecklistUpdateSerializer(serializers.ModelSerializer):
@@ -8711,19 +8759,8 @@ class OrderCreateSerializer(
         resource.init_cost()
 
         # Set resource options from offering's resource_options
-        resource_options = validated_data["offering"].resource_options.get(
-            "options", {}
-        )
-        resource.options = strip_hidden_options(
-            resource_options,
-            model_lists.with_default_selection(
-                validated_data["offering"],
-                {
-                    key: attributes[key]
-                    for key in resource_options.keys()
-                    if key in attributes
-                },
-            ),
+        resource.options = utils.resource_options_from_attributes(
+            validated_data["offering"], attributes
         )
 
         resource.save()
