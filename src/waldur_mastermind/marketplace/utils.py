@@ -6182,43 +6182,70 @@ def can_update_offering_in_any_scope(
     )
 
 
-def refresh_integration_agent_status(request, agent_type):
+def is_site_agent_request(request) -> bool:
+    return "waldur-site-agent" in core_utils.get_user_agent(request)
+
+
+def refresh_integration_agent_status(request, agent_type, offering=None):
     """Record a site-agent request against one integration row.
 
     Listing resources is how several modes talk to Waldur. Only the report
     agent's User-Agent may refresh usage reporting. A membership-sync or
     event-agent list would otherwise make that row look freshly reported.
+
+    A list names its offering in ``offering_uuid``. A retrieve has no such
+    parameter and passes the offering of the object it returns instead, which
+    is how the event agent reaches Waldur: it fetches the order or resource
+    each event is about.
     """
-    user_agent = core_utils.get_user_agent(request)
-    if "waldur-site-agent" not in user_agent:
+    if not is_site_agent_request(request):
         return
     if (
         agent_type == models.IntegrationStatus.AgentTypes.USAGE_REPORTING
-        and USAGE_REPORTING_AGENT_MARK not in user_agent
+        and USAGE_REPORTING_AGENT_MARK not in core_utils.get_user_agent(request)
     ):
         return
 
-    offering_uuid = request.query_params.get("offering_uuid")
-    if offering_uuid is None:
-        logger.warning("Offering UUID is missing, skipping integration status update")
-        return
-
-    offering = models.Offering.objects.filter(uuid=offering_uuid).first()
-
     if offering is None:
-        logger.warning(
-            "Offering with UUID %s doesn't exist, skipping integration status update",
-            offering_uuid,
-        )
-        return
+        offering_uuid = request.query_params.get("offering_uuid")
+        if offering_uuid is None:
+            # A list scoped by project or by resource names no offering, so
+            # there is no integration row to attribute it to.
+            logger.debug(
+                "Site agent request names no offering, skipping %s integration "
+                "status update",
+                agent_type,
+            )
+            return
 
-    if not can_update_offering_in_any_scope(request, offering):
+        offering = models.Offering.objects.filter(uuid=offering_uuid).first()
+
+        if offering is None:
+            logger.warning(
+                "Offering with UUID %s doesn't exist, skipping integration status update",
+                offering_uuid,
+            )
+            return
+
+    # The site agent's own token carries OFFERING.MANAGE_AGENT rather than
+    # OFFERING.UPDATE, bound to the offering on the way to either scope.
+    if not (
+        can_update_offering_in_any_scope(request, offering)
+        or permission_utils.has_permission_on_any_source(
+            request,
+            PermissionEnum.MANAGE_OFFERING_AGENT,
+            offering,
+            ["*", "customer"],
+            binding_on_path=True,
+        )
+    ):
         logger.warning(
-            "User %s lacks UPDATE_OFFERING permission on offering %s (%s); "
+            "User %s lacks UPDATE_OFFERING and MANAGE_AGENT permission on "
+            "offering %s (%s); "
             "skipping %s integration status update",
             getattr(request.user, "username", request.user),
             offering.name,
-            offering_uuid,
+            offering.uuid.hex,
             agent_type,
         )
         return

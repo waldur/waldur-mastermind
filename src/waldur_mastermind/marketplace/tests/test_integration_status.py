@@ -177,6 +177,119 @@ class IntegrationStatusCreationTest(test.APITestCase):
         usage_status.refresh_from_db()
         self.assertEqual(usage_status.last_request_timestamp, reported_at)
 
+    def assert_refreshed(self, *agent_types):
+        for agent_type in agent_types:
+            integration_status = models.IntegrationStatus.objects.get(
+                offering=self.offering, agent_type=agent_type
+            )
+            self.assertEqual(
+                models.IntegrationStatus.States.ACTIVE, integration_status.status
+            )
+            self.assertIsNotNone(integration_status.last_request_timestamp)
+            self.assertEqual(
+                integration_status.service_name,
+                "waldur-site-agent-event_process/1.0.0",
+            )
+
+    def test_order_retrieve_refreshes_status_of_its_offering(self):
+        """The event agent fetches the order an event is about.
+
+        The URL names no offering, so the order's own offering is the one the
+        request counts for, and nothing is logged about a missing UUID.
+        """
+        self.client.force_login(self.fixture.offering_owner)
+
+        with self.assertNoLogs("waldur_mastermind.marketplace.utils", "WARNING"):
+            response = self.client.get(
+                factories.OrderFactory.get_url(self.order),
+                headers={"USER_AGENT": "waldur-site-agent-event_process/1.0.0"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assert_refreshed(
+            models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+            models.IntegrationStatus.AgentTypes.EVENT_PROCESSING,
+        )
+
+    def test_provider_resource_retrieve_refreshes_status_of_its_offering(self):
+        self.client.force_login(self.fixture.offering_owner)
+
+        with self.assertNoLogs("waldur_mastermind.marketplace.utils", "WARNING"):
+            response = self.client.get(
+                factories.ResourceFactory.get_provider_resource_url(
+                    self.fixture.resource
+                ),
+                headers={"USER_AGENT": "waldur-site-agent-event_process/1.0.0"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assert_refreshed(
+            models.IntegrationStatus.AgentTypes.RESOURCE_SYNC,
+            models.IntegrationStatus.AgentTypes.EVENT_PROCESSING,
+        )
+        self.assertFalse(
+            models.IntegrationStatus.objects.filter(
+                agent_type=models.IntegrationStatus.AgentTypes.USAGE_REPORTING
+            ).exists()
+        )
+
+    def test_agent_token_without_offering_update_refreshes_status(self):
+        """The site agent's own token carries OFFERING.MANAGE_AGENT only.
+
+        Reporting what the agent ran is what that permission is for, so it is
+        enough to keep the integration status current without OFFERING.UPDATE.
+        """
+        OfferingRole.MANAGER.delete_permission(PermissionEnum.UPDATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.MANAGE_OFFERING_AGENT)
+        self.client.force_login(self.fixture.offering_manager)
+
+        with self.assertNoLogs("waldur_mastermind.marketplace.utils", "WARNING"):
+            response = self.client.get(
+                factories.ResourceFactory.get_provider_resource_url(
+                    self.fixture.resource
+                ),
+                headers={"USER_AGENT": "waldur-site-agent-event_process/1.0.0"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assert_refreshed(
+            models.IntegrationStatus.AgentTypes.RESOURCE_SYNC,
+            models.IntegrationStatus.AgentTypes.EVENT_PROCESSING,
+        )
+
+    def test_retrieve_by_consumer_does_not_refresh_status(self):
+        self.client.force_login(self.fixture.owner)
+
+        response = self.client.get(
+            factories.ResourceFactory.get_url(self.fixture.resource),
+            headers={"USER_AGENT": "waldur-site-agent-event_process/1.0.0"},
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertFalse(models.IntegrationStatus.objects.exists())
+
+    def test_retrieve_without_site_agent_does_not_refresh_status(self):
+        self.client.force_login(self.fixture.offering_owner)
+
+        response = self.client.get(
+            factories.ResourceFactory.get_provider_resource_url(self.fixture.resource)
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertFalse(models.IntegrationStatus.objects.exists())
+
+    def test_list_without_offering_logs_no_warning(self):
+        self.client.force_login(self.fixture.offering_owner)
+
+        with self.assertNoLogs("waldur_mastermind.marketplace.utils", "WARNING"):
+            response = self.client.get(
+                factories.ResourceFactory.get_provider_resource_list_url(),
+                headers={"USER_AGENT": "waldur-site-agent-event_process/1.0.0"},
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertFalse(models.IntegrationStatus.objects.exists())
+
 
 @ddt
 class IntegrationStatusGetTest(test.APITestCase):

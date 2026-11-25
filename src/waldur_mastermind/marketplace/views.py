@@ -9232,13 +9232,18 @@ class OrderViewSet(
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.ORDER_PROCESSING
-        )
-        utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
-        )
-        return super().retrieve(request, *args, **kwargs)
+        # RetrieveModelMixin.retrieve, keeping the object for its offering
+        # rather than looking it up a second time.
+        order = self.get_object()
+        if utils.is_site_agent_request(request):
+            for agent_type in (
+                models.IntegrationStatus.AgentTypes.ORDER_PROCESSING,
+                models.IntegrationStatus.AgentTypes.EVENT_PROCESSING,
+            ):
+                utils.refresh_integration_agent_status(
+                    request, agent_type, offering=order.offering
+                )
+        return Response(self.get_serializer(order).data)
 
     @extend_schema(
         summary="Approve an order (consumer)",
@@ -10194,13 +10199,18 @@ class BaseResourceViewSet(
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.RESOURCE_SYNC
-        )
-        utils.refresh_integration_agent_status(
-            request, models.IntegrationStatus.AgentTypes.EVENT_PROCESSING
-        )
-        return super().retrieve(request, *args, **kwargs)
+        # RetrieveModelMixin.retrieve, keeping the object for its offering
+        # rather than looking it up a second time.
+        resource = self.get_object()
+        if utils.is_site_agent_request(request):
+            for agent_type in (
+                models.IntegrationStatus.AgentTypes.RESOURCE_SYNC,
+                models.IntegrationStatus.AgentTypes.EVENT_PROCESSING,
+            ):
+                utils.refresh_integration_agent_status(
+                    request, agent_type, offering=resource.offering
+                )
+        return Response(self.get_serializer(resource).data)
 
     @extend_schema(
         summary="Get resource details",

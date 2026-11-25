@@ -104,6 +104,8 @@ SECURE_CSP = {
 }
 
 MIDDLEWARE = (
+    # Outermost, so that it sees the final response of every view and middleware.
+    "waldur_core.server.middleware.head_response_body_removal",
     # First, so that the responses of the middleware below it carry a policy
     # too: static files and CORS preflights.
     "django.middleware.csp.ContentSecurityPolicyMiddleware",

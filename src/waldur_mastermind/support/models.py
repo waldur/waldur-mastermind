@@ -788,15 +788,9 @@ class IssueStatus(core_models.UuidMixin, models.Model):
             )
             return None
         except cls.DoesNotExist:
-            available_statuses = list(
-                cls.objects.values_list("name", flat=True).order_by("name")
-            )
-            logger.warning(
-                "IssueStatus not found for status name: '%s'. "
-                "Available status names: %s",
-                status,
-                available_statuses,
-            )
+            # The registry lists terminal statuses only, so a status missing
+            # from it is a ticket still being worked on, not a misconfiguration.
+            logger.debug("IssueStatus %s is not terminal", status)
             return None
 
     class Meta:
