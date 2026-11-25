@@ -226,7 +226,7 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.marketplace_site_agent import (
     agent_configuration as site_agent_configuration,
 )
-from waldur_mastermind.marketplace_site_agent import config_builder
+from waldur_mastermind.marketplace_site_agent import config_builder, consistency
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.promotions import models as promotions_models
 from waldur_mastermind.proposal import managers as proposal_managers
@@ -4247,6 +4247,46 @@ class ProviderOfferingViewSet(
                 ["*", "customer"],
                 binding_on_path=True,
             ),
+        )
+    ]
+
+    @extend_schema(
+        summary="Check a site agent offering against the consistency rules",
+        description=(
+            "Rules that span the site agent's plugins, applied per role from the "
+            "offering's agent configuration: SLURM components are TRES names, "
+            "DWDI compute reporting has a node component, a node component "
+            "SLURM limits and DWDI reports sets unit_factor_reporting, the "
+            "offering's backend ID equals SLURM's cluster_name, every backend's "
+            "required settings are set, and every active plan prices every "
+            "component. Errors first. Site agent offerings only."
+        ),
+        responses={
+            status.HTTP_200_OK: serializers.OfferingConfigurationFindingSerializer(
+                many=True
+            ),
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+                description="The offering is not a site agent offering."
+            ),
+        },
+        filters=False,
+    )
+    @action(detail=True, methods=["get"], pagination_class=None)
+    def check_configuration(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        if offering.type != SITE_AGENT_OFFERING:
+            raise ValidationError(
+                _("Only site agent offerings are checked against these rules.")
+            )
+        findings = consistency.check_offering(offering)
+        return Response(
+            serializers.OfferingConfigurationFindingSerializer(findings, many=True).data
+        )
+
+    check_configuration_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
         )
     ]
 
