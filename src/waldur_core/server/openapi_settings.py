@@ -5,6 +5,7 @@ from waldur_core.core.enums import (
     ReauthenticationAction,
     ReauthenticationMethod,
 )
+from waldur_core.core.features import SCOPES as FEATURE_SCOPES
 from waldur_core.logging.enums import ObservableObjectType, QueueKind
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
@@ -16,7 +17,7 @@ from waldur_core.server.constance_settings import (
     PROPOSAL_CONFIGURABLE_FIELD_CHOICES,
     USER_ATTRIBUTE_CHOICES,
 )
-from waldur_core.users.enums import InvitationState
+from waldur_core.users.enums import InvitationState, MicroAppModes
 from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
@@ -113,6 +114,10 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
     "SCHEMA_PATH_PREFIX": "/api/",
     "ENUM_NAME_OVERRIDES": {
+        # A feature flag's scope, in the flag metadata and a user's flags.
+        "FeatureScopeEnum": list(FEATURE_SCOPES),
+        # A micro-app setting's mode, on the setting and a user's apps.
+        "MicroAppModeEnum": MicroAppModes.choices,
         # The offering order-flow description: its steps, lanes and exits.
         "OrderFlowStepKeyEnum": list(OrderFlowChoices.STEPS),
         "OrderFlowActorEnum": list(OrderFlowChoices.ACTORS),

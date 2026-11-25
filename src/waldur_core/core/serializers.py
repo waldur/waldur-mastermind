@@ -511,6 +511,34 @@ class UserEmailPatternsValidatorMixin:
         return value
 
 
+class UserClaimsValidatorMixin:
+    """Provides validate_user_claims for serializers with a user_claims field.
+
+    The field maps a claim name to its accepted values; a bare '*' is refused,
+    since it would match every value the claim carries.
+    """
+
+    def validate_user_claims(self, value):
+        for claim, accepted in (value or {}).items():
+            if not claim or not claim.strip():
+                raise serializers.ValidationError("Claim name cannot be empty.")
+            if not accepted:
+                raise serializers.ValidationError(
+                    f"Claim '{claim}' must list at least one accepted value."
+                )
+            for entry in accepted:
+                if not entry or not entry.strip():
+                    raise serializers.ValidationError(
+                        f"Claim '{claim}' has an empty accepted value."
+                    )
+                if entry.strip() == "*":
+                    raise serializers.ValidationError(
+                        f"Claim '{claim}' cannot accept a bare '*' — that would "
+                        "match every value the claim carries."
+                    )
+        return value
+
+
 class ConditionalUniqueValidatedInSerializerMixin:
     """Leaves conditional UniqueConstraints (such as one active row per
     customer) to the serializer's own validate(), which names the conflicting

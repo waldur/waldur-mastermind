@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 
+from waldur_core.core import features
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.mixins import ReviewMixin
@@ -1547,13 +1548,9 @@ class ProjectInfo(models.Model):
 
                 # Only copy the shortname to the slug if we are NOT in
                 # application_portal_only mode (i.e., we're in Project Management mode)
-                try:
-                    application_portal_only = core_models.Feature.objects.get(
-                        key="deployment.application_portal_only"
-                    ).value
-                except core_models.Feature.DoesNotExist:
-                    # Default to False if feature flag doesn't exist
-                    application_portal_only = False
+                application_portal_only = features.is_enabled(
+                    "deployment.application_portal_only"
+                )
 
                 if not application_portal_only:
                     self.project.slug = shortname

@@ -5,6 +5,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.configuration import config
+from waldur_core.core import features
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core.models import User, UserDetailsMatchMixin
 from waldur_core.core.permissions import has_staff_access
@@ -20,10 +21,10 @@ from waldur_core.permissions.utils import (
     validate_role_change,
     validate_scope_available,
 )
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer, OrganizationGroup, Project
 from waldur_core.structure.permissions import _get_customer
-from waldur_core.users import models
-from waldur_core.users.enums import InvitationState
+from waldur_core.users import feature_rules, micro_apps_registry, models
+from waldur_core.users.enums import InvitationState, MicroAppModes
 from waldur_core.users.utils import (
     can_manage_invitation_with,
     get_invitation_duplicates,
@@ -921,3 +922,294 @@ class CancelRequestResponseSerializer(serializers.Serializer):
     uuid = serializers.CharField(help_text="UUID of the canceled permission request")
     scope_name = serializers.CharField(help_text="Name of the invitation scope")
     scope_uuid = serializers.CharField(help_text="UUID of the invitation scope")
+
+
+class _UserSummarySerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+
+
+class _NamedSummarySerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class FeatureRuleSerializer(
+    core_serializers.UserEmailPatternsValidatorMixin,
+    core_serializers.UserClaimsValidatorMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    users = serializers.SlugRelatedField(
+        many=True,
+        slug_field="uuid",
+        queryset=User.objects.all(),
+        required=False,
+        help_text="UUIDs of the users the rule lists.",
+    )
+    customers = serializers.SlugRelatedField(
+        many=True,
+        slug_field="uuid",
+        queryset=Customer.objects.all(),
+        required=False,
+        help_text="UUIDs of organizations; a member of any of them matches.",
+    )
+    organization_groups = serializers.SlugRelatedField(
+        many=True,
+        slug_field="uuid",
+        queryset=OrganizationGroup.objects.all(),
+        required=False,
+        help_text="UUIDs of organization groups; a member of an organization "
+        "in any of them matches.",
+    )
+    roles = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text="Role names; the user must hold one of them in any scope.",
+    )
+    user_affiliations = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    user_email_patterns = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    user_identity_sources = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    user_nationalities = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    user_organization_types = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    user_assurance_levels = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    user_claims = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        required=False,
+        default=dict,
+        help_text='Identity provider claims the user must carry, as {"claim": '
+        '["accepted", "values"]}. All claims must match; within one claim any '
+        "value matches. A value ending in '*' matches by prefix.",
+    )
+    is_orphaned = serializers.SerializerMethodField(
+        help_text="True when the rule targets a feature that is no longer "
+        "user-scoped, or a micro-app without a setting: it then has no effect."
+    )
+    users_summary = serializers.SerializerMethodField()
+    customers_summary = serializers.SerializerMethodField()
+    organization_groups_summary = serializers.SerializerMethodField()
+    created_by = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = models.FeatureRule
+        fields = (
+            "url",
+            "uuid",
+            "feature_key",
+            "description",
+            "is_active",
+            "users",
+            "customers",
+            "organization_groups",
+            "roles",
+            "user_affiliations",
+            "user_email_patterns",
+            "user_identity_sources",
+            "user_nationalities",
+            "user_organization_types",
+            "user_assurance_levels",
+            "user_claims",
+            "is_orphaned",
+            "users_summary",
+            "customers_summary",
+            "organization_groups_summary",
+            "created_by",
+            "created_by_username",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("uuid", "created", "modified")
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "feature-rule-detail"},
+        }
+
+    def get_is_orphaned(self, rule) -> bool:
+        return feature_rules.is_orphaned_key(rule.feature_key)
+
+    @extend_schema_field(_UserSummarySerializer(many=True))
+    def get_users_summary(self, rule):
+        return _UserSummarySerializer(rule.users.all(), many=True).data
+
+    @extend_schema_field(_NamedSummarySerializer(many=True))
+    def get_customers_summary(self, rule):
+        return _NamedSummarySerializer(rule.customers.all(), many=True).data
+
+    @extend_schema_field(_NamedSummarySerializer(many=True))
+    def get_organization_groups_summary(self, rule):
+        return _NamedSummarySerializer(rule.organization_groups.all(), many=True).data
+
+    def validate_feature_key(self, value):
+        if value.startswith(models.MICRO_APP_KEY_PREFIX):
+            name = value[len(models.MICRO_APP_KEY_PREFIX) :]
+            if not re.match(models.MICRO_APP_NAME_REGEX, name):
+                raise serializers.ValidationError(
+                    _("Not a valid micro-app name: %s.") % name
+                )
+            return value
+        if not features.is_user_scoped(value):
+            raise serializers.ValidationError(
+                _(
+                    "Only user-scoped feature flags and micro_apps.<name> can be "
+                    "targeted; %s is not one."
+                )
+                % value
+            )
+        return value
+
+    def validate_roles(self, value):
+        value = sorted(set(value or []))
+        known = set(Role.objects.filter(name__in=value).values_list("name", flat=True))
+        unknown = [name for name in value if name not in known]
+        if unknown:
+            raise serializers.ValidationError(
+                _("Unknown roles: %s.") % ", ".join(unknown)
+            )
+        return value
+
+    def create(self, validated_data):
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+class FeatureRuleTestMatchRequestSerializer(serializers.Serializer):
+    user_uuid = serializers.UUIDField(
+        help_text="UUID of the user to evaluate this rule against."
+    )
+
+
+class FeatureRuleCheckSerializer(serializers.Serializer):
+    """Outcome of one criterion of a rule for one user."""
+
+    name = serializers.CharField()
+    configured = serializers.BooleanField()
+    matched = serializers.BooleanField()
+    user_value = serializers.JSONField(allow_null=True, required=False)
+    rule_value = serializers.JSONField(allow_null=True, required=False)
+    reason = serializers.CharField(allow_blank=True)
+
+
+class FeatureRuleTestMatchResponseSerializer(serializers.Serializer):
+    matched = serializers.BooleanField(
+        help_text="Whether the rule matches the user, active or not."
+    )
+    is_active = serializers.BooleanField()
+    enabled_globally = serializers.BooleanField(
+        help_text="Whether the feature is already on for everyone, "
+        "so the rule changes nothing."
+    )
+    user_uuid = serializers.UUIDField()
+    user_username = serializers.CharField()
+    filters = FeatureRuleCheckSerializer(many=True)
+
+
+class FeatureRuleMatchedUserSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+    email = serializers.CharField(allow_blank=True)
+
+
+class FeatureRuleMatchedUsersResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField(
+        help_text="Active users the rule matches, among those checked."
+    )
+    checked = serializers.IntegerField(help_text="Active users checked.")
+    complete = serializers.BooleanField(
+        help_text="False when the check stopped at its limit, so count is a "
+        "lower bound."
+    )
+    users = FeatureRuleMatchedUserSerializer(
+        many=True, help_text="The first matched users."
+    )
+
+
+class MicroAppSettingSerializer(serializers.HyperlinkedModelSerializer):
+    feature_key = serializers.CharField(
+        read_only=True,
+        help_text="The feature_key of the rules that pick this app's audience.",
+    )
+    rules_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.MicroAppSetting
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "mode",
+            "feature_key",
+            "rules_count",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("uuid", "created", "modified")
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "micro-app-setting-detail"},
+        }
+
+    def get_rules_count(self, setting) -> int:
+        return models.FeatureRule.objects.filter(
+            feature_key=setting.feature_key
+        ).count()
+
+    def validate_name(self, value):
+        if self.instance:
+            if self.instance.name != value:
+                raise serializers.ValidationError(
+                    _("The name of a micro-app setting cannot be changed.")
+                )
+            return value
+        deployed = micro_apps_registry.deployed_micro_app_names()
+        # Unknown when the portal's registry cannot be read: then any name is
+        # taken, as the admin page still marks one it lacks as not deployed.
+        if deployed is not None and value not in deployed:
+            raise serializers.ValidationError(
+                _("This portal has no micro-app named %s.") % value
+            )
+        return value
+
+
+class UserFeatureStateSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    scope = serializers.ChoiceField(choices=features.SCOPES)
+    enabled = serializers.BooleanField()
+    source = serializers.ChoiceField(
+        choices=("global", "rule", "off"),
+        help_text="'global': on for everyone. 'rule': on for this user through "
+        "the listed rules. 'off': off for this user.",
+    )
+    rules = serializers.ListField(child=serializers.UUIDField())
+
+
+class UserMicroAppStateSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    mode = serializers.ChoiceField(choices=MicroAppModes.choices)
+    enabled = serializers.BooleanField()
+    rules = serializers.ListField(child=serializers.UUIDField())
+
+
+class UserFeaturesResponseSerializer(serializers.Serializer):
+    features = UserFeatureStateSerializer(many=True)
+    micro_apps = UserMicroAppStateSerializer(
+        many=True,
+        help_text="Apps with an operator setting; the rest follow "
+        "user.show_micro_apps.",
+    )

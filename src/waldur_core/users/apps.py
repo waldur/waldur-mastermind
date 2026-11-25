@@ -7,7 +7,12 @@ class UserConfig(AppConfig):
     verbose_name = "Users"
 
     def ready(self):
+        from waldur_core.core import features
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.users import feature_rules
+
+        features.set_targeted_keys_resolver(feature_rules.targeted_keys)
+
         from waldur_core.structure.models import Project
         from waldur_core.users import handlers
         from waldur_core.users.models import PermissionRequest

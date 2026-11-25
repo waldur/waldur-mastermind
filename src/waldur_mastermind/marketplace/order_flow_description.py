@@ -23,7 +23,7 @@ from django.db.models import Count
 from django.utils import timezone
 
 from waldur_core.configuration import config
-from waldur_core.core.models import Feature
+from waldur_core.core import features
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import Role, RolePermission
 from waldur_mastermind.marketplace import models, order_rules, plugins
@@ -128,7 +128,7 @@ CALL_MANAGEMENT_FEATURE = "marketplace.show_call_management_functionality"
 
 
 def proposals_enabled() -> bool:
-    return Feature.objects.filter(key=CALL_MANAGEMENT_FEATURE, value=True).exists()
+    return features.is_enabled(CALL_MANAGEMENT_FEATURE)
 
 
 def orderer_kinds() -> list[str]:

@@ -533,6 +533,10 @@ class EventType(StrEnum):
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
     PAT_CREATED = "pat_created"
+    FEATURE_RULE_CREATED = "feature_rule_created"
+    FEATURE_RULE_UPDATED = "feature_rule_updated"
+    FEATURE_RULE_DELETED = "feature_rule_deleted"
+    MICRO_APP_SETTING_UPDATED = "micro_app_setting_updated"
     PAT_REVOKED = "pat_revoked"
     PAT_ROTATED = "pat_rotated"
     PAT_EXPIRED = "pat_expired"
@@ -616,6 +620,10 @@ EVENT_GROUP_MAPPING = {
         EventType.ADMIN_OBJECT_CREATED,
         EventType.ADMIN_OBJECT_UPDATED,
         EventType.ADMIN_OBJECT_DELETED,
+        EventType.FEATURE_RULE_CREATED,
+        EventType.FEATURE_RULE_UPDATED,
+        EventType.FEATURE_RULE_DELETED,
+        EventType.MICRO_APP_SETTING_UPDATED,
     ],
     EventGroup.AUTH: [
         EventType.AUTH_LOGGED_IN_WITH_USERNAME,

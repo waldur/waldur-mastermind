@@ -57,6 +57,7 @@ from waldur_core.configuration.secrets import redact_constance_secrets
 from waldur_core.core import (
     WaldurExtension,
     access,
+    features,
     models,
     password_attempts,
     pdf,
@@ -76,7 +77,7 @@ from waldur_core.core.exceptions import (
     IncorrectStateException,
     ThrottledWithRetryAfter,
 )
-from waldur_core.core.features import FEATURE_DEFAULTS, FEATURES
+from waldur_core.core.features import FEATURES
 from waldur_core.core.fields import COUNTRIES
 from waldur_core.core.handlers import emit_user_blocked_event
 from waldur_core.core.logos import DEFAULT_LOGOS, LOGO_MAP, build_logo_url
@@ -871,19 +872,7 @@ class ReadOnlyActionsViewSet(ActionsViewSet):
 
 
 def get_feature_values():
-    feature_values = {
-        feature.key: feature.value for feature in models.Feature.objects.all()
-    }
-    return {
-        section["key"]: {
-            feature["key"]: feature_values.get(
-                f"{section['key']}.{feature['key']}",
-                FEATURE_DEFAULTS.get(f"{section['key']}.{feature['key']}", False),
-            )
-            for feature in section["items"]
-        }
-        for section in FEATURES
-    }
+    return features.global_values()
 
 
 def get_constance_plugin_settings(all_constance_values, plugin, fields):

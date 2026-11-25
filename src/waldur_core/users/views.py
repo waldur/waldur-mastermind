@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import NamedTuple, cast
 from uuid import UUID
 
@@ -14,7 +15,7 @@ from rest_framework.exceptions import NotFound, PermissionDenied, ValidationErro
 from rest_framework.response import Response
 
 from waldur_core.configuration import config
-from waldur_core.core import access
+from waldur_core.core import access, features
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import validators as core_validators
@@ -34,7 +35,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer, Project
-from waldur_core.users import filters, models, serializers, tasks
+from waldur_core.users import feature_rules, filters, models, serializers, tasks
 from waldur_core.users import permissions as users_permissions
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.utils import (
@@ -1017,3 +1018,162 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
     approve_validators = reject_validators = [
         core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
     ]
+
+
+def _rule_event_context(rule, actor):
+    # The description is staff-written free text: it goes in as a context value,
+    # not into the template, since emit() fills placeholders from the context.
+    return {
+        "feature_key": rule.feature_key,
+        "rule_uuid": rule.uuid.hex,
+        "rule_description": rule.description,
+        "user": actor,
+    }
+
+
+@extend_schema(
+    description="Rules that turn a user-scoped feature flag, or a micro-app, "
+    "on for the users they match. Staff manage them; support may read them."
+)
+class FeatureRuleViewSet(ActionsViewSet):
+    queryset = (
+        models.FeatureRule.objects.all()
+        .prefetch_related("users", "customers", "organization_groups")
+        .select_related("created_by")
+    )
+    serializer_class = serializers.FeatureRuleSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.FeatureRuleFilter
+    lookup_field = "uuid"
+    safe_methods_permissions = [structure_permissions.is_staff_or_support]
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+    def perform_create(self, serializer):
+        rule = serializer.save()
+        event_logger.emit(
+            "Feature rule for {feature_key} has been created by {user_username}.",
+            event_type=EventType.FEATURE_RULE_CREATED,
+            event_context=_rule_event_context(rule, self.request.user),
+        )
+
+    def perform_update(self, serializer):
+        rule = serializer.save()
+        event_logger.emit(
+            "Feature rule for {feature_key} has been updated by {user_username}.",
+            event_type=EventType.FEATURE_RULE_UPDATED,
+            event_context=_rule_event_context(rule, self.request.user),
+        )
+
+    def perform_destroy(self, instance):
+        context = _rule_event_context(instance, self.request.user)
+        instance.delete()
+        event_logger.emit(
+            "Feature rule for {feature_key} has been deleted by {user_username}.",
+            event_type=EventType.FEATURE_RULE_DELETED,
+            event_context=context,
+        )
+
+    @extend_schema(
+        summary="Evaluate a feature rule against a user",
+        request=serializers.FeatureRuleTestMatchRequestSerializer,
+        responses={200: serializers.FeatureRuleTestMatchResponseSerializer},
+        description="Checks each criterion of this rule against the given user "
+        "and reports whether the rule matches. Nothing is changed.",
+    )
+    @action(detail=True, methods=["post"], url_path="test-match")
+    def test_match(self, request, uuid=None):
+        rule = self.get_object()
+        request_serializer = serializers.FeatureRuleTestMatchRequestSerializer(
+            data=request.data
+        )
+        request_serializer.is_valid(raise_exception=True)
+        try:
+            user = User.objects.get(uuid=request_serializer.validated_data["user_uuid"])
+        except User.DoesNotExist:
+            raise NotFound(_("User not found."))
+        result = feature_rules.evaluate(rule, feature_rules.load_user_context(user))
+        payload = {
+            "matched": result.matched,
+            "is_active": rule.is_active,
+            "enabled_globally": not rule.feature_key.startswith(
+                models.MICRO_APP_KEY_PREFIX
+            )
+            and features.is_enabled(rule.feature_key),
+            "user_uuid": user.uuid,
+            "user_username": user.username,
+            "filters": [asdict(check) for check in result.filter_results],
+        }
+        return Response(
+            serializers.FeatureRuleTestMatchResponseSerializer(payload).data
+        )
+
+    test_match_permissions = [structure_permissions.is_staff_or_support]
+    test_match_serializer_class = serializers.FeatureRuleTestMatchRequestSerializer
+
+    @extend_schema(
+        summary="Users a feature rule matches",
+        responses={200: serializers.FeatureRuleMatchedUsersResponseSerializer},
+        description="Counts the active users this rule matches and lists the "
+        "first of them. Identity attributes are checked for a bounded number of "
+        "candidates; 'complete' is false when the count is a lower bound.",
+    )
+    @action(detail=True, methods=["get"], url_path="matched-users")
+    def matched_users(self, request, uuid=None):
+        rule = self.get_object()
+        result = feature_rules.matched_users(rule)
+        return Response(
+            serializers.FeatureRuleMatchedUsersResponseSerializer(
+                {
+                    "count": result.count,
+                    "checked": result.checked,
+                    "complete": result.complete,
+                    "users": result.users,
+                }
+            ).data
+        )
+
+
+@extend_schema(
+    description="Who each deployed micro-app is offered to. An app without a "
+    "setting follows the user.show_micro_apps feature. Staff manage them; "
+    "support may read them."
+)
+class MicroAppSettingViewSet(ActionsViewSet):
+    queryset = models.MicroAppSetting.objects.all()
+    serializer_class = serializers.MicroAppSettingSerializer
+    lookup_field = "uuid"
+    safe_methods_permissions = [structure_permissions.is_staff_or_support]
+    unsafe_methods_permissions = [structure_permissions.is_staff]
+
+    def _emit(self, setting):
+        event_logger.emit(
+            "Micro-app {app_name} has been set to {app_mode} by {user_username}.",
+            event_type=EventType.MICRO_APP_SETTING_UPDATED,
+            event_context={
+                "app_name": setting.name,
+                "app_mode": setting.mode,
+                "user": self.request.user,
+            },
+        )
+
+    def perform_create(self, serializer):
+        self._emit(serializer.save())
+
+    def perform_update(self, serializer):
+        self._emit(serializer.save())
+
+    def perform_destroy(self, instance):
+        # Its audience goes with it: rules for an app without a setting would
+        # come back to life the next time a setting of that name is created.
+        with transaction.atomic():
+            models.FeatureRule.objects.filter(feature_key=instance.feature_key).delete()
+            instance.delete()
+        event_logger.emit(
+            "Micro-app {app_name} setting has been removed by {user_username}.",
+            event_type=EventType.MICRO_APP_SETTING_UPDATED,
+            event_context={
+                "app_name": instance.name,
+                "app_mode": "",
+                "user": self.request.user,
+            },
+        )

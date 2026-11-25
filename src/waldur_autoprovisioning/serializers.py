@@ -18,6 +18,7 @@ PROJECT_NAME_PLACEHOLDERS = {"username", "email", "full_name"}
 
 class RuleSerializer(
     core_serializers.UserEmailPatternsValidatorMixin,
+    core_serializers.UserClaimsValidatorMixin,
     serializers.HyperlinkedModelSerializer,
 ):
     project_role = serializers.HyperlinkedRelatedField(
@@ -252,26 +253,6 @@ class RuleSerializer(
             raise error
         if any(name not in PROJECT_NAME_PLACEHOLDERS for name in fields):
             raise error
-        return value
-
-    def validate_user_claims(self, value):
-        for claim, accepted in (value or {}).items():
-            if not claim or not claim.strip():
-                raise serializers.ValidationError("Claim name cannot be empty.")
-            if not accepted:
-                raise serializers.ValidationError(
-                    f"Claim '{claim}' must list at least one accepted value."
-                )
-            for entry in accepted:
-                if not entry or not entry.strip():
-                    raise serializers.ValidationError(
-                        f"Claim '{claim}' has an empty accepted value."
-                    )
-                if entry.strip() == "*":
-                    raise serializers.ValidationError(
-                        f"Claim '{claim}' cannot accept a bare '*' — that would "
-                        "match every value the claim carries."
-                    )
         return value
 
     def validate(self, attrs):
