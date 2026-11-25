@@ -8,8 +8,8 @@ from pypdf import PdfReader
 from rest_framework import status
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.chart_spec import ChartSpecSerializer
 from waldur_firecrest import monitoring, pdf
-from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
 
 from .test_workspace_api import API_URL, SYSTEM, HpcWorkspaceTestBase, firecrest_job
 

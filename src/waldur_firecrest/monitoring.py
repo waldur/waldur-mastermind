@@ -26,7 +26,7 @@ from urllib.parse import quote, urlparse
 import requests
 
 from waldur_core.configuration import config
-from waldur_mastermind.chat.chart_spec import MAX_SERIES, chart, series
+from waldur_core.core.chart_spec import MAX_SERIES, chart, series
 
 from . import allowlist, insights
 

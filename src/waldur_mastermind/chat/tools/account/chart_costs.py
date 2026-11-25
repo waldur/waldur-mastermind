@@ -15,6 +15,7 @@ from django.utils import timezone
 from django.utils.dateformat import format as format_date
 
 from waldur_core.configuration import config
+from waldur_core.core.chart_spec import chart, series
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure.managers import (
@@ -22,7 +23,6 @@ from waldur_core.structure.managers import (
     get_connected_projects,
 )
 from waldur_core.structure.models import Project
-from waldur_mastermind.chat.chart_spec import chart, series
 from waldur_mastermind.chat.tools.account.helpers import (
     invalid_uuid_message,
     unknown_arguments,

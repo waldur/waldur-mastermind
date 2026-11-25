@@ -9,7 +9,7 @@ import re
 
 from rest_framework import serializers
 
-from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
+from waldur_core.core.chart_spec import ChartSpecSerializer
 
 BLOCK_KINDS = (
     "markdown",
