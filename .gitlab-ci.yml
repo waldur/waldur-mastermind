@@ -170,6 +170,54 @@ Check site agent plugin catalogue:
     - (cd /tmp/waldur-site-agent && uv sync --all-packages --locked)
     - scripts/update_site_agent_plugin_catalogue.sh --check --from /tmp/waldur-site-agent
 
+# contracts/asyncapi.yaml is generated from marketplace_site_agent/contracts.py;
+# test_contracts.py checks it is current, this checks it is valid AsyncAPI.
+Validate AsyncAPI contracts:
+  image: registry.hpc.ut.ee/mirror/library/node:22
+  stage: test
+  interruptible: true
+  variables:
+    ASYNCAPI_CLI: "@asyncapi/cli@6.2.3"
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - contracts/**/*
+        - src/waldur_mastermind/marketplace_site_agent/contracts.py
+  script:
+    - npx -y "$ASYNCAPI_CLI" config analytics --disable
+    - npx -y "$ASYNCAPI_CLI" validate --fail-severity=warn contracts/asyncapi.yaml
+
+# Compares this MR's contracts/asyncapi.yaml with the one at its merge base. A
+# breaking change fails unless the major part of CONTRACTS_VERSION was bumped.
+# The merge base, not the target branch's tip: a contract change merged to the
+# target after this branch split off would otherwise look like this MR undoing
+# it. asyncapi diff classifies payload schema changes as "unclassified", so the
+# comparison is contracts.py's, run as a plain script (it needs only PyYAML).
+Check STOMP contract compatibility:
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
+  stage: test
+  interruptible: true
+  rules:
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes:
+        - contracts/**/*
+        - src/waldur_mastermind/marketplace_site_agent/contracts.py
+  script:
+    - pip install --quiet PyYAML==6.0.2
+    - git fetch --depth=1 origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+    - |
+      if ! git show FETCH_HEAD:contracts/asyncapi.yaml > /tmp/base-asyncapi.yaml 2>/dev/null; then
+        echo "The merge base ($CI_MERGE_REQUEST_DIFF_BASE_SHA) has no contracts/asyncapi.yaml yet; nothing to compare with."
+        exit 0
+      fi
+    - python src/waldur_mastermind/marketplace_site_agent/contracts.py --check --base /tmp/base-asyncapi.yaml
+
 Check Action decorators:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
@@ -264,12 +312,18 @@ Generate OpenAPI schema:
     # does and fail on any drop; the nightly only takes a schema whose job passed.
     - scripts/check_python_sdk_generation.sh "$CI_PROJECT_DIR/waldur-openapi-schema.yaml"
     - SKIP_MAKE_FIELDS_OPTIONAL=true uv run waldur spectacular --api-version "$VERSION" --file "$CI_PROJECT_DIR/waldur-typescript-schema.yaml" --fail-on-warn
+    # The STOMP half of the contract travels with the REST half: waldur/py-client
+    # extracts this artifact and ships the message types in waldur-api-client, so
+    # one pin gives a consumer both, from the same commit. Generated from
+    # contracts.py rather than copied, so it cannot lag the code it describes.
+    - uv run python src/waldur_mastermind/marketplace_site_agent/contracts.py > "$CI_PROJECT_DIR/waldur-asyncapi.yaml"
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
   artifacts:
     paths:
       - waldur-openapi-schema.yaml
       - waldur-typescript-schema.yaml
+      - waldur-asyncapi.yaml
     expire_in: 1 week
 
 Check database migrations:

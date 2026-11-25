@@ -1,0 +1,1055 @@
+asyncapi: 3.0.0
+info:
+  title: Waldur site agent events
+  version: 1.0.0
+  description: 'Messages mastermind publishes to site agents. Generated from waldur_mastermind/marketplace_site_agent/contracts.py;
+    do not edit by hand. Run `uv run python -m waldur_mastermind.marketplace_site_agent.contracts
+    --update` after changing a contract.
+
+
+    Only the unified consumer queue is described; webhook consumers receive the same messages.
+    The deprecated per-subscription topics are not modeled: they carry the message''s own
+    fields plus offering_uuid, without the rest of the envelope (object_type, schema_version,
+    emitted_at) and without the context fields the payload enrichers add.'
+  x-minimum-site-agent-version: 1.0.2
+  x-not-site-agent-object-types:
+    resource_end_date_change_request: Read by an external approval system, which answers through
+      the request's approve/reject actions.
+    user_profile: User-centric event for global IdM/IGA consumers.
+    user_ssh_key: User-centric event for global IdM/IGA consumers.
+    user_lifecycle: User-centric event for global IdM/IGA consumers.
+    service_provider_account: Provider-scoped account event for consumers other than the agent;
+      the agent follows offering_user, which is still emitted alongside it.
+    call: Proposal-domain event for consumers bound to a call.
+    proposal: Proposal-domain event for consumers bound to a call or proposal.
+defaultContentType: application/json
+servers:
+  rabbitmq:
+    host: '{host}'
+    protocol: stomp
+    description: RabbitMQ Web-STOMP endpoint of the Waldur deployment. Each consumer owner
+      has a vhost named by their user UUID; agents subscribe to /amq/queue/<queue> with client-individual
+      acknowledgment.
+    variables:
+      host:
+        description: Host and port of the RabbitMQ Web-STOMP endpoint
+channels:
+  consumerQueue:
+    address: consumer_{consumerUuid}
+    title: Consumer queue
+    description: The queue of one registered event consumer. It receives every event its scope
+      bindings and object types admit.
+    parameters:
+      consumerUuid:
+        description: UUID of the event consumer
+    messages:
+      OrderMessage:
+        $ref: '#/components/messages/OrderMessage'
+      PendingOrderMessage:
+        $ref: '#/components/messages/PendingOrderMessage'
+      OrderInfoMessage:
+        $ref: '#/components/messages/OrderInfoMessage'
+      ResourceUpdateMessage:
+        $ref: '#/components/messages/ResourceUpdateMessage'
+      ResourceStateMessage:
+        $ref: '#/components/messages/ResourceStateMessage'
+      OfferingUserMessage:
+        $ref: '#/components/messages/OfferingUserMessage'
+      OfferingUserCreatedMessage:
+        $ref: '#/components/messages/OfferingUserCreatedMessage'
+      OfferingUserUpdatedMessage:
+        $ref: '#/components/messages/OfferingUserUpdatedMessage'
+      OfferingUserDeletedMessage:
+        $ref: '#/components/messages/OfferingUserDeletedMessage'
+      OfferingUserAttributeUpdateMessage:
+        $ref: '#/components/messages/OfferingUserAttributeUpdateMessage'
+      OfferingUserAccountStatusUpdateMessage:
+        $ref: '#/components/messages/OfferingUserAccountStatusUpdateMessage'
+      UserRoleMessage:
+        $ref: '#/components/messages/UserRoleMessage'
+      UserRoleSyncMessage:
+        $ref: '#/components/messages/UserRoleSyncMessage'
+      AccountMessage:
+        $ref: '#/components/messages/AccountMessage'
+      PeriodicLimitsMessage:
+        $ref: '#/components/messages/PeriodicLimitsMessage'
+      BackendResourceRequestMessage:
+        $ref: '#/components/messages/BackendResourceRequestMessage'
+      OfferingResourcesSyncMessage:
+        $ref: '#/components/messages/OfferingResourcesSyncMessage'
+      ApiKeyCommandMessage:
+        $ref: '#/components/messages/ApiKeyCommandMessage'
+      ProjectGroupMessage:
+        $ref: '#/components/messages/ProjectGroupMessage'
+operations:
+  sendSiteAgentEvents:
+    action: send
+    title: Publish site agent events
+    channel:
+      $ref: '#/channels/consumerQueue'
+    messages:
+    - $ref: '#/channels/consumerQueue/messages/OrderMessage'
+    - $ref: '#/channels/consumerQueue/messages/PendingOrderMessage'
+    - $ref: '#/channels/consumerQueue/messages/OrderInfoMessage'
+    - $ref: '#/channels/consumerQueue/messages/ResourceUpdateMessage'
+    - $ref: '#/channels/consumerQueue/messages/ResourceStateMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingUserMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingUserCreatedMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingUserUpdatedMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingUserDeletedMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingUserAttributeUpdateMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingUserAccountStatusUpdateMessage'
+    - $ref: '#/channels/consumerQueue/messages/UserRoleMessage'
+    - $ref: '#/channels/consumerQueue/messages/UserRoleSyncMessage'
+    - $ref: '#/channels/consumerQueue/messages/AccountMessage'
+    - $ref: '#/channels/consumerQueue/messages/PeriodicLimitsMessage'
+    - $ref: '#/channels/consumerQueue/messages/BackendResourceRequestMessage'
+    - $ref: '#/channels/consumerQueue/messages/OfferingResourcesSyncMessage'
+    - $ref: '#/channels/consumerQueue/messages/ApiKeyCommandMessage'
+    - $ref: '#/channels/consumerQueue/messages/ProjectGroupMessage'
+components:
+  schemas:
+    Envelope:
+      type: object
+      required:
+      - object_type
+      - schema_version
+      - emitted_at
+      properties:
+        object_type:
+          type: string
+          description: ObservableObjectType of the event
+        schema_version:
+          type: integer
+          description: Version of the envelope format
+        emitted_at:
+          type: string
+          description: ISO 8601 time the event was emitted, for discarding stale updates
+        event_type:
+          type: string
+          description: Event type, when the event comes from the event log
+        offering_uuid:
+          type: string
+          description: UUID of the offering; added to every offering-scoped event
+      description: Fields the dispatcher adds to every message
+  messages:
+    OrderMessage:
+      name: OrderMessage
+      title: OrderMessage
+      summary: Sent on every state transition of an order.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - order_uuid
+          - order_state
+          properties:
+            order_uuid:
+              type: string
+              description: UUID of the order
+            order_state:
+              type: string
+              description: Display name of the order state
+            order_type:
+              type: string
+              description: Order type
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            resource_backend_id:
+              type: string
+              description: Backend identifier of the resource
+            resource_name:
+              type: string
+              description: Name of the resource
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            attributes:
+              type: object
+              description: Order attributes with secrets removed
+            limits:
+              type: object
+              description: Resource limits
+            plan_uuid:
+              type: string
+              description: UUID of the resource's plan, when it has one
+            object_type:
+              type: string
+              enum:
+              - order
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - order
+      x-waldur-producers:
+      - marketplace/handlers.py:send_order_state_change_to_message_queue
+    PendingOrderMessage:
+      name: PendingOrderMessage
+      title: PendingOrderMessage
+      summary: Periodic resend of pending orders (hourly task).
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - order_uuid
+          - order_state
+          - sequence_number
+          properties:
+            order_uuid:
+              type: string
+              description: UUID of the order
+            order_state:
+              type: string
+              description: Display name of the order state
+            sequence_number:
+              type: integer
+              description: Incremental message sequence number
+            order_type:
+              type: string
+              description: Order type
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            resource_backend_id:
+              type: string
+              description: Backend identifier of the resource
+            resource_name:
+              type: string
+              description: Name of the resource
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            attributes:
+              type: object
+              description: Order attributes with secrets removed
+            limits:
+              type: object
+              description: Resource limits
+            plan_uuid:
+              type: string
+              description: UUID of the resource's plan, when it has one
+            object_type:
+              type: string
+              enum:
+              - order
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - order
+      x-waldur-producers:
+      - marketplace_site_agent/tasks.py:send_messages_about_pending_orders
+    OrderInfoMessage:
+      name: OrderInfoMessage
+      title: OrderInfoMessage
+      summary: Sent when the provider or the consumer sets order information for the other
+        side.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - order_uuid
+          - action
+          properties:
+            order_uuid:
+              type: string
+              description: UUID of the order
+            action:
+              type: string
+              description: 'Action: ''provider_info_set'' or ''consumer_info_set'''
+              enum:
+              - provider_info_set
+              - consumer_info_set
+            order_type:
+              type: string
+              description: Order type
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            resource_backend_id:
+              type: string
+              description: Backend identifier of the resource
+            resource_name:
+              type: string
+              description: Name of the resource
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            attributes:
+              type: object
+              description: Order attributes with secrets removed
+            limits:
+              type: object
+              description: Resource limits
+            plan_uuid:
+              type: string
+              description: UUID of the resource's plan, when it has one
+            object_type:
+              type: string
+              enum:
+              - order
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - order
+      x-waldur-producers:
+      - marketplace/tasks.py:notify_consumer_about_provider_info
+      - marketplace/tasks.py:notify_provider_about_consumer_info
+    ResourceUpdateMessage:
+      name: ResourceUpdateMessage
+      title: ResourceUpdateMessage
+      summary: Sent when resource downscale, access restriction, or pause state changes.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - resource_uuid
+          - resource_backend_id
+          - downscaled
+          - restrict_member_access
+          - paused
+          - sequence_number
+          properties:
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            resource_backend_id:
+              type: string
+              description: Backend identifier of the resource
+            downscaled:
+              type: boolean
+              description: Whether the resource is downscaled
+            restrict_member_access:
+              type: boolean
+              description: Whether member access is restricted
+            paused:
+              type: boolean
+              description: Whether the resource is paused
+            sequence_number:
+              type: integer
+              description: Incremental message sequence number
+            resource_name:
+              type: string
+              description: Name of the resource
+            resource_state:
+              type: string
+              description: Display name of the resource state
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            limits:
+              type: object
+              description: Resource limits
+            object_type:
+              type: string
+              enum:
+              - resource
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - resource
+      x-waldur-producers:
+      - marketplace_site_agent/utils.py:push_resource_update_message
+    ResourceStateMessage:
+      name: ResourceStateMessage
+      title: ResourceStateMessage
+      summary: Sent when a resource is created and on every state transition.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - resource_uuid
+          - resource_backend_id
+          properties:
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            resource_backend_id:
+              type: string
+              description: Backend identifier of the resource
+            resource_name:
+              type: string
+              description: Name of the resource
+            resource_state:
+              type: string
+              description: Display name of the resource state
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            limits:
+              type: object
+              description: Resource limits
+            object_type:
+              type: string
+              enum:
+              - resource
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - resource
+      x-waldur-producers:
+      - marketplace/handlers.py:send_resource_state_change_to_message_queue
+    OfferingUserMessage:
+      name: OfferingUserMessage
+      title: OfferingUserMessage
+      summary: Sent when an offering user's username is set or changed.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - offering_user_uuid
+          - user_uuid
+          - username
+          - state
+          - action
+          - resource_backend_ids
+          properties:
+            offering_user_uuid:
+              type: string
+              description: UUID of the offering user
+            user_uuid:
+              type: string
+              description: UUID of the Waldur user
+            username:
+              type: string
+              description: Username of the offering user
+            state:
+              type: integer
+              description: State of the offering user, as its raw value
+            action:
+              type: string
+              description: 'Action type: username_set'
+              enum:
+              - username_set
+            resource_backend_ids:
+              type: array
+              description: Backend IDs of associated resources
+              items:
+                type: string
+            object_type:
+              type: string
+              enum:
+              - offering_user
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_user
+      x-waldur-producers:
+      - marketplace_site_agent/handlers.py:send_offering_user_username_message
+    OfferingUserCreatedMessage:
+      name: OfferingUserCreatedMessage
+      title: OfferingUserCreatedMessage
+      summary: Sent when an offering user is created.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - offering_user_uuid
+          - user_uuid
+          - username
+          - state
+          - runtime_state
+          - action
+          - attributes
+          properties:
+            offering_user_uuid:
+              type: string
+              description: UUID of the offering user
+            user_uuid:
+              type: string
+              description: UUID of the Waldur user
+            username:
+              type: string
+              description: Username of the offering user
+            state:
+              type: string
+              description: Display name of the offering user state
+            runtime_state:
+              type: string
+              description: Runtime state reported by the backend
+            action:
+              type: string
+              description: 'Action type: create'
+              enum:
+              - create
+            attributes:
+              type: object
+              description: User profile attributes exposed to the offering
+            object_type:
+              type: string
+              enum:
+              - offering_user
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_user
+      x-waldur-producers:
+      - marketplace/handlers.py:send_offering_user_created_message
+    OfferingUserUpdatedMessage:
+      name: OfferingUserUpdatedMessage
+      title: OfferingUserUpdatedMessage
+      summary: Sent when tracked fields of an offering user change.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - offering_user_uuid
+          - user_uuid
+          - username
+          - state
+          - runtime_state
+          - changed_fields
+          - action
+          properties:
+            offering_user_uuid:
+              type: string
+              description: UUID of the offering user
+            user_uuid:
+              type: string
+              description: UUID of the Waldur user
+            username:
+              type: string
+              description: Username of the offering user
+            state:
+              type: string
+              description: Display name of the offering user state
+            runtime_state:
+              type: string
+              description: Runtime state reported by the backend
+            changed_fields:
+              type: array
+              description: Fields that changed
+              items:
+                type: string
+            action:
+              type: string
+              description: 'Action type: update'
+              enum:
+              - update
+            object_type:
+              type: string
+              enum:
+              - offering_user
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_user
+      x-waldur-producers:
+      - marketplace/handlers.py:send_offering_user_updated_message
+    OfferingUserDeletedMessage:
+      name: OfferingUserDeletedMessage
+      title: OfferingUserDeletedMessage
+      summary: Sent when an offering user is deleted.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - offering_user_uuid
+          - user_uuid
+          - username
+          - action
+          properties:
+            offering_user_uuid:
+              type: string
+              description: UUID of the offering user
+            user_uuid:
+              type: string
+              description: UUID of the Waldur user
+            username:
+              type: string
+              description: Username of the offering user
+            action:
+              type: string
+              description: 'Action type: delete'
+              enum:
+              - delete
+            object_type:
+              type: string
+              enum:
+              - offering_user
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_user
+      x-waldur-producers:
+      - marketplace/handlers.py:send_offering_user_deleted_message
+    OfferingUserAttributeUpdateMessage:
+      name: OfferingUserAttributeUpdateMessage
+      title: OfferingUserAttributeUpdateMessage
+      summary: Sent for each offering of a user when profile attributes exposed to that offering
+        change.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - offering_user_uuid
+          - user_uuid
+          - username
+          - action
+          - changed_attributes
+          - attributes
+          properties:
+            offering_user_uuid:
+              type: string
+              description: UUID of the offering user
+            user_uuid:
+              type: string
+              description: UUID of the Waldur user
+            username:
+              type: string
+              description: Username of the offering user
+            action:
+              type: string
+              description: 'Action type: attribute_update'
+              enum:
+              - attribute_update
+            changed_attributes:
+              type: array
+              description: Exposed profile fields that changed
+              items:
+                type: string
+            attributes:
+              type: object
+              description: User profile attributes exposed to the offering
+            object_type:
+              type: string
+              enum:
+              - offering_user
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_user
+      x-waldur-producers:
+      - marketplace/handlers.py:send_user_attribute_update_message
+    OfferingUserAccountStatusUpdateMessage:
+      name: OfferingUserAccountStatusUpdateMessage
+      title: OfferingUserAccountStatusUpdateMessage
+      summary: Sent for each offering of a user when the user's Waldur account is activated
+        or deactivated.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - offering_user_uuid
+          - user_uuid
+          - username
+          - action
+          - user_is_active
+          properties:
+            offering_user_uuid:
+              type: string
+              description: UUID of the offering user
+            user_uuid:
+              type: string
+              description: UUID of the Waldur user
+            username:
+              type: string
+              description: Username of the offering user
+            action:
+              type: string
+              description: 'Action type: account_status_update'
+              enum:
+              - account_status_update
+            user_is_active:
+              type: boolean
+              description: Whether the Waldur user account is active
+            object_type:
+              type: string
+              enum:
+              - offering_user
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_user
+      x-waldur-producers:
+      - marketplace/handlers.py:send_user_account_status_message
+    UserRoleMessage:
+      name: UserRoleMessage
+      title: UserRoleMessage
+      summary: Sent when a user role is granted or revoked in a project.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - user_uuid
+          - user_username
+          - project_uuid
+          - project_name
+          - role_name
+          - granted
+          properties:
+            user_uuid:
+              type: string
+              description: UUID of the user
+            user_username:
+              type: string
+              description: Username of the user
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            role_name:
+              type: string
+              description: Name of the role
+            granted:
+              type: boolean
+              description: True if granted, False if revoked
+            user_email:
+              type: string
+              description: Email of the user
+            user_full_name:
+              type: string
+              description: Full name of the user
+            object_type:
+              type: string
+              enum:
+              - user_role
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - user_role
+      x-waldur-producers:
+      - marketplace_site_agent/handlers.py:process_role_changed
+    UserRoleSyncMessage:
+      name: UserRoleSyncMessage
+      title: UserRoleSyncMessage
+      summary: Sent to trigger a user-role sync for a project, or for one resource when resource_uuid
+        is present.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - project_uuid
+          - project_name
+          properties:
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            resource_uuid:
+              type: string
+              description: UUID of the resource to re-sync; absent for a project-wide sync
+            object_type:
+              type: string
+              enum:
+              - user_role
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - user_role
+      x-waldur-producers:
+      - marketplace_site_agent/utils.py:push_user_role_sync_message
+      - marketplace_site_agent/utils.py:push_resource_user_role_sync_message
+    AccountMessage:
+      name: AccountMessage
+      title: AccountMessage
+      summary: Sent when a service or course account is created or deleted.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - account_uuid
+          - account_username
+          - scope_type
+          - project_uuid
+          - project_name
+          - action
+          properties:
+            account_uuid:
+              type: string
+              description: UUID of the account
+            account_username:
+              type: string
+              description: Username of the account
+            scope_type:
+              type: string
+              description: Scope type (always 'project')
+              enum:
+              - project
+            project_uuid:
+              type: string
+              description: UUID of the project
+            project_name:
+              type: string
+              description: Name of the project
+            action:
+              type: string
+              description: 'Action: ''create'' or ''delete'''
+              enum:
+              - create
+              - delete
+            object_type:
+              type: string
+              enum:
+              - service_account
+              - course_account
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - service_account
+      - course_account
+      x-waldur-producers:
+      - marketplace_site_agent/handlers.py:send_account_message
+    PeriodicLimitsMessage:
+      name: PeriodicLimitsMessage
+      title: PeriodicLimitsMessage
+      summary: Sent when SLURM policy periodic settings need to be applied.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - resource_uuid
+          - backend_id
+          - offering_uuid
+          - policy_uuid
+          - action
+          - settings
+          - timestamp
+          properties:
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            backend_id:
+              type: string
+              description: Backend resource identifier
+            offering_uuid:
+              type: string
+              description: UUID of the offering
+            policy_uuid:
+              type: string
+              description: UUID of the policy
+            action:
+              type: string
+              description: 'Action: ''apply_periodic_settings'''
+              enum:
+              - apply_periodic_settings
+            settings:
+              type: object
+              description: SLURM settings dict (fairshare, limits, thresholds)
+            timestamp:
+              type: string
+              description: ISO 8601 timestamp for the current period
+            object_type:
+              type: string
+              enum:
+              - resource_periodic_limits
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - resource_periodic_limits
+      x-waldur-producers:
+      - policy/models.py:SlurmPeriodicUsagePolicy._send_settings_to_site_agent
+    BackendResourceRequestMessage:
+      name: BackendResourceRequestMessage
+      title: BackendResourceRequestMessage
+      summary: Asks the agent to list the backend resources that can be imported into the
+        offering.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - backend_resource_request_uuid
+          properties:
+            backend_resource_request_uuid:
+              type: string
+              description: UUID of the backend resource request to fulfill
+            object_type:
+              type: string
+              enum:
+              - importable_resources
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - importable_resources
+      x-waldur-producers:
+      - marketplace/utils.py:publish_backend_resource_request
+    OfferingResourcesSyncMessage:
+      name: OfferingResourcesSyncMessage
+      title: OfferingResourcesSyncMessage
+      summary: Asks the agent to reconcile every resource of the offering.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - requested_by_user_uuid
+          properties:
+            requested_by_user_uuid:
+              type: string
+              description: UUID of the user who requested the synchronization
+            object_type:
+              type: string
+              enum:
+              - offering_resources_sync
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - offering_resources_sync
+      x-waldur-producers:
+      - marketplace/utils.py:publish_offering_resources_sync_request
+    ApiKeyCommandMessage:
+      name: ApiKeyCommandMessage
+      title: ApiKeyCommandMessage
+      summary: 'A command on one of a resource''s API keys: create, rotate, pause, resume,
+        update or delete.'
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - action
+          - resource_uuid
+          - resource_backend_id
+          - api_key_uuid
+          - client_id
+          properties:
+            action:
+              type: string
+              description: One of ResourceApiKeyActions
+              enum:
+              - create
+              - rotate
+              - pause
+              - resume
+              - delete
+              - update
+            resource_uuid:
+              type: string
+              description: UUID of the resource
+            resource_backend_id:
+              type: string
+              description: Backend identifier of the resource
+            api_key_uuid:
+              type: string
+              description: UUID of the API key
+            client_id:
+              type: string
+              description: Backend client id of the key; blank on a key being created
+            limits:
+              type:
+              - object
+              - 'null'
+              description: Monthly limits per component, null when the key has none; only
+                on commands that carry the key's settings
+            spending_limits:
+              type:
+              - object
+              - 'null'
+              description: Spending limits for every period, null when the key has none; only
+                on commands that carry the key's settings
+            allowed_models:
+              type: array
+              description: Models the key may call (['*'] for all, [] for none); only on commands
+                that carry the key's settings
+              items:
+                type: string
+            object_type:
+              type: string
+              enum:
+              - resource_api_key_rotation
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - resource_api_key_rotation
+      x-waldur-producers:
+      - marketplace/utils.py:publish_api_key_event
+    ProjectGroupMessage:
+      name: ProjectGroupMessage
+      title: ProjectGroupMessage
+      summary: A provider project group was created, updated or deleted, or project groups
+        were switched on or off for the provider.
+      contentType: application/json
+      payload:
+        allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          required:
+          - action
+          - service_provider_uuid
+          - customer_uuid
+          properties:
+            action:
+              type: string
+              description: 'Action: ''create'', ''update'', ''delete'' or ''switch'''
+              enum:
+              - create
+              - update
+              - delete
+              - switch
+            service_provider_uuid:
+              type: string
+              description: UUID of the service provider
+            customer_uuid:
+              type: string
+              description: UUID of the provider's organization
+            project_group_uuid:
+              type: string
+              description: UUID of the group; absent on 'switch'
+            project_uuid:
+              type:
+              - string
+              - 'null'
+              description: UUID of the group's project if it still exists; absent on 'switch'
+            name:
+              type: string
+              description: Group name; absent on 'switch'
+            gid:
+              type:
+              - integer
+              - 'null'
+              description: Group GID; absent on 'switch'
+            changed_fields:
+              type: array
+              description: Fields that changed; only on 'update'
+              items:
+                type: string
+            project_groups_enabled:
+              type: boolean
+              description: The new setting; only on 'switch'
+            object_type:
+              type: string
+              enum:
+              - service_provider_project_group
+              description: ObservableObjectType this message is delivered for
+      x-waldur-object-types:
+      - service_provider_project_group
+      x-waldur-producers:
+      - marketplace/handlers.py:send_project_group_saved_message
+      - marketplace/handlers.py:send_project_group_deleted_message
+      - marketplace/handlers.py:send_project_groups_switch_message
+      - marketplace/project_groups.py:allocate_gid

@@ -3495,7 +3495,7 @@ requires-dist = [
     { name = "httpcore", specifier = ">=1.0.9,<2" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1,<1" },
     { name = "hvac", specifier = ">=2.3.0,<3.0.0" },
-    { name = "jsonschema", specifier = ">=4.0.0" },
+    { name = "jsonschema", specifier = ">=4.18.0" },
     { name = "kubernetes", specifier = ">=31.0.0" },
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0,<5.0.0" },
