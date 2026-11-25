@@ -13261,6 +13261,16 @@ class OfferingUserSerializer(
         read_only=True, source="offering.customer.uuid"
     )
     customer_name = serializers.ReadOnlyField(source="offering.customer.name")
+    # Not part of OfferingUserAttributeConfig: account status, not personal data.
+    # Deactivating the Waldur user does not change this offering user's state.
+    user_is_active = serializers.BooleanField(
+        source="user.is_active",
+        read_only=True,
+        help_text=(
+            "Whether the Waldur account is active. Deactivating the account "
+            "does not change this offering user's state."
+        ),
+    )
     is_restricted = serializers.ReadOnlyField()
     state = serializers.SerializerMethodField()
     runtime_state = serializers.ChoiceField(
@@ -13374,6 +13384,7 @@ class OfferingUserSerializer(
             "modified",
             "customer_uuid",
             "customer_name",
+            "user_is_active",
             "is_restricted",
             "state",
             "runtime_state",

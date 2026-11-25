@@ -79,6 +79,56 @@ class ListOfferingUsersTest(test.APITestCase):
         response = self.list_permissions(user)
         self.assertEqual(len(response.data), 2)
 
+    def test_reports_whether_the_waldur_account_is_active(self):
+        """Deactivating the account is visible here and does not change the offering user."""
+        offering_user = OfferingUser.objects.get(username="user")
+        self.client.force_authenticate(self.fixture.staff)
+        url = OfferingUserFactory.get_url(offering_user)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["user_is_active"])
+        state = response.data["state"]
+
+        offering_user.user.is_active = False
+        offering_user.user.save(update_fields=["is_active"])
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["user_is_active"])
+        self.assertEqual(response.data["state"], state)
+        self.assertEqual(response.data["username"], "user")
+
+    def test_account_status_stays_visible_when_the_offering_exposes_no_attributes(
+        self,
+    ):
+        """Account status is not a user attribute, so the attribute config never hides it.
+
+        Detail filters fields in get_fields and list filters in to_representation,
+        so both are checked.
+        """
+        offering_user = OfferingUser.objects.get(username="user")
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=False,
+            expose_full_name=False,
+            expose_email=False,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        detail = self.client.get(OfferingUserFactory.get_url(offering_user))
+        listed = self.client.get(
+            OfferingUserFactory.get_list_url(),
+            {"offering_uuid": self.offering.uuid.hex},
+        )
+
+        self.assertEqual(detail.status_code, status.HTTP_200_OK)
+        self.assertEqual(listed.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(listed.data), 1)
+        for body in (detail.data, listed.data[0]):
+            self.assertNotIn("user_email", body)
+            self.assertTrue(body["user_is_active"])
+
     @data(
         "user",
     )
