@@ -14429,11 +14429,17 @@ class ProviderUserRoleDetailsSerializer(
     A user role grant as the offering's service provider sees it: the role
     details plus the personal-data attributes the offering exposes.
 
-    Username, full name and email are returned as on every list_users. Each
-    other ``user_<attr>`` field is dropped unless the offering's
-    OfferingUserAttributeConfig exposes the attribute. The offering comes from
-    ``context["offering"]``; every row of a listing shares it.
+    Username, full name (also as first and last name) and email are returned
+    as on every list_users. Each other ``user_<attr>`` field is dropped unless
+    the offering's OfferingUserAttributeConfig exposes the attribute. The
+    offering comes from ``context["offering"]``; every row of a listing
+    shares it.
     """
+
+    # The parts of the full name, for backends that need them apart (e.g. a
+    # Keycloak profile). Like the full name itself, they are not gated.
+    user_first_name = serializers.ReadOnlyField(source="user.first_name")
+    user_last_name = serializers.ReadOnlyField(source="user.last_name")
 
     # Profile field name -> the attribute name OfferingUserAttributeConfig uses.
     GATED_FIELD_ATTRIBUTES = {
@@ -14443,8 +14449,10 @@ class ProviderUserRoleDetailsSerializer(
     }
 
     class Meta(permission_serializers.UserRoleDetailsSerializer.Meta):
-        fields = permission_serializers.UserRoleDetailsSerializer.Meta.fields + tuple(
-            UserProfileAttributeFieldsMixin._declared_fields
+        fields = (
+            permission_serializers.UserRoleDetailsSerializer.Meta.fields
+            + tuple(UserProfileAttributeFieldsMixin._declared_fields)
+            + ("user_first_name", "user_last_name")
         )
 
     @functools.cached_property
