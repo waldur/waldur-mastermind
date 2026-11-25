@@ -366,11 +366,13 @@ def include_terminated_requested(request) -> bool:
 
     Needs both the include_terminated query parameter and the
     dashboard.usage_include_terminated feature, so a deployment that has not
-    turned the feature on answers exactly as before.
+    turned the feature on answers exactly as before. The feature is
+    user-scoped: it counts when a feature rule turns it on for the caller, as
+    it does for the switch homeport shows them.
     """
     return core_utils.query_param_is_true(
         request, "include_terminated"
-    ) and features.is_enabled("dashboard.usage_include_terminated")
+    ) and features.is_enabled("dashboard.usage_include_terminated", request.user)
 
 
 def get_components_usage_data_from_resources(

@@ -16,3 +16,9 @@ def register_in(router):
         views.PermissionRequestViewSet,
         basename="user-permission-request",
     )
+    router.register(r"feature-rules", views.FeatureRuleViewSet, basename="feature-rule")
+    router.register(
+        r"micro-app-settings",
+        views.MicroAppSettingViewSet,
+        basename="micro-app-setting",
+    )

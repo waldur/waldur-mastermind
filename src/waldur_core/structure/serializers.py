@@ -64,6 +64,7 @@ from waldur_core.structure.notifications import NOTIFICATIONS
 from waldur_core.structure.registry import get_resource_type, get_service_type
 from waldur_core.structure.utils_data_access import log_user_data_access_sync
 from waldur_core.user_actions import serializers as user_action_serializers
+from waldur_core.users import feature_rules
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
@@ -3344,6 +3345,34 @@ class ProfileCompletenessSerializer(serializers.Serializer):
 class UserMeSerializer(UserSerializer):
     ip_address = serializers.CharField(read_only=True)
     profile_completeness = ProfileCompletenessSerializer(read_only=True)
+    features = serializers.SerializerMethodField(
+        help_text="Effective values of the user-scoped feature flags for this "
+        "user: the global value, or on when a feature rule matches the user. "
+        "Same section -> key -> bool shape as FEATURES in the configuration."
+    )
+    micro_apps = serializers.SerializerMethodField(
+        help_text="Whether each micro-app with an operator setting is offered "
+        "to this user. An app that is absent has no setting and follows the "
+        "user.show_micro_apps feature."
+    )
+
+    def _targeted_keys(self, user):
+        cache = self.__dict__.setdefault("_targeted_keys_by_user", {})
+        if user.pk not in cache:
+            cache[user.pk] = feature_rules.targeted_keys(user)
+        return cache[user.pk]
+
+    @extend_schema_field(
+        serializers.DictField(
+            child=serializers.DictField(child=serializers.BooleanField())
+        )
+    )
+    def get_features(self, user: core_models.User):
+        return feature_rules.user_feature_values(user, self._targeted_keys(user))
+
+    @extend_schema_field(serializers.DictField(child=serializers.BooleanField()))
+    def get_micro_apps(self, user: core_models.User):
+        return feature_rules.user_micro_apps(user, self._targeted_keys(user))
 
     @extend_schema_field(MePermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
@@ -3355,6 +3384,8 @@ class UserMeSerializer(UserSerializer):
         fields = UserSerializer.Meta.fields + (
             "ip_address",
             "profile_completeness",
+            "features",
+            "micro_apps",
         )
 
 

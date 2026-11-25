@@ -21,7 +21,7 @@ from waldur_core.structure.managers import (
 )
 from waldur_core.users.enums import InvitationState
 
-from . import models
+from . import feature_rules, models
 
 
 class InvitationScopeFilterBackend(core_filters.GenericKeyFilterBackend):
@@ -327,3 +327,21 @@ class VisibleInvitationFilter(BaseFilterBackend):
         subquery2 = filter_by_connected_scopes(request.user)
         subquery3 = filter_inactive_invitations_for_recipient(request.user)
         return queryset.filter(subquery1 | subquery2 | subquery3)
+
+
+class FeatureRuleFilter(django_filters.FilterSet):
+    feature_key = django_filters.CharFilter()
+    is_active = django_filters.BooleanFilter()
+    orphaned = django_filters.BooleanFilter(
+        method="filter_orphaned",
+        label="Only rules without effect: their feature is no longer "
+        "user-scoped, or their micro-app has no setting.",
+    )
+
+    class Meta:
+        model = models.FeatureRule
+        fields = ("feature_key", "is_active", "orphaned")
+
+    def filter_orphaned(self, queryset, name, value):
+        live = Q(feature_key__in=feature_rules.live_feature_keys())
+        return queryset.exclude(live) if value else queryset.filter(live)

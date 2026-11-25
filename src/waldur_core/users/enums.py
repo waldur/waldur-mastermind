@@ -9,3 +9,11 @@ class InvitationState(models.TextChoices):
     ACCEPTED = "accepted", "Accepted"
     CANCELED = "canceled", "Canceled"
     EXPIRED = "expired", "Expired"
+
+
+class MicroAppModes(models.TextChoices):
+    """Who a deployed micro-app is offered to."""
+
+    OFF = "off", "Off"
+    ALL = "all", "Everyone"
+    AUDIENCE = "audience", "Selected users"

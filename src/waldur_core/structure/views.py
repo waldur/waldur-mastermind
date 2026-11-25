@@ -116,6 +116,8 @@ from waldur_core.user_actions.providers import (
     DASHBOARD_LIST_LIMIT,
     DASHBOARD_VARIANT_ORDER,
 )
+from waldur_core.users import feature_rules
+from waldur_core.users import serializers as users_serializers
 from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
@@ -2089,6 +2091,24 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             response_data,
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        summary="Effective feature flags of a user",
+        responses={200: users_serializers.UserFeaturesResponseSerializer},
+        description="Each feature flag's value for this user and where it comes "
+        "from: the global value, the feature rules that match the user, or "
+        "neither. Also lists the micro-apps that have an operator setting.",
+    )
+    @action(detail=True, methods=["get"])
+    def features(self, request, uuid=None):
+        user = self.get_object()
+        return Response(
+            users_serializers.UserFeaturesResponseSerializer(
+                feature_rules.explain(user)
+            ).data
+        )
+
+    features_permissions = [permissions.is_staff_or_support]
 
     @extend_schema(
         summary="Check profile completeness",

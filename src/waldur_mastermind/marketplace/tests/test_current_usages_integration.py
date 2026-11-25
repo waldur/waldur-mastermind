@@ -18,6 +18,7 @@ from rest_framework import status, test
 from waldur_core.core import models as core_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_core.users.models import FeatureRule
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -1194,6 +1195,26 @@ class IncludeTerminatedUsageEndpointsTest(test.APITestCase):
             self.customer_url + "components-usage/", include_terminated="true"
         )["components"]
         self.assertEqual(row["limit_usage"], 100)
+        self.assertEqual(row["limit_usage_terminated"], 0)
+
+    def test_include_terminated_follows_a_feature_rule_for_the_caller(self):
+        core_models.Feature.objects.filter(
+            key="dashboard.usage_include_terminated"
+        ).update(value=False)
+        rule = FeatureRule.objects.create(
+            feature_key="dashboard.usage_include_terminated"
+        )
+        rule.users.add(self.fixture.staff)
+
+        [row] = self._get(
+            self.customer_url + "components-usage/", include_terminated="true"
+        )["components"]
+        self.assertEqual(row["limit_usage_terminated"], 40)
+
+        rule.users.set([self.fixture.owner])
+        [row] = self._get(
+            self.customer_url + "components-usage/", include_terminated="true"
+        )["components"]
         self.assertEqual(row["limit_usage_terminated"], 0)
 
     def test_components_usage_timeseries(self):

@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 # Import enum classes from their source modules
+from waldur_core.core.features import SCOPES
 from waldur_core.logging.enums import EventGroup, EventType
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 
@@ -129,6 +130,11 @@ class EventMetadataResponseSerializer(serializers.Serializer):
 class FeatureItemSerializer(serializers.Serializer):
     key = serializers.CharField()
     description = serializers.CharField()
+    scope = serializers.ChoiceField(
+        choices=SCOPES,
+        help_text="'deployment': one value for the whole portal. 'user': may "
+        "also be turned on for selected users by feature rules.",
+    )
 
 
 class FeatureSectionSerializer(serializers.Serializer):

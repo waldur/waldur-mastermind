@@ -2,6 +2,7 @@ from datetime import datetime, time
 from typing import cast
 
 from django.conf import settings
+from django.core import validators
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models.query_utils import Q
@@ -23,9 +24,9 @@ from waldur_core.permissions.utils import (
     validate_role_change,
     validate_role_grant,
 )
-from waldur_core.structure.models import Customer, Project
+from waldur_core.structure.models import Customer, OrganizationGroup, Project
 from waldur_core.structure.signals import permissions_request_approved
-from waldur_core.users.enums import InvitationState
+from waldur_core.users.enums import InvitationState, MicroAppModes
 
 
 class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedModel):
@@ -348,3 +349,111 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         return self.invitation.resolve_project_name(self.created_by)
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
+
+
+# The name of a micro-app is its directory under homeport's apps/ and its path
+# under the portal: lowercase letters, digits and dashes.
+MICRO_APP_NAME_REGEX = r"^[a-z0-9][a-z0-9-]{0,99}$"
+MICRO_APP_KEY_PREFIX = "micro_apps."
+
+
+def micro_app_feature_key(name: str) -> str:
+    """The FeatureRule key that targets the micro-app ``name``."""
+    return f"{MICRO_APP_KEY_PREFIX}{name}"
+
+
+class FeatureRule(
+    core_models.UuidMixin,
+    core_models.UserDetailsMatchMixin,
+    TimeStampedModel,
+):
+    """Turns a user-scoped feature flag, or a micro-app, on for matching users.
+
+    A rule matches a user when every criterion group it configures matches:
+    the listed users; membership of a listed organization or of an
+    organization in a listed group; one of the listed roles in any scope; and
+    the identity attributes of UserDetailsMatchMixin plus ``user_claims``, with
+    that mixin's own semantics. A rule with no criterion matches no one:
+    turning a feature on for everyone is what its global switch is for.
+    """
+
+    feature_key = models.CharField(
+        max_length=255,
+        db_index=True,
+        help_text=_(
+            "Dotted key of a user-scoped feature flag, or micro_apps.<name> "
+            "for a micro-app."
+        ),
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, blank=True, related_name="+"
+    )
+    customers = models.ManyToManyField(Customer, blank=True, related_name="+")
+    organization_groups = models.ManyToManyField(
+        OrganizationGroup, blank=True, related_name="+"
+    )
+    roles = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("Role names; the user must hold one of them in any scope."),
+    )
+    user_claims = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            'Identity provider claims the user must carry, as {"claim": '
+            '["accepted", "values"]}. All claims must match; within one claim '
+            "any value matches. A value ending in '*' matches by prefix."
+        ),
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    class Meta:
+        ordering = ["feature_key", "-created", "uuid"]
+
+    def __str__(self):
+        return f"{self.feature_key}: {self.description or self.uuid.hex}"
+
+    @classmethod
+    def get_url_name(cls):
+        return "feature-rule"
+
+
+class MicroAppSetting(core_models.UuidMixin, TimeStampedModel):
+    """The operator's decision on who a deployed micro-app is offered to.
+
+    Without a row an app follows the global user.show_micro_apps flag, as it
+    did before these settings existed.
+    """
+
+    Modes = MicroAppModes
+
+    name = models.CharField(
+        max_length=100,
+        unique=True,
+        validators=[validators.RegexValidator(MICRO_APP_NAME_REGEX)],
+        help_text=_("The app's directory under apps/ and its path under the portal."),
+    )
+    mode = models.CharField(max_length=10, choices=Modes.choices, default=Modes.OFF)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name}: {self.mode}"
+
+    @property
+    def feature_key(self) -> str:
+        return micro_app_feature_key(self.name)
+
+    @classmethod
+    def get_url_name(cls):
+        return "micro-app-setting"
