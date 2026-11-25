@@ -846,7 +846,7 @@ components:
               description: UUID of the resource
             backend_id:
               type: string
-              description: Backend resource identifier
+              description: Backend resource identifier (SLURM account name)
             offering_uuid:
               type: string
               description: UUID of the offering
@@ -926,7 +926,8 @@ components:
       name: ApiKeyCommandMessage
       title: ApiKeyCommandMessage
       summary: 'A command on one of a resource''s API keys: create, rotate, pause, resume,
-        update or delete.'
+        update or delete. Carried on the resource_api_key_rotation observable type, which
+        is named for the first command and kept so subscriptions do not change.'
       contentType: application/json
       payload:
         allOf:
@@ -975,8 +976,10 @@ components:
                 on commands that carry the key's settings
             allowed_models:
               type: array
-              description: Models the key may call (['*'] for all, [] for none); only on commands
-                that carry the key's settings
+              description: 'Models the key may call ([''*''] for all, [] for none): the key''s
+                own list narrowed by its resource''s model selection. Only on commands that
+                carry the key''s settings; absent from Waldur versions older than [''*''],
+                where absence allows every model'
               items:
                 type: string
             object_type:
@@ -1005,7 +1008,9 @@ components:
           properties:
             action:
               type: string
-              description: 'Action: ''create'', ''update'', ''delete'' or ''switch'''
+              description: 'Action: ''create'' (the group got its first GID), ''update'' (its
+                name or GID changed), ''delete'', or ''switch'' (project groups switched on
+                or off for the provider)'
               enum:
               - create
               - update

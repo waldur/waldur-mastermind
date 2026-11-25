@@ -544,7 +544,9 @@ CONTRACTS = [
         fields=[
             MessageField("resource_uuid", "string", description="UUID of the resource"),
             MessageField(
-                "backend_id", "string", description="Backend resource identifier"
+                "backend_id",
+                "string",
+                description="Backend resource identifier (SLURM account name)",
             ),
             MessageField("offering_uuid", "string", description="UUID of the offering"),
             MessageField("policy_uuid", "string", description="UUID of the policy"),
@@ -596,7 +598,9 @@ CONTRACTS = [
     MessageContract(
         name="ApiKeyCommandMessage",
         description="A command on one of a resource's API keys: create, rotate, "
-        "pause, resume, update or delete.",
+        "pause, resume, update or delete. Carried on the "
+        "resource_api_key_rotation observable type, which is named for the "
+        "first command and kept so subscriptions do not change.",
         producers=["marketplace/utils.py:publish_api_key_event"],
         object_types=["resource_api_key_rotation"],
         fields=[
@@ -639,8 +643,10 @@ CONTRACTS = [
                 "array",
                 required=False,
                 items_type="string",
-                description="Models the key may call (['*'] for all, [] for none); "
-                "only on commands that carry the key's settings",
+                description="Models the key may call (['*'] for all, [] for none): "
+                "the key's own list narrowed by its resource's model selection. "
+                "Only on commands that carry the key's settings; absent from "
+                "Waldur versions older than ['*'], where absence allows every model",
             ),
         ],
     ),
@@ -659,7 +665,9 @@ CONTRACTS = [
             MessageField(
                 "action",
                 "string",
-                description="Action: 'create', 'update', 'delete' or 'switch'",
+                description="Action: 'create' (the group got its first GID), "
+                "'update' (its name or GID changed), 'delete', or 'switch' "
+                "(project groups switched on or off for the provider)",
                 enum=["create", "update", "delete", "switch"],
             ),
             MessageField(
