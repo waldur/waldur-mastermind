@@ -519,6 +519,15 @@ class ProviderListUsersUserAttributesTest(test.APITestCase):
         self.assertEqual(row["user_full_name"], self.member.full_name)
         self.assertEqual(row["user_username"], self.member.username)
 
+    def test_name_parts_are_returned_with_the_full_name(self):
+        self._expose(expose_full_name=False)
+        for row in (
+            self._provider_resource_project_rows()[0],
+            self._provider_resource_rows()[0],
+        ):
+            self.assertEqual(row["user_first_name"], self.member.first_name)
+            self.assertEqual(row["user_last_name"], self.member.last_name)
+
     def test_consumer_list_users_has_no_user_attributes(self):
         self._expose(expose_civil_number=True)
         staff = structure_factories.UserFactory(is_staff=True)
