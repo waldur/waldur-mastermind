@@ -53,6 +53,23 @@ class InitServiceDeskDefaultsTest(TestCase):
         self.assertTrue(models.IssueStatus.check_success_status("Resolved"))
         self.assertFalse(models.IssueStatus.check_success_status("Canceled"))
 
+    def test_an_open_status_is_answered_without_a_warning(self):
+        """The registry lists terminal statuses only.
+
+        A ticket in any other status is still being worked on, which is the
+        normal case, and every serialized ticket asks this several times.
+        """
+        seed()
+
+        with self.assertNoLogs("waldur_mastermind.support.models", "WARNING"):
+            self.assertIsNone(models.IssueStatus.check_success_status("In progress"))
+
+    def test_an_incomplete_registry_is_still_reported(self):
+        models.IssueStatus.objects.create(name="done", type=IssueStatusTypes.RESOLVED)
+
+        with self.assertLogs("waldur_mastermind.support.models", "CRITICAL"):
+            self.assertIsNone(models.IssueStatus.check_success_status("done"))
+
     def test_a_half_configured_table_is_repaired(self):
         # The state the command exists to avoid: one terminal type present, so
         # `check_success_status` answers None for every ticket and

@@ -90,6 +90,33 @@ def html_content_security_policy(get_response):
     return middleware
 
 
+def head_response_body_removal(get_response):
+    """
+    Answer HEAD requests with the headers of the matching GET and no body.
+
+    Django runs a HEAD request through the GET view and keeps whatever body it
+    rendered; only its development server and test client drop it. The count
+    companion of every list endpoint is a HEAD request whose view renders an
+    empty page, so each one handed gunicorn a ``[]`` it had to discard, and
+    gunicorn logs a warning for every response it trims. Content-Length is
+    left alone: on a HEAD response it describes the body a GET would carry.
+    """
+
+    def middleware(request):
+        response = get_response(request)
+        if request.method != "HEAD":
+            return response
+        if response.streaming:
+            # The file or generator is still closed with the response, and a
+            # FileResponse no longer offers it to the server's file wrapper.
+            response.streaming_content = ()
+        else:
+            response.content = b""
+        return response
+
+    return middleware
+
+
 def cors_middleware(get_response):
     """
     If CORS preflight header, then create an empty body response (200 OK) and return it.
