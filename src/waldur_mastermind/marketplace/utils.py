@@ -8216,7 +8216,10 @@ def publish_backend_resource_request(request: models.BackendResourceRequest):
     """
     Send a message to RabbitMQ requesting a list of resources for the offering.
     """
-    logger.info("Requesting a list of backend resources for offering %s via RabbitMQ")
+    logger.info(
+        "Requesting a list of backend resources for offering %s via RabbitMQ",
+        request.offering,
+    )
 
     payload = {
         "backend_resource_request_uuid": request.uuid.hex,
