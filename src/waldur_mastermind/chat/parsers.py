@@ -3,8 +3,8 @@ from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
-from waldur_mastermind.chat.chart_spec import fit as fit_chart
+from waldur_core.core.chart_spec import ChartSpecSerializer
+from waldur_core.core.chart_spec import fit as fit_chart
 from waldur_mastermind.chat.ui_registry import ui_registry
 
 logger = logging.getLogger(__name__)

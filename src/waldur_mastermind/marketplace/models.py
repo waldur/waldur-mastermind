@@ -6394,6 +6394,12 @@ class ResourceApiKeyDailyUsage(TimeStampedModel):
                 name="mp_resource_api_key_daily_usage_unique",
             ),
         ]
+        indexes = [
+            models.Index(
+                fields=["api_key", "date"],
+                name="mp_apikey_daily_key_date_idx",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.api_key}, {self.component_type}, {self.date}"

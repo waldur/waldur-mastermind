@@ -61,6 +61,22 @@ def timestamp_to_datetime(timestamp, replace_tz=True):
     return dt
 
 
+def utc_today() -> datetime.date:
+    """Current calendar date in UTC, independent of Django's active TIME_ZONE."""
+    return timezone.now().astimezone(datetime.UTC).date()
+
+
+def date_to_utc_ms(day: datetime.date) -> int:
+    """Epoch milliseconds at UTC midnight for ``day``."""
+    moment = datetime.datetime(day.year, day.month, day.day, tzinfo=datetime.UTC)
+    return int(moment.timestamp() * 1000)
+
+
+def date_range(start: datetime.date, end: datetime.date) -> list[datetime.date]:
+    """Every calendar date from ``start`` through ``end``, inclusive."""
+    return [start + datetime.timedelta(days=n) for n in range((end - start).days + 1)]
+
+
 def timeshift(**kwargs):
     return timezone.now().replace(microsecond=0) + datetime.timedelta(**kwargs)
 

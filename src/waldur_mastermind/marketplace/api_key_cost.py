@@ -14,12 +14,73 @@ price change therefore shows at the key's next report. The figure covers
 is over and no usage has come in for the new one.
 """
 
+from collections.abc import Mapping
 from decimal import Decimal
+from typing import NamedTuple
 
 from django.db.models import Case, DecimalField, F, Sum, Value, When
 
 from waldur_mastermind.marketplace import billing_mode, models
 from waldur_mastermind.marketplace.billing_utils import convert_quantity
+
+
+class UnitPrice(NamedTuple):
+    """Unit price and resolved billing type for one priced component."""
+
+    price: Decimal
+    billing_type: str
+
+
+UnitPrices = dict[str, UnitPrice]
+
+
+def unit_prices(resource: models.Resource) -> UnitPrices:
+    """What one unit of each priced component costs under the resource's plan,
+    with what converting a usage into that unit needs. Components the plan does
+    not price are left out, as is everything for a resource without a plan."""
+    plan = resource.plan
+    if plan is None:
+        return {}
+    components = {
+        component.pk: component for component in resource.offering.components.all()
+    }
+    return {
+        components[plan_component.component_id].type: UnitPrice(
+            plan_component.price,
+            billing_mode.resolve_component(
+                components[plan_component.component_id], plan
+            ).billing_type,
+        )
+        for plan_component in plan.components.all()
+        if plan_component.price and plan_component.component_id in components
+    }
+
+
+def cost_of(
+    resource: models.Resource,
+    usages: Mapping[str, Decimal | int | float],
+    prices: UnitPrices | None = None,
+) -> Decimal:
+    """What ``usages`` (``{component_type: amount}``) cost at the resource
+    plan's prices. Pass ``prices`` from unit_prices to cost many usages of one
+    resource without reading the plan again."""
+    if not usages:
+        return Decimal(0)
+    if prices is None:
+        prices = unit_prices(resource)
+    total = Decimal(0)
+    for component_type, usage in usages.items():
+        if component_type not in prices:
+            continue
+        unit_price = prices[component_type]
+        quantity = convert_quantity(
+            usage,
+            resource.offering.type,
+            component_type,
+            billing_type=unit_price.billing_type,
+        )
+        total += Decimal(str(quantity)) * unit_price.price
+    return total
 
 
 def estimate(api_key: models.ResourceApiKey) -> Decimal:
@@ -28,35 +89,7 @@ def estimate(api_key: models.ResourceApiKey) -> Decimal:
     A component the plan does not price, or one the offering no longer has,
     counts as 0, as does every component of a resource without a plan.
     """
-    usages = api_key.current_usages or {}
-    resource = api_key.resource
-    plan = resource.plan
-    if not usages or plan is None:
-        return Decimal(0)
-    offering_components = {
-        component.type: component
-        for component in resource.offering.components.filter(type__in=list(usages))
-    }
-    prices = {
-        plan_component.component_id: plan_component.price
-        for plan_component in plan.components.filter(
-            component__in=offering_components.values()
-        )
-    }
-    total = Decimal(0)
-    for component_type, usage in usages.items():
-        component = offering_components.get(component_type)
-        price = prices.get(component.pk) if component else None
-        if not price:
-            continue
-        quantity = convert_quantity(
-            usage,
-            resource.offering.type,
-            component_type,
-            billing_type=billing_mode.resolve_component(component, plan).billing_type,
-        )
-        total += Decimal(str(quantity)) * price
-    return total
+    return cost_of(api_key.resource, api_key.current_usages or {})
 
 
 def current_estimated_cost(period):

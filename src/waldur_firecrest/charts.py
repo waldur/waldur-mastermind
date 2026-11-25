@@ -1,4 +1,4 @@
-"""Chart specs for the HPC workspace figures (see chat.chart_spec).
+"""Chart specs for the HPC workspace figures (see waldur_core.core.chart_spec).
 
 The Insights tab and the assistant render the same specs, so a chart looks
 and reads the same wherever it appears.
@@ -8,7 +8,7 @@ import datetime
 
 from django.utils import timezone
 
-from waldur_mastermind.chat.chart_spec import chart, series
+from waldur_core.core.chart_spec import chart, series
 
 OUTCOME_SERIES = (
     ("completed", "Completed", "success"),

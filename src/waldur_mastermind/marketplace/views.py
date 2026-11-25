@@ -236,6 +236,7 @@ from waldur_pid import models as pid_models
 
 from . import (
     api_key_cost,
+    api_key_insights,
     api_key_spending_limits,
     filters,
     log,
@@ -18528,6 +18529,25 @@ def can_browse_s3_with_api_key(request, view, api_key=None):
     can_reveal_api_key(request, view, api_key)
 
 
+def _format_api_key_scopes(scopes: tuple[str, ...]) -> str:
+    if len(scopes) == 1:
+        return scopes[0]
+    return f"{', '.join(scopes[:-1])} and {scopes[-1]}"
+
+
+def _api_key_scope_parameters(scopes: tuple[str, ...]) -> list[OpenApiParameter]:
+    description = f"One of {_format_api_key_scopes(scopes)} is required."
+    return [
+        OpenApiParameter(
+            scope,
+            OpenApiTypes.UUID,
+            OpenApiParameter.QUERY,
+            description=description,
+        )
+        for scope in scopes
+    ]
+
+
 class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     """Manage the API keys a site-agent resource exposes.
 
@@ -18567,7 +18587,7 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     reveal_permissions = [can_reveal_api_key]
 
     # Read actions that list the keys as list does.
-    access_filtered_actions = ("usage_totals",)
+    access_filtered_actions = ("usage_totals", "insights")
 
     @access.shows(
         "Keys of resources in projects and organizations where the caller holds "
@@ -19108,6 +19128,15 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
     destroy_permissions = consumer_command_permissions
     partial_update_permissions = consumer_command_permissions
 
+    def _require_scope(self, request, scopes: tuple[str, ...]) -> None:
+        if not any(request.query_params.get(scope) for scope in scopes):
+            raise ValidationError(
+                {
+                    "resource_uuid": _("One of %(scopes)s is required.")
+                    % {"scopes": _format_api_key_scopes(scopes)}
+                }
+            )
+
     # The scopes usage_totals sums over; it refuses a request naming none, so
     # it never sums every key the caller can see.
     USAGE_TOTALS_SCOPES = ("resource_uuid", "offering_uuid", "provider_uuid")
@@ -19121,33 +19150,14 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
         "offering_uuid and provider_uuid is required; the other list filters "
         "narrow the keys summed. Per-component sums are only comparable within "
         "one offering; estimated_cost adds up across offerings.",
-        parameters=[
-            OpenApiParameter(
-                scope,
-                OpenApiTypes.UUID,
-                OpenApiParameter.QUERY,
-                description="One of resource_uuid, offering_uuid and "
-                "provider_uuid is required.",
-            )
-            for scope in USAGE_TOTALS_SCOPES
-        ],
+        parameters=_api_key_scope_parameters(USAGE_TOTALS_SCOPES),
         responses={status.HTTP_200_OK: serializers.ResourceApiKeyUsageTotalsSerializer},
         # The list filters narrow the keys summed, so the schema lists them.
         filters=True,
     )
     @action(detail=False, methods=["get"])
     def usage_totals(self, request):
-        if not any(
-            request.query_params.get(scope) for scope in self.USAGE_TOTALS_SCOPES
-        ):
-            raise ValidationError(
-                {
-                    "resource_uuid": _(
-                        "One of resource_uuid, offering_uuid and provider_uuid is "
-                        "required."
-                    )
-                }
-            )
+        self._require_scope(request, self.USAGE_TOTALS_SCOPES)
         period = models.ResourceApiKey.current_period()
         queryset = self.filter_queryset(self.get_queryset()).filter(usage_period=period)
         return Response(
@@ -19156,6 +19166,57 @@ class ResourceApiKeyViewSet(core_views.ActionsViewSet):
                     "usages": queryset.usage_totals(),
                     "estimated_cost": api_key_cost.total(queryset, period),
                 }
+            ).data
+        )
+
+    # The scopes insights covers: one service, a project's services, or a
+    # provider's; it refuses a request naming none, as usage_totals does.
+    INSIGHTS_SCOPES = (
+        "resource_uuid",
+        "project_uuid",
+        "customer_uuid",
+        "offering_uuid",
+        "provider_uuid",
+    )
+
+    @extend_schema(
+        summary="What API keys spent over time, with charts",
+        description="The keys' spend this month, its recent daily pace and a "
+        "forecast to the month's end, how many keys are active and paused, and "
+        "three charts: spend this month (against the resource's own month "
+        "limit when resource_uuid is given), spend per day by key and usage "
+        "per day of the components the plan does not price, such as tokens. "
+        "Read from the keys' daily usage and costed at the resource plans' "
+        "prices, as a key's estimated cost is. Deleted keys count. One of the "
+        "scope parameters is required; the other list filters narrow the keys.",
+        parameters=[
+            serializers.ResourceApiKeyInsightsQuerySerializer,
+            *_api_key_scope_parameters(INSIGHTS_SCOPES),
+        ],
+        responses={status.HTTP_200_OK: serializers.ResourceApiKeyInsightsSerializer},
+        filters=True,
+    )
+    @action(detail=False, methods=["get"])
+    def insights(self, request):
+        self._require_scope(request, self.INSIGHTS_SCOPES)
+        query = serializers.ResourceApiKeyInsightsQuerySerializer(
+            data=request.query_params
+        )
+        query.is_valid(raise_exception=True)
+        api_keys = api_key_insights.load_keys(self.filter_queryset(self.get_queryset()))
+        # One service: its own month limit is drawn too, but only when every
+        # key on it is counted. The limit holds the whole service's spend, so
+        # set against a few keys (one person's, the paused ones) it would
+        # tell when they alone reach it. Read through the keys the caller
+        # can see, so naming a resource reveals nothing more.
+        resource = None
+        if request.query_params.get("resource_uuid") and api_keys:
+            candidate = api_keys[0].resource
+            if len(api_keys) == candidate.api_keys.count():
+                resource = candidate
+        return Response(
+            serializers.ResourceApiKeyInsightsSerializer(
+                api_key_insights.build(api_keys, query.validated_data["days"], resource)
             ).data
         )
 

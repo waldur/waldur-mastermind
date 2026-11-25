@@ -57,6 +57,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
+from waldur_core.core.chart_spec import ChartSpecSerializer
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.fields import NaturalChoiceField
@@ -11155,6 +11156,46 @@ class ResourceApiKeyUsageTotalsSerializer(serializers.Serializer):
         help_text="The keys' estimated cost this month, summed. Unlike the "
         "usages it adds up across offerings.",
     )
+
+
+class ResourceApiKeyInsightsQuerySerializer(serializers.Serializer):
+    days = serializers.IntegerField(
+        min_value=1,
+        max_value=92,
+        default=30,
+        help_text="How many days, up to today, the per-day charts cover.",
+    )
+
+
+class ResourceApiKeyInsightsSerializer(serializers.Serializer):
+    days = serializers.IntegerField()
+    spent_this_month = serializers.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+    )
+    daily_pace = serializers.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        help_text="Average spend per day over the last 7 days.",
+    )
+    forecast_this_month = serializers.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        help_text="This month's spend if the recent pace holds to its end.",
+    )
+    month_limit = serializers.DecimalField(
+        max_digits=common_mixins.PRICE_MAX_DIGITS,
+        decimal_places=common_mixins.PRICE_DECIMAL_PLACES,
+        allow_null=True,
+        help_text="The resource's own month limit as money; with resource_uuid only.",
+    )
+    runs_out = serializers.DateField(
+        allow_null=True,
+        help_text="When the month limit is reached at the recent pace, if this month.",
+    )
+    active_keys = serializers.IntegerField()
+    paused_keys = serializers.IntegerField()
+    charts = ChartSpecSerializer(many=True)
 
 
 class ResourceApiKeySerializer(ResourceApiKeyStatusSerializer):

@@ -7,8 +7,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
 
+from waldur_core.core.chart_spec import ChartSpecSerializer
 from waldur_firecrest import charts, insights, outputs
-from waldur_mastermind.chat.chart_spec import ChartSpecSerializer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     ImpactLevel,

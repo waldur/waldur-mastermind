@@ -1,3 +1,4 @@
+import datetime
 import logging
 import warnings
 from unittest import mock
@@ -5,7 +6,8 @@ from unittest import mock
 import requests
 from django.http import HttpRequest
 from django.template import Template
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
+from freezegun import freeze_time
 from urllib3.exceptions import InsecureRequestWarning
 
 from waldur_core.configuration.testing import override_config
@@ -13,12 +15,15 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import (
     QuietSession,
     chunked_queryset,
+    date_range,
+    date_to_utc_ms,
     format_homeport_link,
     format_text,
     get_ip_address,
     ip_in_networks,
     merge_access_subnets,
     normalize_ip_address,
+    utc_today,
 )
 
 
@@ -319,3 +324,31 @@ class QuietSessionTest(TestCase):
         session = QuietSession()
         recorded = self._record_warnings(session, verify=True)
         self.assertEqual(len(recorded), 1)
+
+
+class DateUtilsTest(SimpleTestCase):
+    @override_settings(TIME_ZONE="America/Chicago")
+    @freeze_time("2026-12-01 02:00:00")
+    def test_utc_today_ignores_local_timezone(self):
+        self.assertEqual(utc_today(), datetime.date(2026, 12, 1))
+
+    @override_settings(TIME_ZONE="America/Chicago")
+    def test_date_to_utc_ms_uses_utc_midnight(self):
+        day = datetime.date(2026, 12, 1)
+        expected = int(
+            datetime.datetime(2026, 12, 1, tzinfo=datetime.UTC).timestamp() * 1000
+        )
+        self.assertEqual(date_to_utc_ms(day), expected)
+
+    def test_date_range_is_inclusive_and_empty_when_inverted(self):
+        start = datetime.date(2026, 11, 29)
+        end = datetime.date(2026, 12, 1)
+        self.assertEqual(
+            date_range(start, end),
+            [
+                datetime.date(2026, 11, 29),
+                datetime.date(2026, 11, 30),
+                datetime.date(2026, 12, 1),
+            ],
+        )
+        self.assertEqual(date_range(end, start), [])

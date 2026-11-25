@@ -32,10 +32,10 @@ from decimal import Decimal, InvalidOperation
 
 from dateutil.relativedelta import relativedelta
 from django.db.models import Max, Sum
-from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from waldur_core.core.utils import utc_today
 from waldur_mastermind.marketplace import billing_mode, models
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -56,10 +56,6 @@ EDITABLE_STATES = (
     ResourceStates.ERRED,
     ResourceStates.UPDATING,
 )
-
-
-def utc_today() -> datetime.date:
-    return timezone.now().astimezone(datetime.UTC).date()
 
 
 def period_bounds(period: str, day: datetime.date):

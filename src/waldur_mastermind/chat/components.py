@@ -125,7 +125,7 @@ ui_registry.register(
 ui_registry.register(
     key="chart",
     name="Chart",
-    description="Data-only chart spec (chat.chart_spec) from the HPC insight tools",
+    description="Data-only chart spec (waldur_core.core.chart_spec) from the HPC insight tools",
     schema={
         "type": "object",
         "required": ["chart_type", "title", "series"],
