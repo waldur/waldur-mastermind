@@ -243,7 +243,7 @@ def backwards(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0329_offeringcomponent_limit_increase_only"),
+        ("marketplace", "0332_resource_end_date_help_text"),
     ]
 
     operations = [

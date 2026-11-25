@@ -20,7 +20,7 @@ from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace.tests.test_order_crud import BaseOrderCreateTest
 
 migration = importlib.import_module(
-    "waldur_mastermind.marketplace.migrations.0330_move_k8s_egress_rules"
+    "waldur_mastermind.marketplace.migrations.0333_move_k8s_egress_rules"
 )
 
 NETWORK_RULE = {
