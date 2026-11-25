@@ -20,6 +20,7 @@ offering (``template_document``), or load one of the presets shipped here
 import copy
 import json
 import re
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -99,9 +100,13 @@ PARAMETER_FIELDS = {
     "required",
     "default",
     "paths",
+    "choices",
+    "pattern",
 }
 PARAMETER_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 PARAMETER_LABEL_MAX_LENGTH = 150
+PARAMETER_CHOICES_MAX = 100
+PARAMETER_PATTERN_MAX_LENGTH = 500
 
 # What save_as_template turns into parameters: the values that tie an offering
 # to one site. Backend settings are looked up in the agent configuration and,
@@ -250,6 +255,13 @@ def check_parameters(parameters, document: dict) -> list[dict]:
         ):
             raise _error(f"{prefix}.default", f"Expected a {kind}.")
 
+        choices = _check_choices(parameter, kind, prefix)
+        pattern = _check_pattern(parameter, kind, prefix)
+        if default is not None:
+            problem = _value_problem(default, kind, choices, pattern)
+            if problem:
+                raise _error(f"{prefix}.default", problem)
+
         paths = parameter.get("paths")
         if (
             not isinstance(paths, list)
@@ -260,18 +272,85 @@ def check_parameters(parameters, document: dict) -> list[dict]:
         for path in paths:
             _check_target(document, path, f"{prefix}.paths", claimed, key)
 
-        result.append(
-            {
-                "key": key,
-                "label": label,
-                "description": description,
-                "type": kind,
-                "required": required,
-                "default": default,
-                "paths": list(paths),
-            }
-        )
+        normalized = {
+            "key": key,
+            "label": label,
+            "description": description,
+            "type": kind,
+            "required": required,
+            "default": default,
+            "paths": list(paths),
+        }
+        # Only when declared, so that a document written before they existed
+        # keeps its hash, and so its version.
+        if choices is not None:
+            normalized["choices"] = choices
+        if pattern is not None:
+            normalized["pattern"] = pattern
+        result.append(normalized)
     return result
+
+
+def _is_of_type(value, kind: str) -> bool:
+    # bool is an int to Python, but not an integer or a number here.
+    return isinstance(value, PARAMETER_TYPES[kind]) and (
+        kind == "boolean" or not isinstance(value, bool)
+    )
+
+
+def _check_choices(parameter: dict, kind: str, prefix: str) -> list | None:
+    if "choices" not in parameter:
+        return None
+    choices = parameter["choices"]
+    field = f"{prefix}.choices"
+    if kind == "boolean":
+        raise _error(field, "A boolean parameter has no choices.")
+    if (
+        not isinstance(choices, list)
+        or not choices
+        or len(choices) > PARAMETER_CHOICES_MAX
+    ):
+        raise _error(field, f"Expected a list of 1 to {PARAMETER_CHOICES_MAX} values.")
+    if not all(_is_of_type(choice, kind) for choice in choices):
+        raise _error(field, f"Every choice must be a {kind}.")
+    if len(set(choices)) != len(choices):
+        raise _error(field, "A choice is listed twice.")
+    return list(choices)
+
+
+def _check_pattern(parameter: dict, kind: str, prefix: str) -> str | None:
+    if "pattern" not in parameter:
+        return None
+    pattern = parameter["pattern"]
+    field = f"{prefix}.pattern"
+    if kind != "string":
+        raise _error(field, "Only a string parameter has a pattern.")
+    if (
+        not isinstance(pattern, str)
+        or not pattern
+        or len(pattern) > PARAMETER_PATTERN_MAX_LENGTH
+    ):
+        raise _error(
+            field,
+            f"Expected a regular expression of at most "
+            f"{PARAMETER_PATTERN_MAX_LENGTH} characters.",
+        )
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        raise _error(field, f"Not a valid regular expression: {e}.")
+    return pattern
+
+
+def _value_problem(value, kind: str, choices, pattern) -> str | None:
+    """Why a value does not fit a parameter's declaration, or None."""
+    if not _is_of_type(value, kind):
+        return f"Expected a {kind}."
+    if choices is not None and value not in choices:
+        return "Expected one of: " + ", ".join(str(choice) for choice in choices) + "."
+    if pattern is not None and not re.fullmatch(pattern, value):
+        return f"Does not match the pattern {pattern}."
+    return None
 
 
 def _names_a_secret(segment) -> bool:
@@ -526,6 +605,180 @@ def check_document(document, offering_type: str) -> dict:
     if secrets:
         raise _error(secrets[0], SECRET_MESSAGE)
     return normalized
+
+
+# Creating an offering -----------------------------------------------------
+
+REQUIRED_PARAMETER_MESSAGE = "This parameter is required."
+
+
+def resolve_parameters(parameters: list[dict], values) -> dict:
+    """The value of every parameter: the one given, or its default.
+
+    Refuses, per parameter, a value that is missing while required, of the
+    wrong type, not among the choices or not matching the pattern, and a value
+    for a parameter the template does not declare.
+    """
+    if values is None:
+        values = {}
+    if not isinstance(values, dict):
+        raise serializers.ValidationError({PARAMETERS_KEY: ["Expected a mapping."]})
+    errors: dict[str, list[str]] = {}
+    declared = {parameter["key"] for parameter in parameters}
+    for key in sorted(set(values) - declared):
+        errors[key] = ["The template declares no such parameter."]
+    resolved = {}
+    for parameter in parameters:
+        key = parameter["key"]
+        value = values.get(key)
+        # An empty string is no value: the form sends one for an untouched field.
+        if value is None or value == "":
+            value = parameter.get("default")
+        if value is None:
+            if parameter["required"]:
+                errors[key] = [REQUIRED_PARAMETER_MESSAGE]
+            resolved[key] = None
+            continue
+        problem = _value_problem(
+            value,
+            parameter["type"],
+            parameter.get("choices"),
+            parameter.get("pattern"),
+        )
+        if problem:
+            errors[key] = [problem]
+        resolved[key] = value
+    if errors:
+        raise serializers.ValidationError({PARAMETERS_KEY: errors})
+    return resolved
+
+
+def fill_document(document: dict, values: dict) -> dict:
+    """The document with every parameter's paths filled with its value, and
+    without the sections an offering does not take: what import_offering
+    reads. An optional parameter left without a value leaves its paths out.
+    """
+    filled = copy.deepcopy(document)
+    parameters = filled.pop(PARAMETERS_KEY, None) or []
+    filled.pop("schema_version", None)
+    for parameter in parameters:
+        value = values.get(parameter["key"])
+        for path in parameter["paths"]:
+            segments = split_path(path)
+            parent = _parent(filled, segments)
+            if parent is None:
+                continue
+            leaf = segments[-1]
+            if value is not None:
+                parent[leaf] = copy.deepcopy(value)
+            elif isinstance(parent, dict):
+                parent.pop(leaf, None)
+    return filled
+
+
+# Drift --------------------------------------------------------------------
+
+# How the items of a list section are told apart, so that a reordered list is
+# no drift and a changed item is reported under its own name.
+ITEM_KEYS = {
+    "components": "type",
+    "plans": "name",
+    "endpoints": "name",
+    "terms_of_service": "version",
+}
+PLAN_COMPONENT_KEY = "component_type"
+# The name is given when the offering is created, not by the template.
+UNCOMPARED_PATHS = {"offering.name"}
+
+
+def _comparable(value):
+    """Numbers compared by value: an export writes 60000 as 60000.0, and a
+    price as a decimal string."""
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, int | float):
+        return Decimal(str(value))
+    if isinstance(value, str):
+        try:
+            number = Decimal(value)
+        except InvalidOperation:
+            return value
+        return number if number.is_finite() else value
+    return value
+
+
+def _item_key(path: str) -> str | None:
+    if path in ITEM_KEYS:
+        return ITEM_KEYS[path]
+    if path.startswith("plans[") and path.endswith("].components"):
+        return PLAN_COMPONENT_KEY
+    return None
+
+
+def _diff(expected, actual, path: str, differences: list[dict]) -> None:
+    if path in UNCOMPARED_PATHS:
+        return
+    if isinstance(expected, dict):
+        # A list item the offering does not have is one difference, not one
+        # per field.
+        missing_item = actual is None and path.endswith("]")
+        if missing_item or (actual is not None and not isinstance(actual, dict)):
+            differences.append({"path": path, "template": expected, "offering": actual})
+            return
+        actual_map = actual or {}
+        # Only what the template says: an offering holds more keys than a
+        # template, such as defaults its serializers add.
+        for key, value in expected.items():
+            _diff(
+                value,
+                actual_map.get(key),
+                f"{path}.{key}" if path else key,
+                differences,
+            )
+        return
+    item_key = _item_key(path)
+    if item_key and isinstance(expected, list):
+        if not isinstance(actual, list):
+            differences.append({"path": path, "template": expected, "offering": actual})
+            return
+        actual_items = {
+            item.get(item_key): item for item in actual if isinstance(item, dict)
+        }
+        expected_names = set()
+        for item in expected:
+            if not isinstance(item, dict):
+                continue
+            name = item.get(item_key)
+            expected_names.add(name)
+            _diff(item, actual_items.get(name), f"{path}[{name}]", differences)
+        for name, item in actual_items.items():
+            if name not in expected_names:
+                differences.append(
+                    {"path": f"{path}[{name}]", "template": None, "offering": item}
+                )
+        return
+    if expected is None:
+        # The template leaves it open: an optional parameter without a value.
+        return
+    if _comparable(expected) != _comparable(actual):
+        differences.append({"path": path, "template": expected, "offering": actual})
+
+
+def document_diff(expected: dict, actual: dict) -> list[dict]:
+    """Where an offering differs from what its template says it should be.
+
+    ``expected`` is a filled-in template document, ``actual`` the offering's
+    export. Each difference is ``{path, template, offering}``, where list items
+    are named by their key, as in ``components[cpu].unit_factor``. Only what
+    the template sets is compared, and a section the export left out (such as
+    an agent configuration the caller may not see) is skipped.
+    """
+    differences: list[dict] = []
+    for section, value in expected.items():
+        if section not in actual:
+            continue
+        _diff(value, actual[section], section, differences)
+    return differences
 
 
 # What non-staff see -------------------------------------------------------

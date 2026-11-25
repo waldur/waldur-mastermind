@@ -787,6 +787,24 @@ class Offering(
             "each role, backend settings and agent-only component fields."
         ),
     )
+    # Where the offering came from, when it was created from an offering
+    # template: a copy, so editing the template changes nothing here.
+    template = models.ForeignKey(
+        "OfferingTemplate",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offerings",
+    )
+    template_version = models.PositiveIntegerField(null=True, blank=True)
+    template_parameters = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "The parameter values the offering was created from its template "
+            "with. Parameters never fill a secret."
+        ),
+    )
 
     privacy_policy_link = models.URLField(blank=True)
     helpdesk_url = models.URLField(blank=True)

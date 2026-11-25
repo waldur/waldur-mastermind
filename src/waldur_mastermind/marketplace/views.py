@@ -3022,6 +3022,32 @@ def _import_lookup(model, data, key, path):
     return _import_value(model._meta.get_field(key), value, f"{path}.{key}")
 
 
+# What an offering is compared with its template on: what a template holds.
+TEMPLATE_DIFF_EXPORT = {
+    "include_secret_options": False,
+    "include_screenshots": False,
+    "include_files": False,
+    "include_organization_groups": False,
+}
+
+
+def _filled_with(document: dict, values: dict) -> dict:
+    """A template document filled in with an offering's recorded parameter
+    values; a parameter the offering has no value for takes its default."""
+    parameters = document.get(offering_templates.PARAMETERS_KEY) or []
+    return offering_templates.fill_document(
+        document,
+        {
+            parameter["key"]: values.get(parameter["key"], parameter.get("default"))
+            for parameter in parameters
+        },
+    )
+
+
+class _DryRunRollback(Exception):
+    """Raised inside a dry run's transaction to roll back what it created."""
+
+
 # Who may call a ProviderOfferingViewSet read action guarded only by its
 # lookup: OfferingCustomersFilterBackend narrows it. Change the two together.
 OFFERING_SEEN_ACCESS = access.custom(
@@ -3140,7 +3166,7 @@ class ProviderOfferingViewSet(
         )
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().select_related("template")
 
         # add total_customers
         if self._check_extra_field_needed("total_customers"):
@@ -6497,6 +6523,8 @@ class ProviderOfferingViewSet(
                 "longitude": float(offering.longitude) if offering.longitude else None,
                 "access_url": offering.access_url,
                 "paused_reason": offering.paused_reason,
+                # Read back by import_offering for a new offering.
+                "backend_id": offering.backend_id,
             }
         }
 
@@ -6825,6 +6853,63 @@ class ProviderOfferingViewSet(
     save_as_template_serializer_class = serializers.OfferingSaveAsTemplateSerializer
 
     @extend_schema(
+        summary="Compare the offering with its offering template",
+        description=(
+            "Where the offering differs from the offering template it was "
+            "created from: from the version it was created from, and from the "
+            "template's latest version, both filled in with the parameter "
+            "values the offering was created with (a parameter added since "
+            "takes its default). Only what the template sets is compared, "
+            "and the offering's name is not. The agent configuration is "
+            "compared only for who may see the integration settings. Refused "
+            "for an offering not created from a template, or whose template "
+            "was deleted."
+        ),
+        responses={200: serializers.OfferingTemplateDiffSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def template_diff(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        template = offering.template
+        created_version = (
+            template.versions.filter(number=offering.template_version).first()
+            if template is not None
+            else None
+        )
+        if created_version is None:
+            raise rf_exceptions.ValidationError(
+                _(
+                    "The offering was not created from an offering template, or "
+                    "its template was deleted."
+                )
+            )
+        actual = self._build_offering_export_data(offering, TEMPLATE_DIFF_EXPORT)
+        values = offering.template_parameters or {}
+        return response.Response(
+            serializers.OfferingTemplateDiffSerializer(
+                {
+                    "template_uuid": template.uuid,
+                    "template_name": template.name,
+                    "template_version": created_version.number,
+                    "latest_version": template.version,
+                    "created_version_differences": offering_templates.document_diff(
+                        _filled_with(created_version.document, values), actual
+                    ),
+                    "latest_version_differences": offering_templates.document_diff(
+                        _filled_with(template.document, values), actual
+                    ),
+                }
+            ).data
+        )
+
+    template_diff_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+    @extend_schema(
         summary="Import offering data",
         description="Imports an offering and all its connected parts from YAML format. Allows configuration of which components to import and how to handle conflicts. Imported offerings are always created in DRAFT state for security.",
         request=serializers.OfferingImportParametersSerializer,
@@ -6876,74 +6961,11 @@ class ProviderOfferingViewSet(
         except rf_exceptions.ValidationError as e:
             raise rf_exceptions.ValidationError({"offering_data": e.detail})
 
-        warnings = []
-
         # Any validation error below rolls back everything imported so far.
         with transaction.atomic():
-            # Create or update offering
-            offering, created, offering_warnings = self._import_offering_data(
+            offering, created, imported_components, warnings = self._import_document(
                 import_data, params, request.user
             )
-            warnings.extend(offering_warnings)
-
-            # Import related components based on parameters
-            imported_components = []
-
-            if params.get("import_components", True) and "components" in import_data:
-                components_data = _import_list(import_data, "components")
-                component_warnings = self._import_offering_components(
-                    offering, components_data
-                )
-                warnings.extend(component_warnings)
-                imported_components.extend([str(c["type"]) for c in components_data])
-
-            if params.get("import_plans", True) and "plans" in import_data:
-                plan_warnings = self._import_offering_plans(
-                    offering, _import_list(import_data, "plans")
-                )
-                warnings.extend(plan_warnings)
-                imported_components.append("plans")
-
-            if params.get("import_screenshots", True) and "screenshots" in import_data:
-                screenshot_warnings = self._import_offering_screenshots(
-                    offering, _import_list(import_data, "screenshots")
-                )
-                warnings.extend(screenshot_warnings)
-                imported_components.append("screenshots")
-
-            if params.get("import_files", True) and "files" in import_data:
-                file_warnings = self._import_offering_files(
-                    offering, _import_list(import_data, "files")
-                )
-                warnings.extend(file_warnings)
-                imported_components.append("files")
-
-            if params.get("import_endpoints", True) and "endpoints" in import_data:
-                endpoint_warnings = self._import_offering_endpoints(
-                    offering, _import_list(import_data, "endpoints")
-                )
-                warnings.extend(endpoint_warnings)
-                imported_components.append("endpoints")
-
-            if (
-                params.get("import_organization_groups", True)
-                and "organization_groups" in import_data
-            ):
-                group_warnings = self._import_organization_groups(
-                    offering, _import_list(import_data, "organization_groups")
-                )
-                warnings.extend(group_warnings)
-                imported_components.append("organization_groups")
-
-            if (
-                params.get("import_terms_of_service", True)
-                and "terms_of_service" in import_data
-            ):
-                terms_warnings = self._import_terms_of_service(
-                    offering, _import_list(import_data, "terms_of_service")
-                )
-                warnings.extend(terms_warnings)
-                imported_components.append("terms_of_service")
 
         response_data = {
             "imported_offering_uuid": offering.uuid,
@@ -6957,6 +6979,81 @@ class ProviderOfferingViewSet(
             serializers.OfferingImportResponseSerializer(response_data).data,
             status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
         )
+
+    def _import_document(self, import_data, params, user):
+        """Import a loaded offering document; return the offering, whether it
+        was created, the sections imported and the warnings.
+
+        Callers run it in a transaction: any validation error rolls back
+        everything imported so far.
+        """
+        warnings = []
+        # Create or update offering
+        offering, created, offering_warnings = self._import_offering_data(
+            import_data, params, user
+        )
+        warnings.extend(offering_warnings)
+
+        # Import related components based on parameters
+        imported_components = []
+
+        if params.get("import_components", True) and "components" in import_data:
+            components_data = _import_list(import_data, "components")
+            component_warnings = self._import_offering_components(
+                offering, components_data
+            )
+            warnings.extend(component_warnings)
+            imported_components.extend([str(c["type"]) for c in components_data])
+
+        if params.get("import_plans", True) and "plans" in import_data:
+            plan_warnings = self._import_offering_plans(
+                offering, _import_list(import_data, "plans")
+            )
+            warnings.extend(plan_warnings)
+            imported_components.append("plans")
+
+        if params.get("import_screenshots", True) and "screenshots" in import_data:
+            screenshot_warnings = self._import_offering_screenshots(
+                offering, _import_list(import_data, "screenshots")
+            )
+            warnings.extend(screenshot_warnings)
+            imported_components.append("screenshots")
+
+        if params.get("import_files", True) and "files" in import_data:
+            file_warnings = self._import_offering_files(
+                offering, _import_list(import_data, "files")
+            )
+            warnings.extend(file_warnings)
+            imported_components.append("files")
+
+        if params.get("import_endpoints", True) and "endpoints" in import_data:
+            endpoint_warnings = self._import_offering_endpoints(
+                offering, _import_list(import_data, "endpoints")
+            )
+            warnings.extend(endpoint_warnings)
+            imported_components.append("endpoints")
+
+        if (
+            params.get("import_organization_groups", True)
+            and "organization_groups" in import_data
+        ):
+            group_warnings = self._import_organization_groups(
+                offering, _import_list(import_data, "organization_groups")
+            )
+            warnings.extend(group_warnings)
+            imported_components.append("organization_groups")
+
+        if (
+            params.get("import_terms_of_service", True)
+            and "terms_of_service" in import_data
+        ):
+            terms_warnings = self._import_terms_of_service(
+                offering, _import_list(import_data, "terms_of_service")
+            )
+            warnings.extend(terms_warnings)
+            imported_components.append("terms_of_service")
+
+        return offering, created, imported_components, warnings
 
     def _import_offering_data(self, import_data, params, user):
         """Import core offering data."""
@@ -23128,3 +23225,135 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
         )
 
     versions_permissions = [structure_permissions.is_staff]
+
+    def _importer(self) -> "ProviderOfferingViewSet":
+        """The view import_offering runs in: an offering created from a
+        template is imported, from the template's filled-in document, as any
+        other. Its import methods read nothing of the view but the request."""
+        return ProviderOfferingViewSet(
+            request=self.request, kwargs={}, format_kwarg=None, action="import_offering"
+        )
+
+    @extend_schema(
+        summary="Create an offering from the template",
+        description=(
+            "Create a draft offering for an organization from the template's "
+            "current version: its document with the parameters filled in, "
+            "imported as import_offering imports. Each parameter takes the "
+            "value given or its default; a missing required value or a value "
+            "that does not fit its declaration is refused, under "
+            "parameters.<key>. The offering records the template, its version "
+            "and the parameter values, and keeps no link to the template: a "
+            "later edit of the template changes nothing in it. With dry_run, "
+            "everything is checked and the filled-in document returned, and "
+            "nothing is created. The site-agent consistency rules check the "
+            "filled-in document: an error finding refuses the create, under "
+            "findings; a dry run returns every finding."
+        ),
+        request=serializers.OfferingTemplateCreateOfferingSerializer,
+        responses={
+            200: serializers.OfferingTemplateCreateOfferingResponseSerializer,
+            201: serializers.OfferingTemplateCreateOfferingResponseSerializer,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def create_offering(self, request, uuid=None):
+        template: models.OfferingTemplate = self.get_object()
+        params = serializers.OfferingTemplateCreateOfferingSerializer(data=request.data)
+        params.is_valid(raise_exception=True)
+        data = params.validated_data
+        customer = data["customer"]
+        # What import_offering takes: an offering template is a way of
+        # writing an offering, not a permission to create one.
+        if not has_permission(request, PermissionEnum.CREATE_OFFERING, customer):
+            raise rf_exceptions.PermissionDenied(
+                _("You do not have permission to create offerings for this customer.")
+            )
+        document = template.document
+        values = offering_templates.resolve_parameters(
+            document.get(offering_templates.PARAMETERS_KEY) or [], data["parameters"]
+        )
+        filled = offering_templates.fill_document(document, values)
+        filled["offering"] = {
+            **(filled.get("offering") or {}),
+            "name": data["name"],
+            "type": template.offering_type,
+        }
+        if models.Offering.objects.filter(
+            customer=customer, name=data["name"]
+        ).exists():
+            raise rf_exceptions.ValidationError(
+                {
+                    "name": [
+                        _("The organization has an offering with this name already.")
+                    ]
+                }
+            )
+
+        dry_run = data["dry_run"]
+        # The rules check the offering as it would be created; an error is
+        # something the agent cannot work with, so it refuses the create and
+        # a dry run reports it.
+        findings = consistency.check_document(filled)
+        if not dry_run and consistency.has_errors(findings):
+            raise rf_exceptions.ValidationError(
+                {
+                    "findings": serializers.OfferingConfigurationFindingSerializer(
+                        findings, many=True
+                    ).data
+                }
+            )
+        offering_uuid = None
+        try:
+            with transaction.atomic():
+                offering, _created, _sections, warnings = (
+                    self._importer()._import_document(
+                        filled,
+                        {"customer": customer, "category": data["category"]},
+                        request.user,
+                    )
+                )
+                offering.template = template
+                offering.template_version = template.version
+                offering.template_parameters = values
+                offering.save(
+                    update_fields=[
+                        "template",
+                        "template_version",
+                        "template_parameters",
+                    ]
+                )
+                offering_uuid = offering.uuid
+                if dry_run:
+                    raise _DryRunRollback
+        except _DryRunRollback:
+            offering_uuid = None
+
+        return response.Response(
+            serializers.OfferingTemplateCreateOfferingResponseSerializer(
+                {
+                    "dry_run": dry_run,
+                    "offering_uuid": offering_uuid,
+                    "offering_name": data["name"],
+                    "template_version": template.version,
+                    "parameters": values,
+                    "document": filled,
+                    "warnings": warnings,
+                    "findings": findings,
+                }
+            ).data,
+            status=status.HTTP_200_OK if dry_run else status.HTTP_201_CREATED,
+        )
+
+    create_offering_serializer_class = (
+        serializers.OfferingTemplateCreateOfferingSerializer
+    )
+    access_declarations = {
+        "create_offering": [
+            access.custom(
+                "Who sees the template, holding "
+                f"{PermissionEnum.CREATE_OFFERING.value} on the organization "
+                "named in the request: as import_offering."
+            )
+        ]
+    }
