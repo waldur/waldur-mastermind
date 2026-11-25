@@ -649,6 +649,111 @@ of type `component_formula` with the same internal name as the order option:
 - A component may be derived by only one option.
 - A sum may not include its own target, and sums may not form a cycle.
 
+### Kubernetes Egress Rules
+
+A Kubernetes cluster configuration (`single_datacenter_k8s_config` or
+`multi_datacenter_k8s_config`) can carry the outbound destinations the
+cluster may reach, in its `egress_rules` list. Waldur validates and stores
+them; enforcing them (security groups, network policy, an egress proxy) is
+the provider's automation's job.
+
+#### Semantics
+
+- No `egress_rules`, or an empty list: outbound traffic is unrestricted.
+- One or more rules: outbound traffic is denied except to those
+  destinations and to the offering's baseline destinations.
+- Baseline destinations alone do not restrict a cluster.
+
+#### Rule shape
+
+```json
+{
+  "name": "Registry",
+  "destination_type": "domain",
+  "destination": "*.docker.io",
+  "protocol": "TCP",
+  "port_range_min": 443,
+  "port_range_max": 443,
+  "description": "Container images"
+}
+```
+
+- `destination_type` is `cidr` (an IPv4 or IPv6 network with an explicit
+  prefix length, such as `10.0.0.0/8`; no netmask form, no zone id) or
+  `domain` (a hostname of two or more labels whose last label holds a
+  letter, optionally led by a `*.` wildcard).
+- `protocol` (`TCP`, `UDP`, `ICMP`) and the ports are optional; leaving both
+  out allows any traffic to the destination. Ports without a protocol mean
+  those ports over TCP and UDP. Ports go from 1 to 65535, ICMP takes none,
+  and a single `port_range_min` is stored with `port_range_max` set to it.
+- `uuid` is an optional client-side row id, kept as given; ignore it.
+- Rules are stored as validated: strings trimmed, ports as numbers, keys
+  outside this shape dropped.
+
+The ingress lists of the same configuration, `public_access_rules` and
+`administrative_access_rules`, keep `direction: "ingress"` on every row and
+refuse rows with `direction: "egress"`.
+
+!!! warning "Migration 0330 changes what existing clusters may reach"
+    Migration `marketplace.0330` moved rows with `direction: "egress"` from
+    the ingress lists of existing orders and resources into `egress_rules`,
+    made valid (a blank name becomes `Egress rule N`, cleared ports become
+    any port, ICMP loses its ports), and turned on `egress_rules_enabled` for
+    the offerings concerned. Under the semantics above such a cluster is now
+    restricted to those destinations and the baseline. Check the automation
+    that applies the rules before deploying, and the affected clusters.
+
+#### Offering policy
+
+The k8s option's `default_configs` decides what customers may enter:
+
+```json
+{
+  "default_configs": {
+    "egress_rules_enabled": true,
+    "egress_domain_rules_allowed": false,
+    "egress_baseline_rules": [
+      {"name": "DNS", "destination_type": "cidr", "destination": "10.0.0.53/32",
+       "protocol": "UDP", "port_range_min": 53}
+    ]
+  }
+}
+```
+
+- Without `egress_rules_enabled`, an order carrying egress rules is refused.
+- Without `egress_domain_rules_allowed`, `domain` rules are refused.
+- `egress_baseline_rules` use the same rule shape. They are shown to the
+  customer read-only and are not copied into the order.
+
+#### Changing the rules after provisioning
+
+Add a resource option of type `k8s_egress_rules`. It is only available as a
+resource option, and the offering must have exactly one Kubernetes cluster
+order option, which it pairs with:
+
+```json
+{
+  "resource_options": {
+    "order": ["egress"],
+    "options": {"egress": {"type": "k8s_egress_rules", "label": "Egress rules"}}
+  }
+}
+```
+
+- When the offering is saved, the server sets `k8s_config_option` to the
+  paired order option's name and copies its egress policy into the resource
+  option's `default_configs`, so a changed value is checked like an ordered
+  one. Changing the order option's policy updates the copy.
+- A new resource's value is the ordered `egress_rules` (an empty list when
+  none were given), never an order attribute of the option's own name.
+- When the option is added, resources created earlier get the rules they
+  were ordered with; values they already hold are kept.
+- Customers change it through `update_options`. With
+  `create_orders_on_resource_option_change` the change becomes an UPDATE
+  order with `old_options` and `new_options`; otherwise it is applied
+  directly. Either way, read the current rules from the resource's
+  `options`, not from its ordered `attributes`.
+
 ## Showing a Resource Option as a Usage Limit
 
 A provider's backend may enforce a quota for a component that Waldur only
