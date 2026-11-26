@@ -25,14 +25,14 @@ from waldur_core.core.models import User
 from waldur_core.permissions.enums import OFFERING_EVALUATOR
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices.models import Invoice, InvoiceItem
-from waldur_mastermind.marketplace.demo_presets.manifest import (
+from waldur_mastermind.demo_presets.manifest import (
     DemoPresetManager,
     PresetMetadata,
 )
-from waldur_mastermind.marketplace.demo_presets.time_shift import (
+from waldur_mastermind.demo_presets.time_shift import (
     rebase_to_current_month,
 )
+from waldur_mastermind.invoices.models import Invoice, InvoiceItem
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OrderStates,
@@ -1505,7 +1505,7 @@ class PresetMonthRebaseTest(TestCase):
                 )
 
         with mock.patch(
-            "waldur_mastermind.marketplace.demo_presets.manifest.call_command",
+            "waldur_mastermind.demo_presets.manifest.call_command",
             side_effect=record,
         ):
             DemoPresetManager.load_preset("credit_realistic", dry_run=True)
@@ -1542,7 +1542,7 @@ class PresetMonthRebaseTest(TestCase):
             json.loads(DemoPresetManager.get_preset_path("hpc_ai_platform").read_text())
         )
         with mock.patch(
-            "waldur_mastermind.marketplace.demo_presets.manifest.call_command",
+            "waldur_mastermind.demo_presets.manifest.call_command",
             side_effect=record,
         ):
             DemoPresetManager.load_preset("hpc_ai_platform", dry_run=True)
@@ -1553,9 +1553,7 @@ class PresetMonthRebaseTest(TestCase):
         # credit_history, billing._register and build_context all read
         # Django's clock; date.today() is the machine's, which can be a
         # month ahead of it for three hours around midnight on the 1st.
-        with mock.patch(
-            "waldur_mastermind.marketplace.demo_presets.time_shift.timezone"
-        ) as tz:
+        with mock.patch("waldur_mastermind.demo_presets.time_shift.timezone") as tz:
             tz.localdate.return_value = datetime.date(2027, 2, 1)
             shifted = rebase_to_current_month(self.preset)
         self.assertEqual(self._months(shifted)[-1], (2027, 2))

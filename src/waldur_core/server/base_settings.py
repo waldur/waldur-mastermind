@@ -112,7 +112,7 @@ MIDDLEWARE = (
     "waldur_core.server.middleware.html_content_security_policy",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "waldur_core.server.middleware.cors_middleware",
-    "waldur_mastermind.marketplace.demo_presets.middleware.demo_preset_reset_middleware",
+    "waldur_mastermind.demo_presets.middleware.demo_preset_reset_middleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -346,6 +346,10 @@ for ext in WaldurExtension.get_extensions():
             globals()[key] = val
 
     ext.update_settings(globals())
+
+# Composition-layer app loaded after all extensions so DemoPresetsConfig.ready()
+# runs after marketplace, chat, invoices, proposal, and other business apps.
+INSTALLED_APPS += ("waldur_mastermind.demo_presets",)
 
 # Lock the account, not the address: many users share an address (a campus,
 # a company proxy, the ingress itself), and one user's failures must not lock

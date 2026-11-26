@@ -17,12 +17,8 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure import models as structure_models
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.serializers import BaseResourceSerializer
-        from waldur_freeipa import models as freeipa_models
         from waldur_mastermind.marketplace.billing_usage import (
             schedule_component_usage_billing,
-        )
-        from waldur_mastermind.marketplace.demo_presets import (  # noqa: F401 registers the task
-            tasks as demo_preset_tasks,
         )
         from waldur_mastermind.marketplace.handlers import (
             process_billing_on_resource_save,
@@ -574,13 +570,6 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.handle_user_role_revoked",
         )
 
-        # MaintenanceAnnouncement -> AdminAnnouncement handlers
-        signals.post_save.connect(
-            handlers.manage_maintenance_admin_announcements,
-            sender=models.MaintenanceAnnouncement,
-            dispatch_uid="waldur_mastermind.marketplace.manage_maintenance_admin_announcements",
-        )
-
         signals.post_save.connect(
             handlers.log_maintenance_announcement_events,
             sender=models.MaintenanceAnnouncement,
@@ -591,24 +580,6 @@ class MarketplaceConfig(AppConfig):
             handlers.log_maintenance_announcement_deleted,
             sender=models.MaintenanceAnnouncement,
             dispatch_uid="waldur_mastermind.marketplace.log_maintenance_announcement_deleted",
-        )
-
-        signals.post_save.connect(
-            handlers.update_maintenance_announcement_on_offering_change,
-            sender=models.MaintenanceAnnouncementOffering,
-            dispatch_uid="waldur_mastermind.marketplace.update_maintenance_announcement_on_offering_change",
-        )
-
-        signals.post_delete.connect(
-            handlers.update_maintenance_announcement_on_offering_change,
-            sender=models.MaintenanceAnnouncementOffering,
-            dispatch_uid="waldur_mastermind.marketplace.update_maintenance_announcement_on_offering_delete",
-        )
-
-        signals.pre_delete.connect(
-            handlers.cleanup_admin_announcement_on_maintenance_deletion,
-            sender=models.MaintenanceAnnouncement,
-            dispatch_uid="waldur_mastermind.marketplace.cleanup_admin_announcement_on_maintenance_deletion",
         )
 
         signals.post_save.connect(
@@ -696,12 +667,6 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
-            handlers.update_offering_user_username_after_freeipa_profile_update,
-            sender=freeipa_models.Profile,
-            dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_freeipa_profile_update",
-        )
-
-        signals.post_save.connect(
             handlers.update_offering_user_username_after_user_change,
             sender=core_models.User,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_user_change",
@@ -717,17 +682,6 @@ class MarketplaceConfig(AppConfig):
             handlers.send_user_account_status_message,
             sender=core_models.User,
             dispatch_uid="waldur_mastermind.marketplace.send_user_account_status_message",
-        )
-
-        # Add maintenance fields to AdminAnnouncementSerializer
-        from waldur_mastermind.notifications.serializers import (
-            AdminAnnouncementSerializer,
-        )
-
-        core_signals.pre_serializer_fields.connect(
-            handlers.add_maintenance_fields_to_admin_announcement_serializer,
-            sender=AdminAnnouncementSerializer,
-            dispatch_uid="waldur_mastermind.marketplace.add_maintenance_fields_to_admin_announcement_serializer",
         )
 
         signals.pre_delete.connect(

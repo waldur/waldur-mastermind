@@ -9,12 +9,12 @@ from kombu import Connection, Queue
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.demo_presets import jobs, tasks
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
-from waldur_mastermind.marketplace.tests.test_demo_presets import (
+from waldur_mastermind.demo_presets import jobs, tasks
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
+from waldur_mastermind.demo_presets.tests.test_demo_presets import (
     demo_presets_settings,
 )
+from waldur_mastermind.marketplace import models
 
 States = models.DemoPresetLoad.States
 LOAD_URL = "/api/marketplace-demo-presets/load/minimal_quickstart/"
@@ -96,7 +96,7 @@ class LoadRequestTest(test.APITestCase):
         # Another request that passed the middleware before the first load
         # was created: the view still refuses it.
         with mock.patch(
-            "waldur_mastermind.marketplace.demo_presets.middleware.jobs"
+            "waldur_mastermind.demo_presets.middleware.jobs"
         ) as middleware_jobs:
             middleware_jobs.active_load.return_value = None
             response = self.client.post(LOAD_URL)

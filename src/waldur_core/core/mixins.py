@@ -1,6 +1,7 @@
 import logging
-from functools import wraps
+from functools import lru_cache, wraps
 
+from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
@@ -255,3 +256,45 @@ class ProjectNameTemplateMixin(django_models.Model):
                 # Fall back to username if template evaluation fails
                 return user.username
         return user.username
+
+
+class DataciteMixin(django_models.Model):
+    """
+    A marker model for models that can be registered with PIDs and referred to in a Datacite PID way.
+    """
+
+    class Meta:
+        abstract = True
+
+    datacite_doi = django_models.CharField(
+        max_length=255, blank=True, verbose_name="Datacite DOI"
+    )
+
+    # `-1` - citations have never been looked up
+    # non-negative value - the number of citations of a DOI
+    citation_count = django_models.IntegerField(
+        default=-1,
+        help_text=_("Number of citations of a DOI"),
+    )
+
+    error_message = django_models.TextField(blank=True)
+
+    @classmethod
+    @lru_cache(maxsize=1)
+    def get_all_models(cls):
+        return [model for model in apps.get_models() if issubclass(model, cls)]
+
+    def get_datacite_title(self):
+        raise NotImplementedError
+
+    def get_datacite_creators_name(self):
+        raise NotImplementedError
+
+    def get_datacite_description(self):
+        raise NotImplementedError
+
+    def get_datacite_publication_year(self):
+        raise NotImplementedError
+
+    def get_datacite_url(self):
+        raise NotImplementedError

@@ -11,7 +11,7 @@ from pathlib import Path
 
 OUT = (
     Path(__file__).resolve().parents[1]
-    / "src/waldur_mastermind/marketplace/demo_presets/presets/credit_scenarios.json"
+    / "src/waldur_mastermind/demo_presets/presets/credit_scenarios.json"
 )
 
 CUSTOMER_MAIN = "a3c00000000000000000000000000001"

@@ -337,6 +337,18 @@ def add_price_estimate(sender, fields, **kwargs):
     setattr(sender, "get_billing_price_estimate", get_price_estimate)
 
 
+@extend_schema_field(NestedPriceEstimateSerializer)
+def get_resources_price_estimate(serializer, instance):
+    resources = serializer.get_resources(instance)
+    return utils.get_billing_price_estimate_for_resources(resources)
+
+
+def add_resources_price_estimate(sender, fields, **kwargs):
+    """Add a resource-scoped billing price estimate field to provider serializers."""
+    fields["billing_price_estimate"] = serializers.SerializerMethodField()
+    setattr(sender, "get_billing_price_estimate", get_resources_price_estimate)
+
+
 class FinancialReportSerializer(serializers.ModelSerializer):
     class Meta:
         model = structure_models.Customer

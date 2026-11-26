@@ -2,6 +2,12 @@ from django.apps import AppConfig
 from django.db.models import signals
 
 
+def _resolve_freeipa_username(user) -> str:
+    from . import handlers
+
+    return handlers.resolve_freeipa_username(user)
+
+
 class FreeIPAConfig(AppConfig):
     name = "waldur_freeipa"
     verbose_name = "FreeIPA"
@@ -18,6 +24,7 @@ class FreeIPAConfig(AppConfig):
             ExternalProfileProvider,
             register_external_profile_provider,
         )
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
 
         from . import handlers, models, utils
 
@@ -97,3 +104,10 @@ class FreeIPAConfig(AppConfig):
                 handled_errors=(freeipa_exceptions.FreeIPAError,),
             )
         )
+
+        signals.post_save.connect(
+            handlers.update_offering_user_username_after_freeipa_profile_update,
+            sender=models.Profile,
+            dispatch_uid="waldur_freeipa.update_offering_user_username_after_freeipa_profile_update",
+        )
+        marketplace_hooks.register_freeipa_username_resolver(_resolve_freeipa_username)

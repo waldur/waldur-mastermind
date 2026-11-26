@@ -116,9 +116,9 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
 | [`ResourceEndDateUpdateMixin`](#resourceenddateupdatemixin) | `waldur_mastermind.marketplace.serializers` | Write the end date and who set it, and nothing else |
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
-| [`DeploymentPresetsMixin`](#deploymentpresetsmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_deployment` | Built-in presets in one temporary directory and the deployment's in another, ... |
-| [`PreviewTestMixin`](#previewtestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_preview` | No description available |
-| [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_settings` | No description available |
+| [`DeploymentPresetsMixin`](#deploymentpresetsmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_deployment` | Built-in presets in one temporary directory and the deployment's in another, ... |
+| [`PreviewTestMixin`](#previewtestmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_preview` | No description available |
+| [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_settings` | No description available |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`SecretAbsenceMixin`](#secretabsencemixin) | `waldur_mastermind.marketplace.tests.test_network_options` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
@@ -1651,7 +1651,7 @@ email are declared by the serializers themselves.
 
 ### DeploymentPresetsMixin
 
-**Module:** `waldur_mastermind.marketplace.tests.test_demo_preset_deployment`
+**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_deployment`
 
 **Description:**
 
@@ -1660,13 +1660,13 @@ another, set as its extra directory.
 
 ### PreviewTestMixin
 
-**Module:** `waldur_mastermind.marketplace.tests.test_demo_preset_preview`
+**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_preview`
 
 **Description:** No description available.
 
 ### PresetSettingsTestMixin
 
-**Module:** `waldur_mastermind.marketplace.tests.test_demo_preset_settings`
+**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_settings`
 
 **Description:** No description available.
 

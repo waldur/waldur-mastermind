@@ -128,11 +128,6 @@ def register_in(router):
         basename="marketplace-offering-file",
     )
     router.register(
-        r"marketplace-offering-referrals",
-        views.OfferingReferralsViewSet,
-        basename="marketplace-offering-referral",
-    )
-    router.register(
         r"marketplace-offering-users",
         views.OfferingUsersViewSet,
         basename="marketplace-offering-user",
@@ -313,11 +308,6 @@ def register_in(router):
         basename="marketplace-software-target",
     )
     router.register(
-        r"marketplace-demo-presets",
-        views.DemoPresetViewSet,
-        basename="marketplace-demo-preset",
-    )
-    router.register(
         r"marketplace-article-code-update",
         views.ArticleCodeUpdateViewSet,
         basename="marketplace-article-code-update",
@@ -389,10 +379,5 @@ urlpatterns = [
     re_path(
         r"^api/marketplace-global-categories/$",
         views.GlobalCategoriesViewSet.as_view(),
-    ),
-    re_path(
-        r"^api/demo-preset-status/$",
-        views.DemoPresetStatusView.as_view(),
-        name="demo-preset-status",
     ),
 ]

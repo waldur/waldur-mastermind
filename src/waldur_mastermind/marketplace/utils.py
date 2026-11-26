@@ -80,7 +80,6 @@ from waldur_core.structure.managers import (
     get_organization_groups,
     get_project_users,
 )
-from waldur_freeipa import models as freeipa_models
 from waldur_mastermind.common.serializers import strip_hidden_options
 from waldur_mastermind.common.utils import create_request, mb_to_gb
 from waldur_mastermind.invoices import models as invoice_models
@@ -91,6 +90,7 @@ from waldur_mastermind.marketplace import (
     billing_discount,
     billing_mode,
     derived_limits,
+    hooks,
     k8s_egress,
     network_options,
     spending_limits,
@@ -5334,12 +5334,7 @@ def create_username_from_full_name(user, offering):
 
 
 def create_username_from_freeipa_profile(user):
-    profiles = freeipa_models.Profile.objects.filter(user=user)
-    if profiles.count() == 0:
-        logger.warning("There is no FreeIPA profile for user %s", user)
-        return ""
-    else:
-        return profiles.first().username
+    return hooks.resolve_freeipa_username(user)
 
 
 def generate_username(user, offering, account=None):

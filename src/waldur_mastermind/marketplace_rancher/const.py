@@ -1,4 +1,8 @@
-from waldur_mastermind.marketplace.enums import BillingTypes
+from waldur_mastermind.marketplace.enums import (  # noqa: F401
+    DEPLOYMENT_MODE_MANAGED,
+    DEPLOYMENT_MODE_SELF_MANAGED,
+    BillingTypes,
+)
 from waldur_mastermind.marketplace.plugins import Component
 
 OS_LB_SECURITY_GROUPS = ["k8s_admin", "k8s_public"]
@@ -27,7 +31,3 @@ RANCHER_BILLING_COMPONENTS = [
         billing_type=BillingTypes.USAGE,
     ),
 ]
-
-
-DEPLOYMENT_MODE_MANAGED = "managed"
-DEPLOYMENT_MODE_SELF_MANAGED = "self_managed"

@@ -9,8 +9,8 @@ from django.test import TransactionTestCase
 
 from waldur_core.core.models import User
 from waldur_core.structure.models import Project
-from waldur_mastermind.marketplace.demo_presets import matrix_links
-from waldur_mastermind.marketplace.tests.test_demo_preset_deployment import (
+from waldur_mastermind.demo_presets import matrix_links
+from waldur_mastermind.demo_presets.tests.test_demo_preset_deployment import (
     DeploymentPresetsMixin,
     _customer,
     _preset,

@@ -11,7 +11,7 @@
 #
 # Target layers (top to bottom; enabled in Phase 4 once upward cycles are broken):
 # layers = [
-#     "composition",   # waldur_core.server
+#     "composition",   # waldur_core.server, waldur_mastermind.demo_presets
 #     "integrations",  # auth, cloud/compute providers, marketplace_* bridges
 #     "supporting",    # invoices, billing, proposal, policy, support, chat, ...
 #     "marketplace",   # marketplace, marketplace_metrics
@@ -60,6 +60,7 @@ depends_on = [
     "waldur_core.web_shell",
     "waldur_mastermind.chat",
     "waldur_mastermind.common",
+    "waldur_mastermind.demo_presets",
     "waldur_mastermind.feedback",
     "waldur_mastermind.invoices",
     "waldur_mastermind.marketplace",
@@ -71,6 +72,27 @@ depends_on = [
     "waldur_openstack",
     "waldur_rancher",
     "waldur_sram",
+]
+
+[[modules]]
+path = "waldur_mastermind.demo_presets"
+visibility = ["waldur_core.server"]
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_core.users",
+    "waldur_mastermind.chat",
+    "waldur_mastermind.common",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_site_agent",
+    "waldur_mastermind.matrix_chat",
+    "waldur_mastermind.policy",
+    "waldur_mastermind.proposal",
+    "waldur_openstack",
 ]
 
 # =============================================================================
@@ -140,6 +162,7 @@ depends_on = [
     "waldur_core.quotas",
     "waldur_core.structure",
     "waldur_core.users",
+    "waldur_mastermind.marketplace",
 ]
 
 [[modules]]
@@ -306,7 +329,9 @@ depends_on = []
 [[modules]]
 path = "waldur_pid"
 depends_on = [
+    "waldur_core.configuration",
     "waldur_core.structure",
+    "waldur_mastermind.marketplace",
 ]
 
 [[modules]]
@@ -352,6 +377,7 @@ depends_on = [
     "waldur_core.quotas",
     "waldur_core.structure",
     "waldur_mastermind.billing",
+    "waldur_mastermind.marketplace",
 ]
 
 [[modules]]
@@ -360,6 +386,7 @@ depends_on = [
     "waldur_core.structure",
     "waldur_mastermind.common",
     "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
     "waldur_mastermind.policy",
 ]
 
@@ -442,6 +469,7 @@ depends_on = [
 [[modules]]
 path = "waldur_mastermind.notifications"
 depends_on = [
+    "waldur_core.configuration",
     "waldur_core.logging",
     "waldur_core.media",
     "waldur_core.structure",
@@ -527,21 +555,12 @@ depends_on = [
     "waldur_mastermind.common",
     "waldur_mastermind.marketplace_metrics",
     # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_freeipa",  # -> integrations
-    "waldur_mastermind.analytics",  # -> supporting
-    "waldur_mastermind.billing",  # -> supporting
     "waldur_mastermind.invoices",  # -> supporting
     "waldur_mastermind.marketplace_openstack",  # -> integrations
-    "waldur_mastermind.marketplace_rancher",  # -> integrations
     "waldur_mastermind.marketplace_site_agent",  # -> integrations
-    "waldur_mastermind.matrix_chat",  # -> supporting
-    "waldur_mastermind.notifications",  # -> supporting
     "waldur_mastermind.policy",  # -> supporting
-    "waldur_mastermind.promotions",  # -> supporting
     "waldur_mastermind.proposal",  # -> supporting
-    "waldur_mastermind.support",  # -> supporting
     "waldur_openstack",  # -> integrations
-    "waldur_pid",  # -> integrations
 ]
 
 [[modules]]

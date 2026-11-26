@@ -8,7 +8,7 @@ except those a browser needs to follow the load and log in again afterwards.
 
 from django.http import JsonResponse
 
-from waldur_mastermind.marketplace.demo_presets import gate, jobs
+from waldur_mastermind.demo_presets import gate, jobs
 
 STATUS_PATH = "/api/demo-preset-status/"
 EXEMPT_PREFIXES = (STATUS_PATH, "/api/configuration/", "/api-auth/")

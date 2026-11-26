@@ -11,7 +11,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.fixtures import ProposalRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.demo_presets import proposal_history
+from waldur_mastermind.demo_presets import proposal_history
 from waldur_mastermind.proposal import activity, models
 from waldur_mastermind.proposal.tests import factories, fixtures
 

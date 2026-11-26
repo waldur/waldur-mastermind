@@ -4606,7 +4606,7 @@ class ImportWorkflowEngineStateTest(TestCase):
             self.assertEqual([a.user for a in answers], [user])
 
     def test_contribution_answers_round_trip_by_uuid(self):
-        from waldur_mastermind.marketplace.management.commands.export_structure import (
+        from waldur_mastermind.demo_presets.management.commands.export_structure import (
             Command as ExportCommand,
         )
         from waldur_mastermind.proposal.models import StepContribution

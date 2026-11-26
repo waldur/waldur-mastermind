@@ -16,7 +16,7 @@ month it is loaded in -- a quarterly report is never empty.
 Run::
 
     python scripts/generate_public_sector_preset.py \\
-        --output src/waldur_mastermind/marketplace/demo_presets/presets/public_sector_accounting.json
+        --output src/waldur_mastermind/demo_presets/presets/public_sector_accounting.json
 
 Then load with::
 
@@ -1779,7 +1779,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",
-        default="src/waldur_mastermind/marketplace/demo_presets/presets/public_sector_accounting.json",
+        default="src/waldur_mastermind/demo_presets/presets/public_sector_accounting.json",
     )
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument(

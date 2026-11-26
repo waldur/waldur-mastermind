@@ -27,6 +27,7 @@ from waldur_core.structure.views import (
 from waldur_core.user_actions import urls as user_actions_urls
 from waldur_core.users import urls as users_urls
 from waldur_core.web_shell import views as web_shell_views
+from waldur_mastermind.demo_presets import urls as demo_presets_urls
 from waldur_mastermind.marketplace.views import (
     ServiceProviderComplianceViewSet,
     ServiceProviderCourseAccountsViewSet,
@@ -55,6 +56,7 @@ structure_urls.register_in(router)
 users_urls.register_in(router)
 user_actions_urls.register_in(router)
 checklist_urls.register_in(router)
+demo_presets_urls.register_in(router)
 
 urlpatterns = [
     re_path(r"^admin/", admin.site.urls),
@@ -68,6 +70,7 @@ urlpatterns = [
     re_path(r"^api/celery-stats/", core_views.CeleryStatsViewSet.as_view()),
     re_path(r"^api/database-stats/", core_views.DatabaseStatsViewSet.as_view()),
     re_path(r"^api/query/", core_views.QueryViewSet.as_view()),
+    *demo_presets_urls.urlpatterns,
 ]
 
 

@@ -1,7 +1,7 @@
 """The Celery task that runs a demo preset load.
 
 It lives here rather than in marketplace/tasks.py, which the preset loader
-imports through invoices.tasks; marketplace's AppConfig.ready() imports this
+imports through invoices.tasks; demo_presets's AppConfig.ready() imports this
 module so the worker registers the task.
 """
 
@@ -11,9 +11,9 @@ from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from django.utils import timezone
 
+from waldur_mastermind.demo_presets import jobs as demo_preset_jobs
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.demo_presets import jobs as demo_preset_jobs
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
 
 logger = logging.getLogger(__name__)
 

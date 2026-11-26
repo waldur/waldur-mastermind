@@ -829,3 +829,7 @@ class OrderFlowChoices:
     )
     ACTORS = ("consumer", "provider", "scheduler", "backend")
     TERMINALS = ("rejected", "canceled", "erred")
+
+
+DEPLOYMENT_MODE_MANAGED = "managed"
+DEPLOYMENT_MODE_SELF_MANAGED = "self_managed"

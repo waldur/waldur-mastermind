@@ -18,8 +18,8 @@ from waldur_core.configuration.models import Setting
 from waldur_core.core.features import FEATURE_DEFAULTS, all_feature_keys
 from waldur_core.core.models import Feature
 from waldur_core.core.serializers import ConstanceSettingsSerializer
-from waldur_mastermind.marketplace.demo_presets import gate, settings_reset
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
+from waldur_mastermind.demo_presets import gate, settings_reset
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
 
 SOURCE_PRESET = "preset"
 SOURCE_OVERLAY = "overlay"
