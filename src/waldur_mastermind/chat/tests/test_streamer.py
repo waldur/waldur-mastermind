@@ -2954,21 +2954,27 @@ class LLMStreamerReasoningTest(_LLMStreamerTestBase, unittest.TestCase):
         self.assertIsNone(streamer.error)
         self.assertGreater(streamer.output_tokens, 0)
 
-    @patch("waldur_mastermind.chat.llm_streamer._MAX_REQUEST_TIMEOUTS", 0.0017)
     def test_usage_estimate_counts_what_is_generated_after_stop(self):
         streamer = LLMStreamer(_messages(), "https://example.com/v1", "dummy-token")
+        yielded = 0
 
         def reasoning_after_stop():
+            nonlocal yielded
             streamer._cancel_requested.set()
+            # Start the limit with the stream, so set-up time does not use it up.
+            streamer._deadline = time.monotonic() + 0.5
             while True:
                 time.sleep(0.05)
+                yielded += 1
                 yield _make_chunk(reasoning="x" * 400)
 
         streamer.client = _mock_openai_client(reasoning_after_stop())
         list(streamer)
 
-        # Each chunk is 100 tokens, and the first ones came after the Stop.
-        self.assertGreaterEqual(streamer.output_tokens, 300)
+        # Each chunk is 100 tokens, and all of them came after the Stop.
+        # Every chunk before the limit must be counted.
+        self.assertGreaterEqual(yielded, 3)
+        self.assertGreaterEqual(streamer.output_tokens, (yielded - 1) * 100)
 
     def test_usage_estimate_counts_tool_call_arguments(self):
         delta = (
