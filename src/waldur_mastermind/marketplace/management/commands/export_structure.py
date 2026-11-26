@@ -2035,6 +2035,18 @@ class Command(BaseCommand):
                     "allocation_date": round_obj.allocation_date.isoformat()
                     if round_obj.allocation_date
                     else None,
+                    "lifecycle_state": round_obj.lifecycle_state,
+                    **{
+                        field: getattr(round_obj, field).isoformat()
+                        if getattr(round_obj, field)
+                        else None
+                        for field in (
+                            "evaluation_started_at",
+                            "deciding_started_at",
+                            "results_published_at",
+                            "closed_at",
+                        )
+                    },
                     "slug": round_obj.slug,
                     "created": round_obj.created.isoformat()
                     if round_obj.created
@@ -2050,7 +2062,13 @@ class Command(BaseCommand):
         """Export proposal data."""
         proposals = []
         for proposal in Proposal.objects.select_related(
-            "round", "round__call", "project", "created_by", "approved_by"
+            "round",
+            "round__call",
+            "project",
+            "created_by",
+            "approved_by",
+            "completed_by",
+            "science_sub_domain",
         ).order_by("round__call__name", "name"):
             proposals.append(
                 {
@@ -2081,6 +2099,17 @@ class Command(BaseCommand):
                     "awarded_duration_months": proposal.awarded_duration_months,
                     "completed_at": proposal.completed_at.isoformat()
                     if proposal.completed_at
+                    else None,
+                    "completed_by_uuid": proposal.completed_by.uuid.hex
+                    if proposal.completed_by
+                    else None,
+                    "submitted_at": proposal.submitted_at.isoformat()
+                    if proposal.submitted_at
+                    else None,
+                    "decision_held": proposal.decision_held,
+                    # Sub-domains are matched by code, as import_science_domains does.
+                    "science_sub_domain_code": proposal.science_sub_domain.code
+                    if proposal.science_sub_domain
                     else None,
                     "slug": proposal.slug,
                     "created": proposal.created.isoformat()

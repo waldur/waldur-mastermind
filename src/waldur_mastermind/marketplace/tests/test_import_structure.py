@@ -5438,3 +5438,152 @@ class ImportOpenStackNetworkingTest(TestCase):
             ).rules.count(),
             1,
         )
+
+
+class ImportProposalRecordTest(TestCase):
+    """Proposals and rounds keep their identifiers and history dates, so a
+    migrated or copied proposal is the one people already know."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.test_file_path = os.path.join(self.temp_dir, "test_structure.json")
+        self.call = proposal_factories.CallFactory()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _run(self, data, *args):
+        with open(self.test_file_path, "w") as f:
+            json.dump(data, f)
+        output = StringIO()
+        call_command(
+            "import_structure", "-i", self.test_file_path, *args, stdout=output
+        )
+        return output.getvalue()
+
+    def _round(self, **extra):
+        return {
+            "uuid": "ad000000000000000000000000000001",
+            "call_uuid": self.call.uuid.hex,
+            "start_time": "2026-01-01T00:00:00+00:00",
+            "cutoff_time": "2026-02-01T00:00:00+00:00",
+            **extra,
+        }
+
+    def _proposal(self, **extra):
+        return {
+            "uuid": "ae000000000000000000000000000001",
+            "round_uuid": "ad000000000000000000000000000001",
+            "name": "Imported proposal",
+            "state": "accepted",
+            **extra,
+        }
+
+    def test_slugs_and_dates_are_kept(self):
+        sub_domain = structure_factories.ScienceSubDomainFactory(code="1.3")
+        completer = structure_factories.UserFactory()
+        self._run(
+            {
+                "rounds": [self._round(slug="2026B01")],
+                "proposals": [
+                    self._proposal(
+                        slug="EHPC-BEN-2026B01-080",
+                        submitted_at="2026-01-15T10:00:00+00:00",
+                        science_sub_domain_code="1.3",
+                        completed_by_uuid=completer.uuid.hex,
+                        decision_held=True,
+                    )
+                ],
+            }
+        )
+
+        round_obj = self.call.round_set.get()
+        self.assertEqual(round_obj.slug, "2026B01")
+        proposal = Proposal.objects.get(uuid="ae000000000000000000000000000001")
+        self.assertEqual(proposal.slug, "EHPC-BEN-2026B01-080")
+        self.assertEqual(
+            proposal.submitted_at,
+            datetime.datetime(2026, 1, 15, 10, tzinfo=datetime.UTC),
+        )
+        self.assertEqual(proposal.science_sub_domain, sub_domain)
+        self.assertEqual(proposal.completed_by, completer)
+        self.assertTrue(proposal.decision_held)
+
+    def test_slug_is_generated_when_not_given(self):
+        self._run({"rounds": [self._round()], "proposals": [self._proposal()]})
+
+        proposal = Proposal.objects.get(uuid="ae000000000000000000000000000001")
+        self.assertTrue(proposal.slug)
+
+    def test_unknown_sub_domain_imports_the_proposal_without_one(self):
+        output = self._run(
+            {
+                "rounds": [self._round()],
+                "proposals": [self._proposal(science_sub_domain_code="9.99")],
+            }
+        )
+
+        proposal = Proposal.objects.get(uuid="ae000000000000000000000000000001")
+        self.assertIsNone(proposal.science_sub_domain)
+        self.assertIn("science sub-domain 9.99 not found", output)
+
+    def test_update_without_the_new_keys_keeps_stored_values(self):
+        self._run(
+            {
+                "rounds": [self._round(slug="2026B01")],
+                "proposals": [
+                    self._proposal(
+                        slug="EHPC-BEN-2026B01-080",
+                        submitted_at="2026-01-15T10:00:00+00:00",
+                    )
+                ],
+            }
+        )
+
+        # An older dump has neither key: an update must not blank them.
+        self._run(
+            {"rounds": [self._round()], "proposals": [self._proposal()]},
+            "--update",
+        )
+
+        proposal = Proposal.objects.get(uuid="ae000000000000000000000000000001")
+        self.assertEqual(proposal.slug, "EHPC-BEN-2026B01-080")
+        self.assertIsNotNone(proposal.submitted_at)
+        self.assertEqual(proposal.round.slug, "2026B01")
+
+    def test_export_then_import_keeps_proposal_record(self):
+        sub_domain = structure_factories.ScienceSubDomainFactory(code="2.1")
+        round_obj = proposal_factories.RoundFactory(
+            call=self.call,
+            lifecycle_state="closed",
+            closed_at=timezone.now(),
+        )
+        proposal = proposal_factories.ProposalFactory(
+            round=round_obj, state="accepted", science_sub_domain=sub_domain
+        )
+        Proposal.objects.filter(pk=proposal.pk).update(
+            submitted_at=timezone.now(), slug="EHPC-REG-2026-001"
+        )
+        export_path = os.path.join(self.temp_dir, "export.json")
+        call_command("export_structure", "-o", export_path, stdout=StringIO())
+        with open(export_path) as f:
+            exported = json.load(f)
+        Proposal.objects.filter(pk=proposal.pk).update(
+            submitted_at=None, slug="X", science_sub_domain=None
+        )
+        type(round_obj).objects.filter(pk=round_obj.pk).update(
+            lifecycle_state=None, closed_at=None
+        )
+
+        self._run(
+            {"rounds": exported["rounds"], "proposals": exported["proposals"]},
+            "--update",
+        )
+
+        proposal.refresh_from_db()
+        round_obj.refresh_from_db()
+        self.assertEqual(proposal.slug, "EHPC-REG-2026-001")
+        self.assertIsNotNone(proposal.submitted_at)
+        self.assertEqual(proposal.science_sub_domain, sub_domain)
+        self.assertEqual(round_obj.lifecycle_state, "closed")
+        self.assertIsNotNone(round_obj.closed_at)
