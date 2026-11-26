@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any
 
 from django.db import IntegrityError, transaction
+from django.db import models as django_models
 from rest_framework import serializers
 
 from waldur_core.core.yaml_utils import json_size, too_large_message
@@ -33,6 +34,14 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     normalize_offering_type,
 )
+from waldur_mastermind.marketplace.import_fields import (
+    COMPONENT_IMPORT_FIELDS,
+    ENDPOINT_IMPORT_FIELDS,
+    OFFERING_IMPORT_FIELDS,
+    PLAN_COMPONENT_IMPORT_FIELDS,
+    PLAN_IMPORT_FIELDS,
+)
+from waldur_mastermind.marketplace.utils import UsernameGenerationPolicy
 from waldur_mastermind.marketplace_site_agent import (
     agent_configuration as site_agent_configuration,
 )
@@ -107,6 +116,24 @@ PARAMETER_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 PARAMETER_LABEL_MAX_LENGTH = 150
 PARAMETER_CHOICES_MAX = 100
 PARAMETER_PATTERN_MAX_LENGTH = 500
+# Longer than any field a parameter fills; also bounds the work a pattern
+# does on a value.
+PARAMETER_VALUE_MAX_LENGTH = 1000
+
+# Component fields the import reads as a mapping, checking its content.
+COMPONENT_MAPPING_FIELDS = frozenset({"spending_limit_periods"})
+# What a parameter may fill in the sections the import copies field by field:
+# anything else the import drops without a word. create_offering sets the
+# offering's name and type itself, and a template drops its paused_reason.
+PARAMETER_LEAVES = {
+    "offering": frozenset(OFFERING_IMPORT_FIELDS) - {"name", "type", "paused_reason"},
+    "components": frozenset(
+        {"type", *COMPONENT_IMPORT_FIELDS, *COMPONENT_MAPPING_FIELDS}
+    ),
+    "plans": frozenset({"name", *PLAN_IMPORT_FIELDS}),
+    "endpoints": frozenset({"name", *ENDPOINT_IMPORT_FIELDS}),
+}
+PLAN_COMPONENT_LEAVES = frozenset({"component_type", *PLAN_COMPONENT_IMPORT_FIELDS})
 
 # What save_as_template turns into parameters: the values that tie an offering
 # to one site. Backend settings are looked up in the agent configuration and,
@@ -126,6 +153,14 @@ SITE_SPECIFIC_SETTINGS = {
     "cscs_dwdi_cluster": "DWDI cluster",
     "api_url": "Service API URL",
 }
+# Of those, the ones that are a site's convention rather than its identity:
+# a template saved from an offering offers the offering's value as default.
+CONVENTION_SETTINGS = frozenset(
+    {"default_account", "customer_prefix", "project_prefix", "allocation_prefix"}
+)
+USERNAME_POLICY = "username_generation_policy"
+USERNAME_POLICY_LABEL = "How usernames are generated"
+USERNAME_POLICY_CHOICES = [policy.value for policy in UsernameGenerationPolicy]
 # Offering fields a template never takes over from an offering: it creates a
 # draft, and why an offering was paused is that offering's own.
 DROPPED_OFFERING_FIELDS = ("state", "paused_reason")
@@ -346,6 +381,8 @@ def _value_problem(value, kind: str, choices, pattern) -> str | None:
     """Why a value does not fit a parameter's declaration, or None."""
     if not _is_of_type(value, kind):
         return f"Expected a {kind}."
+    if isinstance(value, str) and len(value) > PARAMETER_VALUE_MAX_LENGTH:
+        return f"At most {PARAMETER_VALUE_MAX_LENGTH} characters."
     if choices is not None and value not in choices:
         return "Expected one of: " + ", ".join(str(choice) for choice in choices) + "."
     if pattern is not None and not re.fullmatch(pattern, value):
@@ -383,11 +420,45 @@ def _check_target(document, path, field, claimed, key):
         )
     if len(segments) < 2 or _parent(document, segments) is None:
         raise _error(field, f"{path} does not lead into the document.")
+    leaves = _leaves(segments)
+    if leaves is not None and segments[-1] not in leaves:
+        raise _error(
+            field,
+            f"{path}: the offering import does not read {segments[-1]} there. "
+            f"A parameter fills one of: {', '.join(sorted(leaves))}.",
+        )
     if value_at(document, path) is not None:
         raise _error(
             field,
             f"{path} holds a value. Remove it: the parameter supplies it.",
         )
+
+
+def _leaves(segments: list[str | int]) -> frozenset | None:
+    """The fields a path may end in, or None where any key will do."""
+    section = segments[0]
+    if section not in PARAMETER_LEAVES:
+        return None
+    if section == "offering":
+        return PARAMETER_LEAVES[section] if len(segments) == 2 else frozenset()
+    if (
+        section == "components"
+        and len(segments) > 3
+        and segments[2] in COMPONENT_MAPPING_FIELDS
+    ):
+        # The import checks what such a mapping holds.
+        return None
+    if len(segments) == 3 and isinstance(segments[1], int):
+        return PARAMETER_LEAVES[section]
+    if (
+        section == "plans"
+        and len(segments) == 5
+        and isinstance(segments[1], int)
+        and segments[2] == "components"
+        and isinstance(segments[3], int)
+    ):
+        return PLAN_COMPONENT_LEAVES
+    return frozenset()
 
 
 def _check_agent_configuration(configuration, targets: set[str]) -> dict:
@@ -687,24 +758,56 @@ ITEM_KEYS = {
     "terms_of_service": "version",
 }
 PLAN_COMPONENT_KEY = "component_type"
-# The name is given when the offering is created, not by the template.
-UNCOMPARED_PATHS = {"offering.name"}
+# The import's numeric model fields, which an export may write as strings.
+NUMERIC_FIELDS = frozenset(
+    field.name
+    for model in (
+        models.Offering,
+        models.OfferingComponent,
+        models.Plan,
+        models.PlanComponent,
+    )
+    for field in model._meta.get_fields()
+    if isinstance(
+        field,
+        django_models.DecimalField
+        | django_models.IntegerField
+        | django_models.FloatField,
+    )
+)
+# The name and category are given when the offering is created, not by the
+# template.
+UNCOMPARED_PATHS = {"offering.name", "offering.category_name"}
 
 
-def _comparable(value):
-    """Numbers compared by value: an export writes 60000 as 60000.0, and a
-    price as a decimal string."""
-    if isinstance(value, bool) or value is None:
-        return value
+def _number(value) -> Decimal | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, int | float):
         return Decimal(str(value))
     if isinstance(value, str):
         try:
             number = Decimal(value)
         except InvalidOperation:
-            return value
-        return number if number.is_finite() else value
-    return value
+            return None
+        return number if number.is_finite() else None
+    return None
+
+
+def _same(expected, actual, field) -> bool:
+    """Numbers compared by value: an export writes 60000 as 60000.0, and a
+    price as a decimal string. Two strings are text unless the field is a
+    number, so a prefix 01 is not 1."""
+    if expected == actual:
+        return True
+    if (
+        isinstance(expected, str)
+        and isinstance(actual, str)
+        and field not in NUMERIC_FIELDS
+    ):
+        return False
+    expected_number, actual_number = _number(expected), _number(actual)
+    return expected_number is not None and expected_number == actual_number
 
 
 def _item_key(path: str) -> str | None:
@@ -741,9 +844,15 @@ def _diff(expected, actual, path: str, differences: list[dict]) -> None:
         if not isinstance(actual, list):
             differences.append({"path": path, "template": expected, "offering": actual})
             return
-        actual_items = {
-            item.get(item_key): item for item in actual if isinstance(item, dict)
-        }
+        actual_items = {}
+        for item in actual:
+            if not isinstance(item, dict):
+                continue
+            name = item.get(item_key)
+            # An archived plan can share its name with an active one, which
+            # is what the template describes.
+            if name not in actual_items or actual_items[name].get("archived"):
+                actual_items[name] = item
         expected_names = set()
         for item in expected:
             if not isinstance(item, dict):
@@ -760,7 +869,7 @@ def _diff(expected, actual, path: str, differences: list[dict]) -> None:
     if expected is None:
         # The template leaves it open: an optional parameter without a value.
         return
-    if _comparable(expected) != _comparable(actual):
+    if not _same(expected, actual, path.rsplit(".", 1)[-1]):
         differences.append({"path": path, "template": expected, "offering": actual})
 
 
@@ -841,7 +950,7 @@ def template_document(export_data: dict) -> dict:
     document["schema_version"] = SCHEMA_VERSION
     parameters: dict[str, dict] = {}
 
-    def declare(key, label, path, value=None):
+    def declare(key, label, path, value=None, default=None):
         parameter = parameters.setdefault(
             key,
             {
@@ -850,7 +959,7 @@ def template_document(export_data: dict) -> dict:
                 "description": "",
                 "type": _parameter_type(value),
                 "required": True,
-                "default": None,
+                "default": default,
                 "paths": [],
             },
         )
@@ -942,9 +1051,31 @@ def template_document(export_data: dict) -> dict:
                 continue
             del settings[name]
             key = CLUSTER_PARAMETER if name == "cluster_name" else name
-            declare(key, label, f"{prefix}.{name}", value)
+            declare(
+                key,
+                label,
+                f"{prefix}.{name}",
+                value,
+                default=value if name in CONVENTION_SETTINGS else None,
+            )
             if key == CLUSTER_PARAMETER:
                 parameters[key]["type"] = _parameter_type(value)
+
+    # Asked for as the shipped presets ask for it, the offering's as default.
+    plugin_options = document.get("plugin_options")
+    if (
+        isinstance(plugin_options, dict)
+        and plugin_options.get(USERNAME_POLICY) in USERNAME_POLICY_CHOICES
+    ):
+        value = plugin_options.pop(USERNAME_POLICY)
+        declare(
+            USERNAME_POLICY,
+            USERNAME_POLICY_LABEL,
+            f"plugin_options.{USERNAME_POLICY}",
+            value,
+            default=value,
+        )
+        parameters[USERNAME_POLICY]["choices"] = USERNAME_POLICY_CHOICES
 
     document[PARAMETERS_KEY] = list(parameters.values())
     return document

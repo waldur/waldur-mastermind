@@ -60,6 +60,7 @@ class BaseCreateOfferingTest(test.APITestCase):
         self.fixture = structure_fixtures.CustomerFixture()
         self.customer = self.fixture.customer
         self.owner = self.fixture.owner
+        factories.ServiceProviderFactory(customer=self.customer)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING)
         CustomerRole.OWNER.add_permission(
@@ -507,3 +508,172 @@ class TemplateDiffTest(BaseCreateOfferingTest):
             self.diff(stranger).status_code,
             (status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND),
         )
+
+
+@ddt
+class ParameterTargetTest(test.APITestCase):
+    """A parameter fills only what the offering import reads."""
+
+    def check(self, path):
+        document = priced_document()
+        document["offering"]["access_url"] = None
+        document["components"][0]["spending_limit_periods"] = {}
+        document["endpoints"] = [{"name": "API"}]
+        document["parameters"].append(
+            {"key": "extra", "label": "Extra", "paths": [path]}
+        )
+        return offering_templates.check_document(document, SITE_AGENT_OFFERING)
+
+    @data(
+        "offering.acess_url",
+        "offering.name",
+        "offering.type",
+        "components.0.unit_factr",
+        "plans.0.components.0.prise",
+        "endpoints.0.uri",
+    )
+    def test_field_the_import_drops_is_refused(self, path):
+        with self.assertRaises(serializers.ValidationError) as context:
+            self.check(path)
+        self.assertIn("does not read", str(context.exception.detail))
+
+    @data(
+        "offering.access_url",
+        "components.0.unit_factor",
+        "components.0.spending_limit_periods.month",
+        "plans.0.unit_price",
+        "plans.0.components.0.future_price",
+        "endpoints.0.url",
+    )
+    def test_field_the_import_reads_is_accepted(self, path):
+        self.check(path)
+
+    def test_long_value_is_refused(self):
+        parameters = [{"key": "name", "type": "string", "required": True}]
+        with self.assertRaises(serializers.ValidationError):
+            offering_templates.resolve_parameters(
+                parameters,
+                {"name": "a" * (offering_templates.PARAMETER_VALUE_MAX_LENGTH + 1)},
+            )
+
+
+class CreateOfferingReviewTest(BaseCreateOfferingTest):
+    def test_organization_that_is_not_a_service_provider_is_refused(self):
+        models.ServiceProvider.objects.filter(customer=self.customer).delete()
+        for dry_run in (True, False):
+            response = self.create_offering(dry_run=dry_run)
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+            self.assertIn("customer", response.data)
+        self.assertFalse(models.Offering.objects.exists())
+
+    def test_dry_run_sends_no_event_log(self):
+        with self.assertNoLogs("waldur_core.logging.event_logger", level="INFO"):
+            response = self.create_offering(dry_run=True)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_document_shows_agent_configuration_to_integration_editors(self):
+        response = self.create_offering(dry_run=True)
+        self.assertIn("agent_configuration", response.data["document"])
+
+    def test_document_hides_agent_configuration_from_others(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        response = self.create_offering(dry_run=True)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertNotIn("agent_configuration", response.data["document"])
+        self.assertIn("components", response.data["document"])
+
+
+class TemplateDiffReviewTest(BaseCreateOfferingTest):
+    def setUp(self):
+        super().setUp()
+        response = self.create_offering()
+        self.offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+
+    def diff(self, user=None):
+        self.client.force_authenticate(user or self.owner)
+        return self.client.get(
+            f"{PROVIDER_OFFERINGS_URL}{self.offering.uuid.hex}/template_diff/"
+        )
+
+    def test_unpublished_template_is_compared_for_staff_only(self):
+        self.template.is_published = False
+        self.template.save()
+        data = self.diff().data
+        self.assertIsNone(data["latest_version"])
+        self.assertIsNone(data["latest_version_differences"])
+        self.assertEqual(data["created_version_differences"], [])
+        data = self.diff(self.staff).data
+        self.assertEqual(data["latest_version"], 1)
+        self.assertEqual(data["latest_version_differences"], [])
+
+    def test_other_category_is_no_drift(self):
+        document = copy.deepcopy(self.template.document)
+        document["offering"]["category_name"] = "Not the offering's category"
+        template = make_template(document, name="With category")
+        response = self.create_offering(template, name="Other")
+        self.offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+        self.assertEqual(self.diff().data["created_version_differences"], [])
+
+    def test_export_leaves_backend_id_out(self):
+        self.client.force_authenticate(self.owner)
+        response = self.client.post(
+            f"{PROVIDER_OFFERINGS_URL}{self.offering.uuid.hex}/export_offering/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertNotIn("backend_id", response.data["export_data"]["offering"])
+
+    def test_public_offering_does_not_name_its_template(self):
+        self.offering.state = models.Offering.States.ACTIVE
+        self.offering.save()
+        response = self.client.get(
+            f"/api/marketplace-public-offerings/{self.offering.uuid.hex}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in ("template_uuid", "template_name", "template_version"):
+            self.assertNotIn(field, response.data)
+
+
+class DocumentDiffTest(test.APITestCase):
+    def paths(self, expected, actual):
+        return [d["path"] for d in offering_templates.document_diff(expected, actual)]
+
+    def test_strings_are_text(self):
+        self.assertEqual(
+            self.paths(
+                {"offering": {"backend_id": "01"}}, {"offering": {"backend_id": "1"}}
+            ),
+            ["offering.backend_id"],
+        )
+
+    def test_numbers_are_compared_by_value(self):
+        expected = {
+            "components": [{"type": "cpu", "unit_factor": 60000}],
+            "plans": [
+                {
+                    "name": "Default",
+                    "components": [{"component_type": "cpu", "price": "1.5"}],
+                }
+            ],
+        }
+        actual = {
+            "components": [{"type": "cpu", "unit_factor": 60000.0}],
+            "plans": [
+                {
+                    "name": "Default",
+                    "components": [{"component_type": "cpu", "price": "1.500000"}],
+                }
+            ],
+        }
+        self.assertEqual(self.paths(expected, actual), [])
+
+    def test_active_plan_is_compared_over_archived_one(self):
+        expected = {"plans": [{"name": "Default", "unit": "month"}]}
+        actual = {
+            "plans": [
+                {"name": "Default", "unit": "month", "archived": False},
+                {"name": "Default", "unit": "day", "archived": True},
+            ]
+        }
+        self.assertEqual(self.paths(expected, actual), [])
+        actual["plans"].reverse()
+        self.assertEqual(self.paths(expected, actual), [])

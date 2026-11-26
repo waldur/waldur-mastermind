@@ -937,6 +937,8 @@ class LegacySettingsTest(test.APITestCase):
 class ImportValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
+        # Imports create offerings for service providers only.
+        factories.ServiceProviderFactory(customer=self.fixture.customer)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
         CustomerRole.OWNER.add_permission(
             PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION
