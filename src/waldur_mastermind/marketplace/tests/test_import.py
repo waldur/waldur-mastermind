@@ -1,11 +1,14 @@
 from unittest import mock
 
 from ddt import data, ddt
+from rest_framework import exceptions as rf_exceptions
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.marketplace import importers, models, plugins
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     OPENSTACK_INSTANCE_OFFERING,
@@ -154,3 +157,90 @@ class ImportableResourcesListTest(test.APITestCase):
         response = self.list_resources(shared=True, user="staff")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, [])
+
+
+class ImportResourceTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
+    def test_offering_without_resource_importer_rejects_import(self):
+        offering = factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            customer=self.fixture.customer,
+            backend_id_rules={"format_regex": "^valid-.*$"},
+        )
+        url = factories.OfferingFactory.get_url(offering, "import_resource")
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            url, {"backend_id": "invalid_id", "project": self.fixture.project.uuid.hex}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("does not support resource import", str(response.data))
+
+    def test_plugin_manager_import_resource_rejects_unsupported_offering(self):
+        offering = factories.OfferingFactory(
+            type=BASIC_OFFERING, customer=self.fixture.customer
+        )
+
+        with self.assertRaises(ValueError):
+            plugins.manager.import_resource(
+                offering, None, self.fixture.project, "backend_id"
+            )
+
+    def test_plugin_manager_import_resource_defaults_additional_details_to_empty_dict(
+        self,
+    ):
+        original_backends = dict(plugins.manager.backends)
+        mock_importer = mock.Mock()
+        try:
+            plugins.manager.register("Test.Importable", resource_importer=mock_importer)
+            offering = factories.OfferingFactory(
+                type="Test.Importable", customer=self.fixture.customer
+            )
+
+            plugins.manager.import_resource(
+                offering, None, self.fixture.project, "backend_id", None
+            )
+
+            mock_importer.assert_called_once_with(
+                offering=offering,
+                plan=None,
+                project=self.fixture.project,
+                backend_id="backend_id",
+                additional_details={},
+            )
+        finally:
+            plugins.manager.backends = original_backends
+
+    def test_import_backend_resource_translates_service_backend_error(self):
+        offering = factories.OfferingFactory(
+            type=BASIC_OFFERING, customer=self.fixture.customer
+        )
+
+        def fail():
+            raise ServiceBackendError("Backend unavailable")
+
+        with self.assertRaises(rf_exceptions.ValidationError) as ctx:
+            importers.import_backend_resource(offering, None, fail)
+
+        self.assertIn("Backend unavailable", str(ctx.exception))
+
+    def test_import_backend_resource_does_not_schedule_executor_when_resource_missing(
+        self,
+    ):
+        offering = factories.OfferingFactory(
+            type=BASIC_OFFERING, customer=self.fixture.customer
+        )
+        executor = mock.Mock()
+
+        with self.assertRaises(models.Resource.DoesNotExist):
+            importers.import_backend_resource(
+                offering,
+                None,
+                lambda: self.fixture.project,
+                executor=executor,
+            )
+
+        executor.execute.assert_not_called()

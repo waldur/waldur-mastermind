@@ -62,6 +62,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             INSTANCE_METRIC_KEYS,
             VOLUME_METRIC_KEYS,
             handlers,
+            importers,
             processors,
             utils,
         )
@@ -105,8 +106,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             # rejects a fractional quota, so a fraction would be truncated.
             max_limit_decimal_places=0,
             get_importable_resources_backend_method="get_importable_tenants",
-            import_resource_backend_method="import_tenant",
-            import_resource_executor=openstack_executors.TenantImportExecutor,
+            resource_importer=importers.import_tenant,
             pull_resource_executor=openstack_executors.TenantPullExecutor,
             is_interruptible=True,
         )
@@ -116,8 +116,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             create_resource_processor=processors.InstanceCreateProcessor,
             delete_resource_processor=processors.InstanceDeleteProcessor,
             get_importable_resources_backend_method="get_importable_instances",
-            import_resource_backend_method="import_instance",
-            import_resource_executor=openstack_executors.InstancePullExecutor,
+            resource_importer=importers.import_instance,
             pull_resource_executor=openstack_executors.InstancePullExecutor,
             is_interruptible=True,
         )
@@ -127,7 +126,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             create_resource_processor=processors.VolumeCreateProcessor,
             delete_resource_processor=processors.VolumeDeleteProcessor,
             get_importable_resources_backend_method="get_importable_volumes",
-            import_resource_backend_method="import_volume",
+            resource_importer=importers.import_volume,
             is_interruptible=True,
             pull_resource_executor=openstack_executors.VolumePullExecutor,
         )

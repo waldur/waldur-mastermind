@@ -12815,6 +12815,11 @@ class ImportResourceSerializer(serializers.Serializer):
         write_only=True,
     )
 
+    def validate_additional_details(self, value):
+        if value is not None and not isinstance(value, dict):
+            raise serializers.ValidationError(_("A JSON object is expected."))
+        return value
+
     def get_fields(self):
         fields = super().get_fields()
 

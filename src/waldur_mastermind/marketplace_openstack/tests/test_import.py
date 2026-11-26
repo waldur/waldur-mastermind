@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace_openstack.tests.mocks import (
     MockVolume,
 )
 from waldur_openstack import models
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.tests.factories import (
     InstanceFactory,
     TenantFactory,
@@ -243,6 +244,16 @@ class InstanceImportTest(test.APITestCase):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
+    def test_instance_import_fails_when_offering_has_no_scope(self):
+        self.offering.scope = None
+        self.offering.save()
+
+        response = self.client.post(self.url, self._get_payload())
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
 
 class BaseVolumeImportTest(BaseBackendTestCase, test.APITestCase):
     def setUp(self):
@@ -326,6 +337,16 @@ class VolumeImportTest(BaseVolumeImportTest):
         volume = VolumeFactory(tenant=self.fixture.tenant, project=self.fixture.project)
 
         response = self.client.post(self.url, self._get_payload(volume.backend_id))
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_volume_import_fails_when_offering_has_no_scope(self):
+        self.offering.scope = None
+        self.offering.save()
+
+        response = self.client.post(self.url, self._get_payload())
 
         self.assertEqual(
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
@@ -462,18 +483,55 @@ class TenantImportTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         mock_tasks.sync_instances_and_volumes_of_tenant.delay.assert_called_once()
 
-    def import_tenant(self, user="staff"):
+    def test_tenant_import_ignores_additional_details(self):
+        response = self.import_tenant(additional_details={"unexpected": "value"})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_tenant_import_fails_when_offering_has_no_scope(self):
+        self.offering.scope = None
+        self.offering.save()
+
+        response = self.import_tenant()
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_tenant_import_translates_backend_error_to_validation_error(self):
+        self.mocked_keystone.projects.get.side_effect = OpenStackBackendError(
+            "Tenant lookup failed"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = OfferingFactory.get_url(self.offering, "import_resource")
+
+        response = self.client.post(
+            url,
+            {
+                "backend_id": self.backend_tenant.backend_id,
+                "project": self.fixture.project.uuid.hex,
+            },
+        )
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("Tenant lookup failed", str(response.data))
+
+    def import_tenant(self, user="staff", additional_details=None):
         self.client.force_authenticate(getattr(self.fixture, user))
         payload = {
             "backend_id": self.backend_tenant.backend_id,
             "project": self.fixture.project.uuid.hex,
         }
+        if additional_details is not None:
+            payload["additional_details"] = additional_details
         url = OfferingFactory.get_url(self.offering, "import_resource")
         self.mocked_keystone.projects.get.return_value = MOCK_TENANT
         self.mocked_nova.quotas.get.return_value = MOCK_LIMITS
         self.mocked_cinder.quotas.get.return_value = MOCK_LIMITS
 
-        return self.client.post(url, payload)
+        return self.client.post(url, payload, format="json")
 
 
 class ImportedInstanceVolumesTest(BaseOpenStackTest):
