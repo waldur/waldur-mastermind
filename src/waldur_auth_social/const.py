@@ -1,10 +1,5 @@
-class ProviderChoices:
-    TARA = "tara"
-    EDUTEAMS = "eduteams"
-    REMOTE_EDUTEAMS = "remote-eduteams"
-    KEYCLOAK = "keycloak"
-
-    CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
+from waldur_core.core.enums import ProviderChoices  # noqa: F401
+from waldur_core.core.user_attributes import WRITABLE_USER_FIELDS  # noqa: F401
 
 
 class TokenEndpointAuthMethod:
@@ -13,33 +8,6 @@ class TokenEndpointAuthMethod:
     CLIENT_SECRET_POST = "client_secret_post"
     CLIENT_SECRET_BASIC = "client_secret_basic"
 
-
-WRITABLE_USER_FIELDS = (
-    "first_name",
-    "last_name",
-    "identity_source",
-    "organization",
-    "affiliations",
-    "civil_number",
-    "email",
-    "phone_number",
-    "birth_date",
-    "gender",
-    "personal_title",
-    "place_of_birth",
-    "address",
-    "country_of_residence",
-    "nationality",
-    "nationalities",
-    "organization_country",
-    "organization_type",
-    "organization_registry_code",
-    "organization_vat_code",
-    "organization_address",
-    "eduperson_assurance",
-    "uid_number",
-    "primary_gid",
-)
 
 SECRET_PROVIDER_FIELDS = (
     "client_secret",

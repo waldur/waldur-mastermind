@@ -7,15 +7,42 @@ are enabled system-wide. It controls:
 2. Which attributes are available in the UI
 
 Architecture:
-- WRITABLE_USER_FIELDS (in waldur_auth_social.const) is a security whitelist
-  defining what CAN be written to user profiles
+- WRITABLE_USER_FIELDS is a security whitelist defining what CAN be written to
+  user profiles
 - ENABLED_USER_PROFILE_ATTRIBUTES (Constance setting) is admin configuration
   defining what SHOULD be written
 - Effective fields = intersection of both
 """
 
-from waldur_auth_social.const import WRITABLE_USER_FIELDS
 from waldur_core.configuration import config
+
+# Security whitelist of user model fields that external IdPs are allowed to write.
+WRITABLE_USER_FIELDS = (
+    "first_name",
+    "last_name",
+    "identity_source",
+    "organization",
+    "affiliations",
+    "civil_number",
+    "email",
+    "phone_number",
+    "birth_date",
+    "gender",
+    "personal_title",
+    "place_of_birth",
+    "address",
+    "country_of_residence",
+    "nationality",
+    "nationalities",
+    "organization_country",
+    "organization_type",
+    "organization_registry_code",
+    "organization_vat_code",
+    "organization_address",
+    "eduperson_assurance",
+    "uid_number",
+    "primary_gid",
+)
 
 # Core attributes that are always enabled and cannot be disabled
 CORE_USER_ATTRIBUTES = frozenset(

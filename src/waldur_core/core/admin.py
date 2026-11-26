@@ -28,11 +28,10 @@ from rest_framework import permissions as rf_permissions
 from rest_framework.exceptions import ParseError
 from reversion.admin import VersionAdmin
 
-from waldur_auth_social.const import ProviderChoices
-from waldur_auth_social.utils import pull_remote_eduteams_user
-from waldur_core.core import models, password_attempts
+from waldur_core.core import auth_hooks, models, password_attempts
 from waldur_core.core.admin_widgets import CopyButtonMixin
 from waldur_core.core.authentication import can_access_admin_site
+from waldur_core.core.enums import ProviderChoices
 from waldur_core.core.handlers import emit_admin_action_event
 from waldur_core.core.utils import chunked_queryset
 from waldur_core.logging import event_logger
@@ -372,7 +371,9 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
                 or remote_user.identity_source == ProviderChoices.EDUTEAMS
             ):
                 try:
-                    pull_remote_eduteams_user(remote_user.username)
+                    auth_hooks.pull_remote_user(
+                        ProviderChoices.EDUTEAMS, remote_user.username
+                    )
                 except ParseError:
                     messages.error(
                         request,

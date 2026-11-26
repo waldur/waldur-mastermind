@@ -89,7 +89,7 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "POSTPROCESSING_HOOKS": [
         "drf_spectacular.hooks.postprocess_schema_enums",
-        "waldur_core.core.schema_hooks.add_polymorphic_attributes_schema",
+        "waldur_mastermind.marketplace.schema_hooks.add_polymorphic_attributes_schema",
         "waldur_core.core.schema_hooks.postprocess_drop_description",
         "waldur_core.core.schema_hooks.postprocess_fix_enum",
         "waldur_core.core.schema_hooks.refactor_pagination_parameters",

@@ -324,6 +324,20 @@ QUEUES_FOR_ACCESSIBLE_OFFERING = access.custom(
 )
 
 
+_offering_access_validator = None
+
+
+def register_offering_access_validator(validator) -> None:
+    """Register ``validator(user, offering_uuid) -> None`` for event subscription queues.
+
+    Higher-layer apps (marketplace) register offering existence and access
+    checks in ``AppConfig.ready()`` so ``waldur_core.logging`` does not import
+    ``waldur_mastermind.marketplace``.
+    """
+    global _offering_access_validator
+    _offering_access_validator = validator
+
+
 class EventSubscriptionQueueCreateSerializer(serializers.Serializer):
     """Serializer for creating EventSubscriptionQueue instances."""
 
@@ -337,38 +351,17 @@ class EventSubscriptionQueueCreateSerializer(serializers.Serializer):
 
     def validate_offering_uuid(self, value):
         """Verify user has access to this offering."""
-        from waldur_mastermind.marketplace import enums as marketplace_enums
-        from waldur_mastermind.marketplace import models as marketplace_models
-
         request = self.context.get("request")
         if not request or not request.user:
             raise serializers.ValidationError("Authentication required")
 
-        offering_exists = marketplace_models.Offering.objects.filter(
-            uuid=value
-        ).exists()
-        if not offering_exists:
+        if _offering_access_validator is None:
             raise serializers.ValidationError(
                 f"Offering with UUID {value} does not exist"
             )
 
-        # Check user has access to the offering via standard permissions
-        user_offerings = marketplace_models.Offering.objects.all().filter_for_user(
-            request.user
-        )
-        if user_offerings.filter(uuid=value).exists():
-            return value
-
-        # ISD identity managers can access non-archived/draft offerings
-        # for STOMP event subscription queue creation
-        if request.user.is_identity_manager and request.user.managed_isds:
-            if marketplace_models.Offering.objects.filter(
-                uuid=value,
-                state__in=marketplace_enums.OfferingStates.ISD_ALLOWED_STATES,
-            ).exists():
-                return value
-
-        raise serializers.ValidationError("You do not have access to this offering")
+        _offering_access_validator(request.user, value)
+        return value
 
     @transaction.atomic
     def create(self, validated_data):

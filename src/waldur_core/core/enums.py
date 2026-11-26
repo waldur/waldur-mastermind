@@ -7,6 +7,15 @@ GENDER_CHOICES = [
 ]
 
 
+class ProviderChoices:
+    TARA = "tara"
+    EDUTEAMS = "eduteams"
+    REMOTE_EDUTEAMS = "remote-eduteams"
+    KEYCLOAK = "keycloak"
+
+    CHOICES = (TARA, EDUTEAMS, KEYCLOAK)
+
+
 class CoreStates(models.IntegerChoices):
     CREATION_SCHEDULED = 5, "CREATION_SCHEDULED"
     CREATING = 6, "CREATING"
