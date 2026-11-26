@@ -183,7 +183,7 @@ role = CustomerRole.SUPPORT  # Not MANAGER (doesn't exist)
 
 ### Demo Presets
 
-Demo presets are JSON files in `src/waldur_mastermind/marketplace/demo_presets/presets/` that define complete marketplace ecosystems for testing and demos.
+Demo presets are JSON files in `src/waldur_mastermind/demo_presets/presets/` that define complete marketplace ecosystems for testing and demos.
 
 **UUID Format Rules** (CRITICAL):
 
@@ -225,7 +225,7 @@ Use the billing data generator script to add realistic invoices, credits, and us
 
 ```bash
 # Generate 12 months of billing data (invoices, credits, usages)
-python scripts/generate_preset_billing_data.py src/waldur_mastermind/marketplace/demo_presets/presets/<preset>.json
+python scripts/generate_preset_billing_data.py src/waldur_mastermind/demo_presets/presets/<preset>.json
 
 # Generate with specific months and reproducible seed
 python scripts/generate_preset_billing_data.py preset.json --months 6 --seed 42
@@ -521,7 +521,7 @@ See `CLAUDE_SUBAGENT_USAGE.md` for detailed examples and workflows.
 
 ## Demo Preset UUIDs
 
-When creating or modifying JSON files in `src/waldur_mastermind/marketplace/demo_presets/presets/`:
+When creating or modifying JSON files in `src/waldur_mastermind/demo_presets/presets/`:
 
 ### UUID Format Rules
 

@@ -26,10 +26,8 @@ from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
 from waldur_mastermind.marketplace_openstack import (
     executors as marketplace_openstack_executors,  # test-dependency-ignore
 )
-from waldur_pid import tasks as pid_tasks
-from waldur_pid import utils as pid_utils
 
-from . import billing_mode, executors, models, utils
+from . import billing_mode, executors, hooks, models, utils
 
 
 class ServiceProviderAdmin(admin.ModelAdmin):
@@ -482,11 +480,24 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
 
     activate.short_description = _("Activate offerings")
 
+    def _get_pid_provider(self, request):
+        provider = hooks.get_pid_actions_provider()
+        if provider is None:
+            self.message_user(
+                request,
+                _("Datacite PID integration is not configured."),
+                messages.WARNING,
+            )
+        return provider
+
     def datacite_registration(self, request, queryset):
+        provider = self._get_pid_provider(request)
+        if provider is None:
+            return
         queryset = queryset.filter(datacite_doi="")
 
         for offering in queryset.all():
-            pid_utils.create_doi(offering)
+            provider.create_doi(offering)
 
         count = queryset.count()
         message = ngettext(
@@ -501,10 +512,13 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     datacite_registration.short_description = _("Register in Datacite")
 
     def datacite_update(self, request, queryset):
+        provider = self._get_pid_provider(request)
+        if provider is None:
+            return
         queryset = queryset.exclude(datacite_doi="")
 
         for offering in queryset.all():
-            pid_utils.update_doi(offering)
+            provider.update_doi(offering)
 
         count = queryset.count()
         message = ngettext(
@@ -519,11 +533,14 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     datacite_update.short_description = _("Update data of Datacite registration")
 
     def link_doi_with_collection(self, request, queryset):
+        provider = self._get_pid_provider(request)
+        if provider is None:
+            return
         queryset = queryset.exclude(datacite_doi="")
 
         for offering in queryset.all():
             serialized_offering = core_utils.serialize_instance(offering)
-            pid_tasks.link_doi_with_collection.delay(serialized_offering)
+            provider.schedule_link_doi_with_collection(serialized_offering)
 
         count = queryset.count()
         message = ngettext(
@@ -538,11 +555,14 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
     link_doi_with_collection.short_description = _("Link with Datacite Collection")
 
     def offering_referrals_pull(self, request, queryset):
+        provider = self._get_pid_provider(request)
+        if provider is None:
+            return
         queryset.exclude(datacite_doi="")
 
         for offering in queryset.all():
             serialized_offering = core_utils.serialize_instance(offering)
-            pid_tasks.update_referrable.delay(serialized_offering)
+            provider.schedule_update_referrable(serialized_offering)
 
         count = queryset.count()
 

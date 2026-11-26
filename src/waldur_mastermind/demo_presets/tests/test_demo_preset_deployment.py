@@ -18,9 +18,9 @@ from rest_framework.authtoken.models import Token
 from waldur_core.core.models import Feature, User
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.demo_presets import jobs
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.demo_presets import jobs
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
 
 FEATURE = "project.show_matrix_chat"
 AGENT_TOKEN = "a" * 40
@@ -193,9 +193,7 @@ class ExtraDirectoriesApiTest(DeploymentPresetsMixin, test.APITestCase):
         self.assertEqual(response.data["entity_counts"]["customers"], 1)
 
     @mock.patch.object(jobs, "purge_task_queues", return_value=0)
-    @mock.patch(
-        "waldur_mastermind.marketplace.demo_presets.tasks.load_demo_preset.delay"
-    )
+    @mock.patch("waldur_mastermind.demo_presets.tasks.load_demo_preset.delay")
     def test_deployment_preset_load_is_queued(self, delay, purge):
         response = self.client.post("/api/marketplace-demo-presets/load/site/", {})
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)

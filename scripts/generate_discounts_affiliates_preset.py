@@ -26,7 +26,6 @@ OUT = os.path.join(
     "..",
     "src",
     "waldur_mastermind",
-    "marketplace",
     "demo_presets",
     "presets",
     "discounts_and_affiliates.json",

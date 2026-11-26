@@ -14,7 +14,7 @@ from waldur_core.configuration.models import Setting, Source
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.models import Feature
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
 
 MATRIX = "project.show_matrix_chat"
 DIGEST = "customer.show_project_digest"

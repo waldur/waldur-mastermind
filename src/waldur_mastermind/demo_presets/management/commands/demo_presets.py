@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
 
 
 class Command(BaseCommand):

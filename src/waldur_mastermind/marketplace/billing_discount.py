@@ -36,12 +36,12 @@ from django.db import transaction
 from django.db.models import Q
 
 from waldur_core.structure.models import Project
-from waldur_mastermind.billing import handlers as billing_handlers
 from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common.formula import FormulaError
 from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.utils import format_percent
+from waldur_mastermind.marketplace import hooks as marketplace_hooks
 from waldur_mastermind.marketplace.enums import DiscountAggregations
 
 logger = logging.getLogger(__name__)
@@ -289,6 +289,6 @@ def _reconcile(invoice, wanted: dict[str, dict]) -> None:
         ).delete()
         # A saved line refreshes the price estimates through post_save; a
         # deleted one has no such handler, so the estimates would keep it.
-        billing_handlers.update_estimates_for_scopes(
+        marketplace_hooks.update_estimates_for_scopes(
             [invoice.customer, *Project.objects.filter(id__in=project_ids)]
         )

@@ -8,11 +8,30 @@ skips them instead.
 
 import json
 import logging
+from collections.abc import Callable
+from pathlib import Path
 
 from waldur_core.structure import models as structure_models
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
 
 logger = logging.getLogger(__name__)
+
+_preset_path_resolver: Callable[[str], Path | None] | None = None
+
+
+def register_preset_path_resolver(resolver: Callable[[str], Path | None]) -> None:
+    """Register ``resolver(name) -> Path | None`` from the demo_presets app."""
+    global _preset_path_resolver
+    _preset_path_resolver = resolver
+
+
+class DemoPresetManager:
+    """Thin facade delegating preset path lookup to the registered resolver."""
+
+    @staticmethod
+    def get_preset_path(name: str) -> Path | None:
+        if _preset_path_resolver is None:
+            return None
+        return _preset_path_resolver(name)
 
 
 def is_preset_loaded(name: str) -> bool:

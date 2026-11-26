@@ -97,10 +97,6 @@ from waldur_core.structure.managers import (
     get_read_only_only_project_ids,
 )
 from waldur_core.structure.serializers import get_options_serializer_class
-from waldur_mastermind.billing.serializers import (
-    NestedPriceEstimateSerializer,
-    get_payment_profiles,
-)
 from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
@@ -141,11 +137,15 @@ from waldur_mastermind.common.serializers import (
 )
 from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
-from waldur_mastermind.invoices.serializers import PaymentProfileSerializer
-from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_resources
+from waldur_mastermind.invoices.serializers import (
+    PaymentProfileSerializer,
+    get_payment_profiles,
+)
 from waldur_mastermind.marketplace import offering_merge_coverage, offering_templates
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
+    DEPLOYMENT_MODE_MANAGED,
+    DEPLOYMENT_MODE_SELF_MANAGED,
     LEGACY_SITE_AGENT_OFFERING,
     MAX_LIMIT_DECIMAL_PLACES,
     OPENSTACK_TENANT_OFFERING,
@@ -203,16 +203,11 @@ from waldur_mastermind.marketplace_openstack import (
     INSTANCE_METRIC_KEYS,
     VOLUME_METRIC_KEYS,
 )
-from waldur_mastermind.marketplace_rancher.const import (
-    DEPLOYMENT_MODE_MANAGED,
-    DEPLOYMENT_MODE_SELF_MANAGED,
-)
 from waldur_mastermind.marketplace_site_agent import (
     agent_configuration as site_agent_configuration,
 )
 from waldur_mastermind.marketplace_site_agent import consistency
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_pid import models as pid_models
 
 from . import (
     api_key_spending_limits,
@@ -13299,41 +13294,6 @@ class OfferingFileSerializer(
         )
 
 
-class OfferingReferralSerializer(
-    serializers.HyperlinkedModelSerializer,
-    core_serializers.AugmentedSerializerMixin,
-):
-    scope = core_serializers.GenericRelatedField(read_only=True)
-    scope_uuid = serializers.UUIDField(read_only=True, source="scope.uuid")
-
-    class Meta:
-        model = pid_models.DataciteReferral
-        fields = (
-            "url",
-            "uuid",
-            "scope",
-            "scope_uuid",
-            "pid",
-            "relation_type",
-            "resource_type",
-            "creator",
-            "publisher",
-            "published",
-            "title",
-            "referral_url",
-        )
-        extra_kwargs = dict(
-            url={
-                "lookup_field": "uuid",
-                "view_name": "marketplace-offering-referral-detail",
-            },
-            offering={
-                "lookup_field": "uuid",
-                "view_name": "marketplace-provider-offering-detail",
-            },
-        )
-
-
 class ServiceProviderProjectGroupOfferingSerializer(serializers.Serializer):
     uuid = serializers.CharField()
     name = serializers.CharField()
@@ -16164,7 +16124,9 @@ class OfferingStatsSerializer(serializers.Serializer):
 
 
 class MarketplaceProviderCustomerProjectSerializer(
-    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+    core_serializers.RestrictedSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
 ):
     class Meta:
         model = structure_models.Project
@@ -16175,12 +16137,10 @@ class MarketplaceProviderCustomerProjectSerializer(
             "end_date",
             "resources_count",
             "users_count",
-            "billing_price_estimate",
         )
 
     resources_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
-    billing_price_estimate = serializers.SerializerMethodField()
 
     def get_resources(self, instance):
         service_provider = self.context["service_provider"]
@@ -16193,11 +16153,6 @@ class MarketplaceProviderCustomerProjectSerializer(
 
     def get_users_count(self, instance) -> int:
         return count_users(instance)
-
-    @extend_schema_field(NestedPriceEstimateSerializer)
-    def get_billing_price_estimate(self, instance):
-        resources = self.get_resources(instance)
-        return get_billing_price_estimate_for_resources(resources)
 
 
 class ProviderProjectSerializer(serializers.ModelSerializer):
@@ -16521,7 +16476,9 @@ class MarketplaceServiceProviderUserSerializer(
 
 
 class ProviderOfferingCustomerSerializer(
-    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+    core_serializers.RestrictedSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
 ):
     class Meta:
         model = structure_models.Customer
@@ -16546,7 +16503,6 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
             "phone_number",
             "email",
             "payment_profiles",
-            "billing_price_estimate",
             "projects_count",
             "users_count",
             "projects",
@@ -16554,7 +16510,6 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
         )
 
     payment_profiles = serializers.SerializerMethodField()
-    billing_price_estimate = serializers.SerializerMethodField()
     projects_count = serializers.SerializerMethodField()
     users_count = serializers.SerializerMethodField()
     projects = serializers.SerializerMethodField()
@@ -16591,11 +16546,6 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
             )
 
         return queryset.distinct()
-
-    @extend_schema_field(NestedPriceEstimateSerializer)
-    def get_billing_price_estimate(self, customer):
-        resources = self.get_resources(customer)
-        return get_billing_price_estimate_for_resources(resources)
 
     @extend_schema_field(PaymentProfileSerializer(many=True))
     def get_payment_profiles(self, customer):
@@ -16636,6 +16586,7 @@ class MarketplaceProviderCustomerSerializer(ProviderOfferingCustomerSerializer):
 class ProviderOfferingSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
+    core_serializers.AugmentedSerializerMixin,
     serializers.ModelSerializer,
 ):
     customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
@@ -16651,7 +16602,6 @@ class ProviderOfferingSerializer(
             "type",
             "state",
             "resources_count",
-            "billing_price_estimate",
             "components",
             "plans",
             "options",
@@ -16665,7 +16615,6 @@ class ProviderOfferingSerializer(
 
     category_title = serializers.ReadOnlyField(source="category.title")
     resources_count = serializers.SerializerMethodField()
-    billing_price_estimate = serializers.SerializerMethodField()
     state = serializers.SerializerMethodField()
     service_provider_can_create_offering_user = serializers.SerializerMethodField()
 
@@ -16701,11 +16650,6 @@ class ProviderOfferingSerializer(
 
     def get_resources_count(self, offering: models.Offering) -> int:
         return self.get_resources(offering).count()
-
-    @extend_schema_field(NestedPriceEstimateSerializer)
-    def get_billing_price_estimate(self, offering: models.Offering):
-        resources = self.get_resources(offering)
-        return get_billing_price_estimate_for_resources(resources)
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -19899,220 +19843,6 @@ class ResourceProvisioningStatsSerializer(serializers.Serializer):
     avg_pending_duration = serializers.FloatField(
         read_only=True,
         help_text="Average duration in seconds from Creation to Executing state",
-    )
-
-
-# Demo Presets Serializers
-
-
-class DemoPresetSerializer(serializers.Serializer):
-    """Serializer for demo preset metadata."""
-
-    name = serializers.CharField(read_only=True)
-    title = serializers.CharField(read_only=True)
-    description = serializers.CharField(read_only=True)
-    version = serializers.CharField(read_only=True)
-    entity_counts = serializers.DictField(
-        child=serializers.IntegerField(),
-        read_only=True,
-    )
-    scenarios = serializers.ListField(
-        child=serializers.CharField(),
-        read_only=True,
-    )
-
-
-class DemoPresetPreviewRoleSerializer(serializers.Serializer):
-    role = serializers.CharField(help_text="Role name, such as CUSTOMER.OWNER.")
-    scope_type = serializers.CharField(
-        help_text="Type of the role's scope, such as structure.customer."
-    )
-    scope_name = serializers.CharField(
-        allow_blank=True, help_text="Name of the role's scope in the preset."
-    )
-
-
-class DemoPresetPreviewUserSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    email = serializers.CharField(allow_blank=True)
-    full_name = serializers.CharField(allow_blank=True)
-    is_staff = serializers.BooleanField()
-    is_support = serializers.BooleanField()
-    is_active = serializers.BooleanField(
-        help_text="An inactive user is imported but cannot log in."
-    )
-    password = serializers.CharField(
-        allow_null=True,
-        help_text="The preset's password for this user. Never given for staff, "
-        "support or inactive users, or for the overlay's users.",
-    )
-    roles = DemoPresetPreviewRoleSerializer(many=True)
-
-
-class DemoPresetPreviewProjectSerializer(serializers.Serializer):
-    name = serializers.CharField()
-    resources = serializers.ListField(
-        child=serializers.CharField(), help_text="Names of the project's resources."
-    )
-
-
-class DemoPresetPreviewOrganizationSerializer(serializers.Serializer):
-    name = serializers.CharField()
-    projects = DemoPresetPreviewProjectSerializer(many=True)
-
-
-class DemoPresetPreviewOfferingGroupSerializer(serializers.Serializer):
-    type = serializers.CharField(allow_blank=True)
-    category = serializers.CharField(allow_blank=True)
-    names = serializers.ListField(child=serializers.CharField())
-
-
-class DemoPresetPreviewOverlayContentsSerializer(serializers.Serializer):
-    users = DemoPresetPreviewUserSerializer(many=True)
-    organizations = DemoPresetPreviewOrganizationSerializer(many=True)
-    offerings = DemoPresetPreviewOfferingGroupSerializer(many=True)
-
-
-class DemoPresetPreviewSettingChangeSerializer(serializers.Serializer):
-    key = serializers.CharField()
-    current_value = serializers.JSONField(
-        allow_null=True, help_text="Null for a secret."
-    )
-    new_value = serializers.JSONField(
-        allow_null=True, help_text="Value after the load. Null for a secret."
-    )
-    source = serializers.ChoiceField(
-        choices=["preset", "overlay", "default", "deployment"],
-        help_text="Where the value after the load comes from: the preset, the "
-        "deployment's overlay preset, the setting's default, or the deployment, "
-        "which owns the setting.",
-    )
-    changed = serializers.BooleanField(help_text="Whether the load changes the value.")
-    skipped = serializers.BooleanField(
-        help_text="The preset sets a setting the deployment owns; it keeps its value."
-    )
-    secret = serializers.BooleanField(help_text="Values of secrets are never shown.")
-
-
-class DemoPresetPreviewFeatureChangeSerializer(serializers.Serializer):
-    key = serializers.CharField()
-    current_value = serializers.BooleanField()
-    new_value = serializers.BooleanField()
-    source = serializers.ChoiceField(
-        choices=["preset", "overlay", "default"],
-        help_text="Where the value after the load comes from.",
-    )
-    changed = serializers.BooleanField()
-
-
-class DemoPresetPreviewSerializer(DemoPresetSerializer):
-    """What loading a demo preset would do. Setting and feature changes
-    describe a load that cleans up first, the default."""
-
-    overlay = serializers.CharField(
-        read_only=True,
-        allow_null=True,
-        help_text="The deployment's overlay preset imported after this one, if any.",
-    )
-    users = DemoPresetPreviewUserSerializer(many=True, read_only=True)
-    organizations = DemoPresetPreviewOrganizationSerializer(many=True, read_only=True)
-    offerings = DemoPresetPreviewOfferingGroupSerializer(
-        many=True,
-        read_only=True,
-        help_text="The preset's offerings, grouped by type and category.",
-    )
-    overlay_contents = DemoPresetPreviewOverlayContentsSerializer(
-        read_only=True,
-        allow_null=True,
-        help_text="What the deployment's overlay preset adds after this one.",
-    )
-    settings_changes = DemoPresetPreviewSettingChangeSerializer(
-        many=True,
-        read_only=True,
-        help_text="Settings the load changes, and every setting the preset sets.",
-    )
-    feature_changes = DemoPresetPreviewFeatureChangeSerializer(
-        many=True,
-        read_only=True,
-        help_text="Features the load changes, and every feature the preset sets.",
-    )
-    warnings = serializers.ListField(
-        child=serializers.CharField(),
-        read_only=True,
-        help_text="What would not work after the load, such as a feature whose "
-        "deployment configuration is missing.",
-    )
-
-
-class DemoPresetLoadRequestSerializer(serializers.Serializer):
-    """Request serializer for loading a demo preset."""
-
-    dry_run = serializers.BooleanField(
-        default=False,
-        help_text="Preview changes without applying them",
-    )
-    cleanup_first = serializers.BooleanField(
-        default=True,
-        help_text="Clean up existing data before loading the preset",
-    )
-    skip_users = serializers.BooleanField(
-        default=False,
-        help_text="Skip user import/cleanup",
-    )
-    skip_roles = serializers.BooleanField(
-        default=False,
-        help_text="Skip role import/cleanup",
-    )
-
-
-class DemoPresetUserSerializer(serializers.Serializer):
-    """Serializer for demo preset user credentials."""
-
-    username = serializers.CharField()
-    password = serializers.CharField()
-    email = serializers.CharField(required=False, allow_blank=True)
-    is_staff = serializers.BooleanField(default=False)
-    is_support = serializers.BooleanField(default=False)
-
-
-class DemoPresetLoadResponseSerializer(serializers.Serializer):
-    """Response serializer for demo preset loading."""
-
-    success = serializers.BooleanField()
-    message = serializers.CharField()
-    output = serializers.CharField(required=False, allow_blank=True)
-    users = DemoPresetUserSerializer(many=True, required=False)
-
-
-class DemoPresetLoadJobSerializer(serializers.ModelSerializer):
-    """A demo preset load running, or run, in the background."""
-
-    class Meta:
-        model = models.DemoPresetLoad
-        fields = (
-            "uuid",
-            "preset",
-            "state",
-            "created",
-            "started_at",
-            "finished_at",
-            "error_message",
-        )
-        read_only_fields = fields
-
-
-class DemoPresetStatusSerializer(serializers.Serializer):
-    """Public status of demo preset loading, for a browser following a reset."""
-
-    loading = serializers.BooleanField(
-        help_text="Whether a load is pending or running; the API answers 503 meanwhile."
-    )
-    load = DemoPresetLoadJobSerializer(
-        allow_null=True, help_text="The latest load, if any."
-    )
-    users = DemoPresetUserSerializer(
-        many=True,
-        help_text="The loaded preset's users without a staff or support role, for quick login, once the latest load is done.",
     )
 
 

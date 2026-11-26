@@ -14,7 +14,7 @@ Usage:
     python scripts/generate_preset_billing_data.py <preset_path> [--months N] [--output PATH]
 
 Examples:
-    python scripts/generate_preset_billing_data.py src/waldur_mastermind/marketplace/demo_presets/presets/ai_factory.json
+    python scripts/generate_preset_billing_data.py src/waldur_mastermind/demo_presets/presets/ai_factory.json
     python scripts/generate_preset_billing_data.py my_preset.json --months 6 --output my_preset_with_billing.json
 """
 

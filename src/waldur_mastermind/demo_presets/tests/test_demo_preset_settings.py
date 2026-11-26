@@ -19,8 +19,8 @@ from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import Feature
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.marketplace.demo_presets.manifest import DemoPresetManager
-from waldur_mastermind.marketplace.management.commands import cleanup_structure
+from waldur_mastermind.demo_presets.management.commands import cleanup_structure
+from waldur_mastermind.demo_presets.manifest import DemoPresetManager
 
 DEPLOYMENT_FILE = "/etc/waldur/override.conf.py"
 FEATURE = "project.show_matrix_chat"
@@ -203,12 +203,12 @@ class LoadHasNoSideEffectsTest(PresetSettingsTestMixin, TransactionTestCase):
 
         with (
             mock.patch(
-                "waldur_mastermind.marketplace.demo_presets.manifest"
+                "waldur_mastermind.demo_presets.manifest"
                 ".order_history.generate_order_history",
                 side_effect=probe("orders"),
             ),
             mock.patch(
-                "waldur_mastermind.marketplace.demo_presets.manifest"
+                "waldur_mastermind.demo_presets.manifest"
                 ".proposal_history.generate_proposal_history",
                 side_effect=probe("proposals"),
             ),
@@ -235,7 +235,7 @@ class LoadHasNoSideEffectsTest(PresetSettingsTestMixin, TransactionTestCase):
 class FailedCleanupFailsTheLoadTest(PresetSettingsTestMixin, TransactionTestCase):
     def test_load_stops_when_cleanup_fails(self):
         with mock.patch(
-            "waldur_mastermind.marketplace.management.commands.cleanup_structure"
+            "waldur_mastermind.demo_presets.management.commands.cleanup_structure"
             ".Command._perform_fast_cleanup",
             side_effect=RuntimeError("deadlock detected"),
         ):

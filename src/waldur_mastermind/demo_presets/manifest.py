@@ -15,24 +15,24 @@ from django.utils import timezone
 
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
-from waldur_mastermind.invoices.models import Invoice
-from waldur_mastermind.marketplace.billing import MarketplaceBillingService
-from waldur_mastermind.marketplace.demo_presets import (
+from waldur_mastermind.demo_presets import (
     matrix_links,
     order_history,
     proposal_history,
     settings_reset,
 )
-from waldur_mastermind.marketplace.demo_presets.credit_history import (
+from waldur_mastermind.demo_presets.credit_history import (
     generate_credit_history,
 )
-from waldur_mastermind.marketplace.demo_presets.gate import (
+from waldur_mastermind.demo_presets.gate import (
     overlay_name,
     staff_password,
 )
-from waldur_mastermind.marketplace.demo_presets.time_shift import (
+from waldur_mastermind.demo_presets.time_shift import (
     rebase_to_current_month,
 )
+from waldur_mastermind.invoices.models import Invoice
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 # Falls back to the source location if not found
 DEFAULT_PERMISSIONS_PATHS = [
     Path("/etc/waldur/permissions.yaml"),  # Docker/production
-    Path(__file__).parent.parent.parent.parent.parent
+    Path(__file__).parent.parent.parent.parent
     / "docker"
     / "rootfs"
     / "etc"

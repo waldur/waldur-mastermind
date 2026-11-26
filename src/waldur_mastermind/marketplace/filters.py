@@ -23,7 +23,6 @@ from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.checklist import models as checklist_models
-from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import utils as core_utils
@@ -85,7 +84,6 @@ from waldur_mastermind.marketplace.managers import (
 )
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_openstack import models as openstack_models
-from waldur_pid import models as pid_models
 
 from . import models, utils
 
@@ -2625,31 +2623,6 @@ class ComponentUserUsageLimitFilter(django_filters.FilterSet):
     class Meta:
         model = models.ComponentUserUsageLimit
         fields = []
-
-
-class OfferingReferralFilter(django_filters.FilterSet):
-    o = django_filters.OrderingFilter(
-        fields=(
-            "published",
-            "relation_type",
-            "resource_type",
-        )
-    )
-
-    class Meta:
-        model = pid_models.DataciteReferral
-        fields = []
-
-
-class OfferingReferralScopeFilterBackend(core_filters.GenericKeyFilterBackend):
-    def is_anonymous_allowed(self):
-        return config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS
-
-    def get_related_models(self):
-        return [models.Offering]
-
-    def get_field_name(self):
-        return "scope"
 
 
 class OfferingFileFilter(OfferingFilterMixin, django_filters.FilterSet):

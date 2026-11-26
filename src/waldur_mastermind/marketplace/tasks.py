@@ -42,7 +42,6 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.managers import get_connected_projects
 from waldur_core.structure.models import Project
-from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.invoices.models import InvoiceItem
@@ -50,6 +49,7 @@ from waldur_mastermind.marketplace import (
     api_key_spending_limits,
     billing_discount,
     exceptions,
+    hooks,
     models,
     offering_merge,
     plugins,
@@ -2415,49 +2415,32 @@ def update_daily_consent_history():
 
         quota_records.extend(
             [
-                analytics_models.DailyQuotaHistory(
-                    scope=offering,
-                    name="active_users_count",
-                    usage=offering.active_users_count,
-                    date=today,
+                (offering, "active_users_count", offering.active_users_count, today),
+                (offering, "total_users_count", offering.total_users_count, today),
+                (
+                    offering,
+                    "accepted_consents_count",
+                    offering.accepted_consents_count,
+                    today,
                 ),
-                analytics_models.DailyQuotaHistory(
-                    scope=offering,
-                    name="total_users_count",
-                    usage=offering.total_users_count,
-                    date=today,
+                (
+                    offering,
+                    "revoked_consents_count",
+                    offering.revoked_consents_count,
+                    today,
                 ),
-                analytics_models.DailyQuotaHistory(
-                    scope=offering,
-                    name="accepted_consents_count",
-                    usage=offering.accepted_consents_count,
-                    date=today,
-                ),
-                analytics_models.DailyQuotaHistory(
-                    scope=offering,
-                    name="revoked_consents_count",
-                    usage=offering.revoked_consents_count,
-                    date=today,
-                ),
-                analytics_models.DailyQuotaHistory(
-                    scope=offering,
-                    name="total_consents_count",
-                    usage=total_consents_count,
-                    date=today,
-                ),
-                analytics_models.DailyQuotaHistory(
-                    scope=offering,
-                    name="revoked_consents_today",
-                    usage=offering.revoked_consents_today,
-                    date=today,
+                (offering, "total_consents_count", total_consents_count, today),
+                (
+                    offering,
+                    "revoked_consents_today",
+                    offering.revoked_consents_today,
+                    today,
                 ),
             ]
         )
 
     # Bulk create all quota history records
-    analytics_models.DailyQuotaHistory.objects.bulk_create(
-        quota_records, ignore_conflicts=True
-    )
+    hooks.record_daily_quotas(quota_records)
 
     updated_count = offerings_with_tos.count()
 

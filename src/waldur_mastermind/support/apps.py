@@ -2,6 +2,12 @@ from django.apps import AppConfig
 from django.db.models import signals
 
 
+def _count_unresolved_tickets_for_resources(active_resources) -> int:
+    from . import handlers
+
+    return handlers.count_unresolved_tickets_for_resources(active_resources)
+
+
 class SupportConfig(AppConfig):
     name = "waldur_mastermind.support"
     verbose_name = "HelpDesk"
@@ -89,4 +95,10 @@ class SupportConfig(AppConfig):
             handlers.propagate_attachment_to_parent,
             sender=Attachment,
             dispatch_uid="waldur_mastermind.support.handlers.propagate_attachment_to_parent",
+        )
+
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
+
+        marketplace_hooks.register_unresolved_tickets_counter(
+            _count_unresolved_tickets_for_resources
         )

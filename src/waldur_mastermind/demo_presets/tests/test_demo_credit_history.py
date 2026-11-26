@@ -3,12 +3,12 @@ from decimal import Decimal
 from django.db.models import Sum
 from rest_framework import test
 
+from waldur_mastermind.demo_presets.credit_history import (
+    generate_credit_history,
+)
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.demo_presets.credit_history import (
-    generate_credit_history,
-)
 
 
 class CreditHistoryGenerationTest(test.APITestCase):

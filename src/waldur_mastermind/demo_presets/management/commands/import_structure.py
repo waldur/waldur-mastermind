@@ -48,6 +48,7 @@ from waldur_core.structure.models import (
     UserAgreement,
 )
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
+from waldur_mastermind.demo_presets import settings_reset
 from waldur_mastermind.invoices import lots
 from waldur_mastermind.invoices.models import (
     AffiliateFeeAccrual,
@@ -59,7 +60,6 @@ from waldur_mastermind.invoices.models import (
     ProjectCredit,
 )
 from waldur_mastermind.marketplace import posix_ids
-from waldur_mastermind.marketplace.demo_presets import settings_reset
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     LimitPeriods,

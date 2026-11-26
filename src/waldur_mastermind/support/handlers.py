@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
 
@@ -452,4 +453,19 @@ def create_feedback_if_issue_has_been_resolved(
 
     transaction.on_commit(
         lambda: tasks.send_issue_feedback_notification.delay(serialized_issue)
+    )
+
+
+def count_unresolved_tickets_for_resources(active_resources) -> int:
+    """Count unresolved support issues attached to ``active_resources``."""
+    content_type = ContentType.objects.get_for_model(models.Issue)
+    return len(
+        [
+            i
+            for i in models.Issue.objects.filter(
+                resource_content_type=content_type,
+                resource_object_id__in=active_resources.values_list("id", flat=True),
+            )
+            if not i.resolved
+        ]
     )

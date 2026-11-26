@@ -7,10 +7,10 @@ from waldur_mastermind.marketplace.enums import (
     MaintenanceState,
     MaintenanceType,
 )
-from waldur_mastermind.marketplace.maintenance_utils import (
+from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.notifications.maintenance_utils import (
     MaintenanceAnnouncementTemplate,
 )
-from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
 

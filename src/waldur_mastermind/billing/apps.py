@@ -2,6 +2,12 @@ from django.apps import AppConfig
 from django.db.models import signals
 
 
+def _update_estimates_for_scopes(scopes):
+    from . import handlers
+
+    handlers.update_estimates_for_scopes(scopes)
+
+
 class BillingConfig(AppConfig):
     name = "waldur_mastermind.billing"
     verbose_name = "Billing"
@@ -12,11 +18,16 @@ class BillingConfig(AppConfig):
         from waldur_core.structure import serializers as structure_serializers
         from waldur_mastermind.billing.serializers import (
             add_price_estimate,
+            add_resources_price_estimate,
             bulk_fetch_customer_billing_estimates,
             bulk_fetch_project_billing_estimates,
             get_project_estimated_cost_subquery,
         )
         from waldur_mastermind.invoices import models as invoices_models
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
+        from waldur_mastermind.marketplace import (
+            serializers as marketplace_serializers,
+        )
         from waldur_mastermind.policy import serializers as policy_serializers
 
         from . import handlers, models
@@ -85,3 +96,14 @@ class BillingConfig(AppConfig):
         structure_hooks.register_project_estimated_cost_subquery(
             get_project_estimated_cost_subquery
         )
+
+        marketplace_hooks.register_estimates_updater(_update_estimates_for_scopes)
+        for serializer_cls in (
+            marketplace_serializers.MarketplaceProviderCustomerProjectSerializer,
+            marketplace_serializers.MarketplaceProviderCustomerSerializer,
+            marketplace_serializers.ProviderOfferingSerializer,
+        ):
+            core_signals.pre_serializer_fields.connect(
+                sender=serializer_cls,
+                receiver=add_resources_price_estimate,
+            )

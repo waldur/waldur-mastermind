@@ -84,8 +84,6 @@ from waldur_mastermind.marketplace.enums import (
     SpendingLimitPeriods,
     UsageLimitAction,
 )
-from waldur_mastermind.notifications import models as notifications_models
-from waldur_pid import mixins as pid_mixins
 
 from ..common import formula as common_formula
 from ..common import mixins as common_mixins
@@ -666,7 +664,7 @@ class Offering(
     TimeStampedModel,
     core_mixins.ScopeMixin,
     LoggableMixin,
-    pid_mixins.DataciteMixin,
+    core_mixins.DataciteMixin,
     CoordinatesMixin,
     waldur_core.media.mixins.ImageModelMixin,
     common_mixins.BackendMetadataMixin,
@@ -6678,7 +6676,7 @@ class MaintenanceAnnouncement(
         blank=True, help_text="Optional reference to an external maintenance tracker"
     )
     admin_announcement = models.OneToOneField(
-        notifications_models.AdminAnnouncement,
+        "notifications.AdminAnnouncement",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,

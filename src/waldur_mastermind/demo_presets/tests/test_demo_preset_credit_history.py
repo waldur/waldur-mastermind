@@ -17,11 +17,11 @@ import decimal
 from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices.tests import factories as invoice_factories
-from waldur_mastermind.marketplace.demo_presets.credit_history import (
+from waldur_mastermind.demo_presets.credit_history import (
     _bill_month_for_project,
 )
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 

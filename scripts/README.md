@@ -25,7 +25,7 @@ Generates realistic billing and reporting demo data for Waldur preset files. Thi
 
 ```bash
 # Generate 12 months of billing data (default)
-python scripts/generate_preset_billing_data.py src/waldur_mastermind/marketplace/demo_presets/presets/ai_factory.json
+python scripts/generate_preset_billing_data.py src/waldur_mastermind/demo_presets/presets/ai_factory.json
 
 # Generate 6 months of data
 python scripts/generate_preset_billing_data.py my_preset.json --months 6

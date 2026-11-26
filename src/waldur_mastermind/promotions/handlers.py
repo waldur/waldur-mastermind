@@ -97,3 +97,13 @@ def create_discounted_resource_on_activation(instance: Resource):
                 logger.info(
                     f"Resource {instance.uuid} has been linked to campaign '{campaign.name}'."
                 )
+
+
+def count_active_campaigns(service_provider, today) -> int:
+    """Count active campaigns for ``service_provider`` covering ``today``."""
+    return models.Campaign.objects.filter(
+        service_provider=service_provider,
+        state=models.Campaign.States.ACTIVE,
+        start_date__lte=today,
+        end_date__gte=today,
+    ).count()

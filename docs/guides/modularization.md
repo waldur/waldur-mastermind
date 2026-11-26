@@ -56,7 +56,7 @@ higher layers:
 
 ```mermaid
 flowchart TD
-    composition["composition (waldur_core.server)"]
+    composition["composition (waldur_core.server, waldur_mastermind.demo_presets)"]
     integrations["integrations (auth, cloud/compute providers, marketplace_* bridges)"]
     supporting["supporting (invoices, billing, proposal, policy, support, chat, ...)"]
     marketplace["marketplace (marketplace, marketplace_metrics)"]
@@ -110,15 +110,23 @@ Progress:
   (`waldur_auth_social`, `billing`, `invoices`, `marketplace_metrics`,
   `marketplace_remote`) have been eliminated (`waldur_core.users` now has zero
   upward dependencies).
+- **Wave 4 — Marketplace quick wins and `demo_presets` extraction**:
+  extracted cross-app demo-preset and structure import/export orchestration from
+  `waldur_mastermind.marketplace` into the `composition`-layer app
+  `waldur_mastermind.demo_presets` (`visibility = ["waldur_core.server"]`), and
+  eliminated 9 upward edges from `waldur_mastermind.marketplace` (`analytics`,
+  `billing`, `matrix_chat`, `notifications`, `promotions`, `support`,
+  `marketplace_rancher`, `waldur_freeipa`, `waldur_pid`), reducing marketplace
+  upward dependencies from 15 to 6.
 
 Current snapshot (excluding `migrations/` and `tests/`, with `waldur_core.core`
-as a utility module): 66 modules, 314 declared edges, of which **24 edges
-across 6 modules** remain as upward layer violations (60 modules already
+as a utility module): 67 modules, 327 declared edges, of which **15 edges
+across 6 modules** remain as upward layer violations (61 modules already
 respect the target layer order):
 
 | Module | Target Layer | Upward Edges | Upward Targets |
 | --- | --- | --- | --- |
-| `waldur_mastermind.marketplace` | `marketplace` | 15 | `analytics`, `billing`, `invoices`, `matrix_chat`, `notifications`, `policy`, `promotions`, `proposal`, `support`, `marketplace_openstack`, `marketplace_rancher`, `marketplace_site_agent`, `waldur_freeipa`, `waldur_openstack`, `waldur_pid` |
+| `waldur_mastermind.marketplace` | `marketplace` | 6 | `invoices`, `policy`, `proposal`, `marketplace_openstack`, `marketplace_site_agent`, `waldur_openstack` |
 | `waldur_core.core` | `kernel` | 3 | `changelog`, `structure`, `users` |
 | `waldur_core.structure` | `tenancy` | 2 | `marketplace`, `proposal` |
 | `waldur_mastermind.chat` | `supporting` | 2 | `waldur_firecrest`, `waldur_openstack` |

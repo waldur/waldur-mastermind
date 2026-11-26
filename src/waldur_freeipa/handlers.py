@@ -2,6 +2,7 @@ import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from django.db.models import Q
 from python_freeipa import exceptions as freeipa_exceptions
 
 from waldur_core.core import utils as core_utils
@@ -10,6 +11,8 @@ from waldur_core.core.models import SshPublicKey, User
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.quotas.models import QuotaLimit
+from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import utils as marketplace_utils
 
 from . import backend, models, tasks, utils
 from .models import Profile
@@ -181,3 +184,77 @@ def get_or_create_profile(user, username, password):
     except freeipa_exceptions.DuplicateEntry:
         pass
     return profile, True
+
+
+def resolve_freeipa_username(user) -> str:
+    """Return the FreeIPA username for ``user``, or empty string if absent."""
+    profile = models.Profile.objects.filter(user=user).first()
+    if profile is None:
+        logger.warning("There is no FreeIPA profile for user %s", user)
+        return ""
+    return profile.username
+
+
+def update_offering_user_username_after_freeipa_profile_update(
+    sender, instance: Profile, created=False, **kwargs
+):
+    """
+    Update offering user usernames after FreeIPA profile creation/update.
+
+    This handler is triggered when a user creates or updates their FreeIPA profile.
+    It updates the username for all OfferingUsers that use FreeIPA username generation policy.
+
+    Important: We call save() without update_fields to ensure the full save() method runs,
+    which includes the state transition logic that sets state to OK when username is available.
+    """
+    profile = instance
+
+    if not profile.tracker.has_changed("username") or not created:
+        return
+
+    # The policy may be set on the offering or defaulted by its provider, and
+    # resolve_account_setting is Python-side, so the filter selects a superset
+    # -- either names it -- and the loop confirms per row. A plain filter on
+    # plugin_options would miss every offering that inherits the policy from
+    # its provider, which is the gap provider account options introduced.
+    policy = marketplace_utils.UsernameGenerationPolicy.FREEIPA.value
+    offering_users = marketplace_models.OfferingUser.objects.filter(
+        Q(offering__plugin_options__username_generation_policy=policy)
+        | Q(
+            offering__customer__serviceprovider__account_options__username_generation_policy=policy
+        ),
+        user=profile.user,
+        is_restricted=False,
+        # A backed account's username is owned by its provider account and
+        # refreshed by propagation; writing it here is refused.
+        service_provider_account__isnull=True,
+    ).select_related("offering__customer__serviceprovider")
+
+    for offering_user in offering_users:
+        if (
+            offering_user.offering.resolve_account_setting("username_generation_policy")
+            != policy
+        ):
+            continue
+        logger.info(
+            "Updating %s username after FreeIPA profile %s change",
+            offering_user,
+            profile,
+        )
+        old_username = offering_user.username
+        new_username = marketplace_utils.generate_username(
+            profile.user, offering_user.offering
+        )
+
+        logger.info(
+            "OfferingUser username refresh after FreeIPA profile update: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",
+            offering_user.uuid.hex,
+            offering_user.offering.uuid.hex,
+            old_username,
+            new_username,
+            profile.user.uuid.hex,
+        )
+        offering_user.username = new_username
+        # Call save() without update_fields to trigger state transition logic in OfferingUser.save()
+        # This ensures state is updated from CREATION_REQUESTED to OK when username becomes available
+        offering_user.save()

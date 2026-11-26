@@ -9,6 +9,12 @@ class PIDExtension(WaldurExtension):
         return "waldur_pid"
 
     @staticmethod
+    def rest_urls():
+        from .urls import register_in
+
+        return register_in
+
+    @staticmethod
     def celery_tasks():
         return {
             "waldur-pid-update-all-referrables": {

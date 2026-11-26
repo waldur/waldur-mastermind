@@ -9,6 +9,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.models import Customer
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import billing_discount, billing_mode
+from waldur_mastermind.marketplace import hooks as marketplace_hooks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_limit import LimitPeriodProcessor
 from waldur_mastermind.marketplace.billing_utils import (
@@ -21,10 +22,6 @@ from waldur_mastermind.marketplace.enums import (
     OrderTypes,
     RenewalTerms,
     ResourceStates,
-)
-from waldur_mastermind.promotions import models as promotions_models
-from waldur_mastermind.promotions.handlers import (
-    create_discounted_resource_on_activation,
 )
 
 logger = logging.getLogger(__name__)
@@ -565,13 +562,13 @@ class MarketplaceBillingService:
                 unit = invoice_models.Units.QUANTITY
                 quantity = plan_component.amount
 
-            create_discounted_resource_on_activation(resource)
+            marketplace_hooks.create_discounted_resource_on_activation(resource)
 
             # find campaigns
             (
                 campaign,
                 discounted_unit_price,
-            ) = promotions_models.Campaign.get_discount_for_resource(
+            ) = marketplace_hooks.get_discount_for_resource(
                 resource=resource,
                 year=invoice.year,
                 month=invoice.month,

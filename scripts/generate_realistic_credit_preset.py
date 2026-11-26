@@ -13,7 +13,7 @@ plus prepares ground for resource-state and policy-fired scenarios.
 Run::
 
     python scripts/generate_realistic_credit_preset.py \\
-        --output src/waldur_mastermind/marketplace/demo_presets/presets/credit_realistic.json \\
+        --output src/waldur_mastermind/demo_presets/presets/credit_realistic.json \\
         --seed 42
 
 Then load with::

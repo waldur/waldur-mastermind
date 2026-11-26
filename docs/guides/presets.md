@@ -332,7 +332,7 @@ Each preset JSON file includes:
 ## Creating Custom Presets
 
 1. Export current state or copy an existing preset
-2. Place JSON file in `src/waldur_mastermind/marketplace/demo_presets/presets/`,
+2. Place JSON file in `src/waldur_mastermind/demo_presets/presets/`,
    or in one of the deployment's extra directories
 3. Add `_metadata` section with title, description, version
 4. Ensure all UUIDs are unique 32-character hex strings
@@ -362,5 +362,5 @@ Include plaintext passwords in the `users` array:
 Presets are stored in:
 
 ```text
-src/waldur_mastermind/marketplace/demo_presets/presets/
+src/waldur_mastermind/demo_presets/presets/
 ```

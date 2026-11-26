@@ -533,9 +533,7 @@ Run demo presets tests:
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
-        - src/waldur_mastermind/marketplace/demo_presets/**/*
-        - src/waldur_mastermind/marketplace/management/commands/import_structure.py
-        - src/waldur_mastermind/marketplace/management/commands/cleanup_structure.py
+        - src/waldur_mastermind/demo_presets/**/*
   script:
     - |
       echo "[+] Setting up test database configuration..."
@@ -563,7 +561,7 @@ Run demo presets tests:
     # ~1278s of this job's ~1408s was that one-time migration replay — the actual
     # preset loads take ~90s. The test only exercises the ORM against the current
     # schema, so skipping migrations is safe and mirrors the rest of the test infra.
-    - uv run pytest --no-migrations src/waldur_mastermind/marketplace/tests/test_demo_presets.py::DemoPresetLoadTest -v
+    - uv run pytest --no-migrations src/waldur_mastermind/demo_presets/tests/test_demo_presets.py::DemoPresetLoadTest -v
   services:
     - name: "registry.hpc.ut.ee/mirror/library/postgres:15-alpine"
       alias: postgres
