@@ -307,6 +307,17 @@ SPECTACULAR_SETTINGS = {
             ("all", "All"),
         ),
         "RbacPolicyDirectionEnum": ["outbound", "inbound"],
+        # Network options (cidr, ipsec_vpn_config): their policies and values.
+        "CidrIpVersionEnum": "waldur_mastermind.common.serializers.IP_VERSIONS",
+        "IpsecEncryptionEnum": (
+            "waldur_mastermind.common.serializers.IPSEC_ENCRYPTION_ALGORITHMS"
+        ),
+        "IpsecIntegrityEnum": (
+            "waldur_mastermind.common.serializers.IPSEC_INTEGRITY_ALGORITHMS"
+        ),
+        "IpsecDhGroupEnum": "waldur_mastermind.common.serializers.IPSEC_DH_GROUPS",
+        # Who sets a secret option's value, in its policy and in its status.
+        "OptionSecretSourceEnum": "waldur_mastermind.common.serializers.SECRET_SOURCES",
     },
     "VERSION": None,
 }

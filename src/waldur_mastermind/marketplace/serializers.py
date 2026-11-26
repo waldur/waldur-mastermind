@@ -105,22 +105,38 @@ from waldur_mastermind.common import formula as common_formula
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.common.exceptions import TransactionRollback
 from waldur_mastermind.common.serializers import (
+    CIDR_FIELD_TYPE,
+    CIDR_POLICY_KEYS,
+    IPSEC_POLICY_KEYS,
+    IPSEC_VPN_CONFIG_FIELD_TYPE,
     K8S_EGRESS_RULES_FIELD_TYPE,
     K8S_TOPOLOGY_MODES,
     MAX_PATTERN_LENGTH,
     MAX_TRANSFORM_AFFIX_LENGTH,
     PATTERN_FIELD_TYPES,
+    SECRET_FIELD_TYPE,
+    SECRET_POLICY_KEYS,
+    SECRET_SOURCES,
     TRANSFORM_CASES,
     TRANSFORM_FIELD_TYPES,
     VISIBLE_IF_FIELD_TYPES,
+    CidrOptionPolicySerializer,
+    CidrPolicySerializer,
+    IpsecPhase1PolicySerializer,
+    IpsecPhase2PolicySerializer,
     K8sEgressRuleSerializer,
+    SecretPolicySerializer,
     compile_option_pattern,
     get_hidden_options,
+    get_submitted_secrets,
     option_pattern_matches,
     strip_hidden_options,
     strip_non_input_options,
     strip_option_affixes,
+    validate_cidr_policy,
+    validate_ipsec_policy,
     validate_options,
+    validate_secret_policy,
 )
 from waldur_mastermind.common.utils import prices_are_equal
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
@@ -206,6 +222,7 @@ from . import (
     log,
     model_lists,
     models,
+    network_options,
     order_callback,
     order_flow_description,
     permissions,
@@ -3793,6 +3810,9 @@ FIELD_TYPES = (
     "multi_datacenter_k8s_config",
     K8S_EGRESS_RULES_FIELD_TYPE,
     "storage_folder_manager",
+    CIDR_FIELD_TYPE,
+    IPSEC_VPN_CONFIG_FIELD_TYPE,
+    SECRET_FIELD_TYPE,
 )
 
 # Storage folder permission choices - exported via OpenAPI as StorageFolderPermissionEnum
@@ -4093,6 +4113,138 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
         return value
 
 
+class OptionDefaultConfigsSerializer(
+    K8sDefaultConfigurationSerializer,
+    CidrOptionPolicySerializer,
+    SecretPolicySerializer,
+):
+    """The policy of an option, by its type.
+
+    Kubernetes options take the cluster defaults; a cidr option the network
+    rules; a secret option the secret rules; an ipsec_vpn_config option the
+    VPN rules below. Keys of another type are dropped when the offering is
+    saved.
+    """
+
+    # IPsec VPN policy (ipsec_vpn_config)
+    ikev1_allowed = serializers.BooleanField(
+        required=False, help_text=_("Whether IKEv1 is accepted. Off when omitted.")
+    )
+    allow_private_peer = serializers.BooleanField(
+        required=False,
+        help_text=_(
+            "Whether the customer's gateway may have a private, loopback, "
+            "link-local, multicast, reserved or CGNAT address. Off when omitted."
+        ),
+    )
+    provider_gateway_ip = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text=_("The provider's end of new tunnels: its gateway's IP address."),
+    )
+    provider_local_subnets = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_("The provider's end of new tunnels: the networks behind it."),
+    )
+    remote_subnets = CidrPolicySerializer(
+        required=False,
+        help_text=_("Rules for the networks behind the customer's gateway."),
+    )
+    no_overlap_with = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text=_(
+            "Names of cidr options whose networks the remote subnets must not "
+            "overlap. A resource option may name order options too."
+        ),
+    )
+    phase1 = IpsecPhase1PolicySerializer(
+        required=False, help_text=_("Allowed IKE (phase 1) proposals and defaults.")
+    )
+    phase2 = IpsecPhase2PolicySerializer(
+        required=False, help_text=_("Allowed ESP (phase 2) proposals and defaults.")
+    )
+
+    def validate(self, attrs):
+        # Checked by OptionFieldSerializer, which knows the option's type.
+        return attrs
+
+
+# The policy keys of each option type that has its own.
+OPTION_POLICY_KEYS = {
+    CIDR_FIELD_TYPE: (CIDR_POLICY_KEYS, validate_cidr_policy),
+    IPSEC_VPN_CONFIG_FIELD_TYPE: (IPSEC_POLICY_KEYS, validate_ipsec_policy),
+    SECRET_FIELD_TYPE: (SECRET_POLICY_KEYS, validate_secret_policy),
+}
+
+
+class ResourceOptionSecretStatusSerializer(serializers.Serializer):
+    """Whether an option's secret is set. Never the secret itself."""
+
+    is_set = serializers.BooleanField()
+    source = serializers.ChoiceField(
+        choices=SECRET_SOURCES,
+        allow_null=True,
+        help_text=_("Who set it: the customer or the provider. Null when not set."),
+    )
+    modified = serializers.DateTimeField(
+        allow_null=True, help_text=_("When it was last set. Null when not set.")
+    )
+
+
+OPTION_SECRETS_HELP_TEXT = _(
+    "Whether each secret option of the offering is set, by option name. Never "
+    "the value; the reveal_option_secret action returns it to whom may read it."
+)
+
+
+def serialize_secret_statuses(statuses) -> dict:
+    return {
+        name: ResourceOptionSecretStatusSerializer(status).data
+        for name, status in statuses.items()
+    }
+
+
+class ResourceOptionSecretNameSerializer(serializers.Serializer):
+    option_name = serializers.CharField(
+        max_length=255, help_text=_("Name of a secret option of the offering.")
+    )
+
+    def validate_option_name(self, value):
+        resource = self.context["resource"]
+        policy = network_options.secret_policy(resource.offering, value)
+        if policy is None:
+            raise serializers.ValidationError(
+                _("The offering has no secret option of this name.")
+            )
+        self.policy = policy
+        return value
+
+
+class ResourceOptionSecretSetSerializer(ResourceOptionSecretNameSerializer):
+    value = serializers.CharField(
+        write_only=True,
+        trim_whitespace=False,
+        help_text=_(
+            "The secret, checked against the option's length limits; on a "
+            "single line unless the option is multiline. Never returned."
+        ),
+    )
+
+    def validate(self, attrs):
+        try:
+            self.policy.clean(attrs["value"])
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"value": e.detail})
+        return attrs
+
+
+class ResourceOptionSecretValueSerializer(serializers.Serializer):
+    option_name = serializers.CharField()
+    value = serializers.CharField(help_text=_("The secret in plain text."))
+
+
 class ComponentMultiplierConfigSerializer(serializers.Serializer):
     component_type = serializers.CharField()
     factor = serializers.IntegerField(min_value=1)
@@ -4291,7 +4443,7 @@ class OptionFieldSerializer(serializers.Serializer):
         ),
     )
     storage_folder_config = StorageFolderConfigSerializer(required=False)
-    default_configs = K8sDefaultConfigurationSerializer(required=False)
+    default_configs = OptionDefaultConfigsSerializer(required=False)
     k8s_config_option = serializers.CharField(
         read_only=True,
         help_text=_(
@@ -4348,6 +4500,12 @@ class OptionFieldSerializer(serializers.Serializer):
         field_type = attrs.get("type")
         self._validate_pattern(attrs)
         self._validate_transform(attrs)
+        self._validate_default_configs(attrs)
+        if field_type == SECRET_FIELD_TYPE and attrs.get("default"):
+            # It would be stored in plain text in the offering.
+            raise serializers.ValidationError(
+                {"default": _("A secret option has no default value.")}
+            )
 
         if attrs.get("unique") and field_type not in UNIQUE_OPTION_FIELD_TYPES:
             raise serializers.ValidationError(
@@ -4435,6 +4593,30 @@ class OptionFieldSerializer(serializers.Serializer):
                 {"default": _("The default value does not match the pattern.")}
             )
 
+    def _validate_default_configs(self, attrs):
+        """Keep the policy keys of the option's type, checked."""
+        configs = attrs.get("default_configs")
+        if configs is None:
+            return
+        keys, check = OPTION_POLICY_KEYS.get(attrs.get("type"), ((), None))
+        if check is None:
+            # Other types keep what they always had: the Kubernetes keys.
+            others = {
+                key
+                for type_keys, _check in OPTION_POLICY_KEYS.values()
+                for key in type_keys
+            }
+            attrs["default_configs"] = {
+                key: value for key, value in configs.items() if key not in others
+            }
+            return
+        try:
+            attrs["default_configs"] = check(
+                {key: value for key, value in configs.items() if key in keys}
+            )
+        except serializers.ValidationError as e:
+            raise serializers.ValidationError({"default_configs": e.detail})
+
     def _validate_transform(self, attrs):
         if "transform" in attrs and not attrs["transform"]:
             # Cleared, or every key blank.
@@ -4481,6 +4663,7 @@ class OfferingOptionsSerializer(serializers.Serializer):
             derived_limits.validate_derived_options(options)
             display_limits.validate_order_options(options)
             k8s_egress.validate_order_options(options)
+            network_options.validate_option_references(options)
         else:
             display_limits.validate_resource_options(options)
         for name, option in options.items():
@@ -6470,6 +6653,11 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
                 ),
                 options,
             )
+            network_options.validate_option_references(
+                attrs["resource_options"].get("options"),
+                options,
+                field="resource_options",
+            )
             self._validate_display_limits(attrs)
 
     def _validate_display_limits(self, attrs):
@@ -6785,6 +6973,11 @@ class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
             ),
             options.get("options"),
         )
+        # A resource option may name an order cidr option, which must stay.
+        network_options.validate_option_references(
+            (self.instance.resource_options or {}).get("options"),
+            options.get("options"),
+        )
         return options
 
     def update(self, instance, validated_data):
@@ -6835,6 +7028,9 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
         resource_options = k8s_egress.pair_resource_options(
             derived_limits.pair_resource_options(resource_options, order_options),
             order_options,
+        )
+        network_options.validate_option_references(
+            resource_options.get("options"), order_options
         )
         self._check_changed_values_are_kept(resource_options, order_options)
         usage_components = self.instance.components.filter(
@@ -7593,6 +7789,11 @@ class BaseItemSerializer(
                 attrs.get("attributes"),
             )
             model_lists.validate_selection(offering, attributes)
+            # Pre-shared keys sent with the values: stored encrypted against
+            # the order's resource once it exists, never in its attributes.
+            self._option_secrets = get_submitted_secrets(
+                offering.options.get("options", {}), attrs.get("attributes")
+            )
             if "attributes" in attrs:
                 attrs["attributes"] = attributes
             limits = utils.apply_derived_limits(
@@ -7600,6 +7801,10 @@ class BaseItemSerializer(
             )
             if limits is not attrs.get("limits"):
                 attrs["limits"] = limits
+        if "attributes" in attrs:
+            attrs["attributes"] = network_options.strip_secrets(
+                offering, attrs["attributes"]
+            )
 
         limits = attrs.get("limits")
         if limits:
@@ -7808,18 +8013,26 @@ class OrderUpdateSerializer(BaseOrderSerializer):
                 # Check the edited form values as at order creation (types,
                 # pattern) and store them transformed. Required options are
                 # not enforced, as an edit may send only some values.
+                submitted = attrs["attributes"]
                 attrs["attributes"] = validate_options(
                     model_lists.selection_options(self.instance.offering, options),
-                    attrs["attributes"],
+                    submitted,
                     optional=True,
+                    stored=self.instance.attributes,
                 )
                 model_lists.validate_selection(
                     self.instance.offering, attrs["attributes"]
                 )
+                # A key sent with the edit replaces the one on the resource.
+                self._option_secrets = get_submitted_secrets(options, submitted)
             else:
                 attrs["attributes"] = strip_non_input_options(
                     options, strip_hidden_options(options, attrs["attributes"])
                 )
+        if "attributes" in attrs:
+            attrs["attributes"] = network_options.strip_secrets(
+                self.instance.offering, attrs["attributes"]
+            )
         if "attributes" in attrs:
             attrs["attributes"] = utils.keep_renewal_order_attributes(
                 self.instance, attrs["attributes"]
@@ -8063,6 +8276,11 @@ class OrderUpdateSerializer(BaseOrderSerializer):
             if order.type == OrderTypes.CREATE and "attributes" in validated_data:
                 utils.copy_order_options_to_resource(order)
                 utils.copy_order_attributes_to_resource(order)
+                network_options.store_submitted_secrets(
+                    order.resource,
+                    getattr(self, "_option_secrets", None),
+                    self.context["request"].user,
+                )
             return order
 
 
@@ -8095,6 +8313,10 @@ def clean_option_change(order, new_options, lock=True):
         new_options,
         optional=True,
         hidden=hidden,
+        stored={
+            **((order.resource.attributes if order.resource else None) or {}),
+            **current_options,
+        },
     )
     model_lists.validate_selection(order.offering, new_options)
     if lock:
@@ -8137,10 +8359,11 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
                     attributes,
                     optional=True,
                     hidden=hidden,
+                    stored=order.attributes,
                 )
                 model_lists.validate_selection(order.offering, attributes)
             self._validate_unique_create_values(order, attributes)
-        return attributes
+        return network_options.strip_secrets(order.offering, attributes)
 
     def _validate_unique_create_values(self, order, attributes):
         # The provider's values replace the ordered ones and are copied to the
@@ -8223,6 +8446,15 @@ class OrderDetailsSerializer(BaseOrderSerializer):
 
     @classmethod
     def load_page(cls, orders: list[models.Order]) -> None:
+        statuses = network_options.load_secret_statuses(
+            {
+                (order.resource_id, order.offering)
+                for order in orders
+                if order.resource_id
+            }
+        )
+        for order in orders:
+            order.option_secret_statuses = statuses.get(order.resource_id, {})
         for loader in cls.page_loaders:
             loader(orders)
 
@@ -8307,6 +8539,7 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "auto_approved",
             "auto_approved_by_rule_uuid",
             "auto_approved_cost_limit_snapshot",
+            "option_secrets",
         )
         extra_kwargs = {
             **BaseOrderSerializer.Meta.extra_kwargs,
@@ -8314,6 +8547,26 @@ class OrderDetailsSerializer(BaseOrderSerializer):
         }
 
     auto_approved = serializers.SerializerMethodField()
+    option_secrets = serializers.SerializerMethodField(
+        help_text=_(
+            "Of the order's resource: whether each secret option of the "
+            "offering is set, by option name. Never the value."
+        )
+    )
+
+    @extend_schema_field(
+        serializers.DictField(child=ResourceOptionSecretStatusSerializer())
+    )
+    def get_option_secrets(self, order: models.Order):
+        statuses = getattr(order, "option_secret_statuses", None)
+        if statuses is None:
+            if not order.resource_id:
+                return {}
+            statuses = network_options.load_secret_statuses(
+                [(order.resource_id, order.offering)]
+            )[order.resource_id]
+        return serialize_secret_statuses(statuses)
+
     auto_approved_by_rule_uuid = serializers.ReadOnlyField(
         source="auto_approved_by_rule.uuid", allow_null=True
     )
@@ -8819,6 +9072,9 @@ class OrderCreateSerializer(
         self.quotas_validate(order)
         order.init_cost()
         order.save()
+        network_options.store_submitted_secrets(
+            resource, getattr(self, "_option_secrets", None), request.user
+        )
         return order
 
     def get_filtered_field_names(self):
@@ -9425,6 +9681,7 @@ class ResourcePage:
     requires_reconsent: dict | None = None
     period_usages: dict | None = None
     api_key_counts: dict | None = None
+    option_secrets: dict | None = None
 
 
 class ResourceListSerializer(serializers.ListSerializer):
@@ -9479,6 +9736,9 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         "left out, as {state: count}. States with no keys are absent."
     )
     offering_account_settings = serializers.SerializerMethodField()
+    option_secrets = serializers.SerializerMethodField(
+        help_text=OPTION_SECRETS_HELP_TEXT
+    )
     # Declared explicitly (rather than auto-derived from the model CharField) so
     # the blank state — "" when no restriction is active — is surfaced in the
     # OpenAPI schema as a BlankEnum member. Without allow_blank the generated
@@ -9571,6 +9831,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "api_key_counts",
             "offering_account_settings",
             "display_limits",
+            "option_secrets",
         )
         read_only_fields = (
             "backend_metadata",
@@ -9669,6 +9930,10 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             page.period_usages = utils.load_current_period_usages(resources)
         if "api_key_counts" in fields:
             page.api_key_counts = self._load_api_key_counts(resources)
+        if "option_secrets" in fields:
+            page.option_secrets = network_options.load_secret_statuses(
+                (resource.id, resource.offering) for resource in resources
+            )
         for resource in resources:
             resource.serialization_page = page
 
@@ -10004,6 +10269,17 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if page and page.api_key_counts is not None:
             return page.api_key_counts.get(resource.id, {})
         return self._load_api_key_counts([resource])[resource.id]
+
+    @extend_schema_field(
+        serializers.DictField(child=ResourceOptionSecretStatusSerializer())
+    )
+    def get_option_secrets(self, resource: models.Resource):
+        page = getattr(resource, "serialization_page", None)
+        if page and page.option_secrets is not None:
+            statuses = page.option_secrets.get(resource.id, {})
+        else:
+            statuses = network_options.secret_statuses(resource)
+        return serialize_secret_statuses(statuses)
 
     def get_has_api_keys(self, resource: models.Resource) -> bool:
         # ConsumerResourceViewSet annotates this, so listing resources costs one
@@ -11870,9 +12146,19 @@ class ResourceVersionSerializer(serializers.Serializer):
 
 
 class ResourceOptionsSerializer(serializers.ModelSerializer):
+    # Pre-shared keys sent with the option values, by option name; set when the
+    # options are validated.
+    option_secrets = None
+
     class Meta:
         model = models.Resource
         fields = ("options",)
+
+    @property
+    def is_provider_update(self):
+        """The provider's direct update, which may change an IPsec provider end."""
+        view = self.context.get("view")
+        return getattr(view, "action", None) == "update_options_direct"
 
     def validate_options(self, attrs):
         resource: models.Resource = self.instance
@@ -11903,6 +12189,7 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
 
         options = resource_options["options"]
         hidden = get_hidden_options(options, {**(self.instance.options or {}), **attrs})
+        submitted = attrs
         # Store the values as validate_options returns them, transformed, and
         # check those for uniqueness, as they are what other resources hold.
         attrs = validate_options(
@@ -11910,7 +12197,14 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
             attrs,
             optional=True,
             hidden=hidden,
+            # An IPsec option keeps its provider end, and is checked against
+            # the networks of the order options the resource was created with.
+            stored={**(resource.attributes or {}), **(resource.options or {})},
+            trust_provider_end=self.is_provider_update,
         )
+        # A customer may send a new secret with the values; the view
+        # stores it encrypted once the change is accepted.
+        self.option_secrets = get_submitted_secrets(options, submitted, hidden)
         model_lists.validate_selection(resource.offering, attrs)
         self._validate_unique_options(attrs)
         return strip_hidden_options(

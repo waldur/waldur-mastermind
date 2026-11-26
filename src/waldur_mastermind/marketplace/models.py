@@ -6369,6 +6369,62 @@ class ResourceApiKey(
         return f"API key {self.client_id or self.uuid.hex} of {self.resource}"
 
 
+class ResourceOptionSecret(TimeStampedModel):
+    """The value of one of a resource's secret options, stored encrypted.
+
+    An offering asks for a secret with an option of type ``secret``: a VPN
+    pre-shared key, an API token, a kubeconfig. Its value is never part of the
+    order's or the resource's attributes or options; it lives here alone,
+    written with ``encryption.encrypt_value`` and read back only by the reveal
+    actions.
+    """
+
+    class Sources:
+        CUSTOMER = "customer"
+        PROVIDER = "provider"
+
+        CHOICES = (
+            (CUSTOMER, "Customer"),
+            (PROVIDER, "Provider"),
+        )
+
+    resource = models.ForeignKey(
+        to=Resource, on_delete=models.CASCADE, related_name="option_secrets"
+    )
+    resource_id: int
+    option_name = models.CharField(
+        max_length=255,
+        help_text=_("Name of the secret option, in the offering's options."),
+    )
+    value = core_fields.CiphertextField(
+        help_text=_("The secret, encrypted with encryption.encrypt_value.")
+    )
+    source = models.CharField(
+        max_length=16,
+        choices=Sources.CHOICES,
+        help_text=_("Who set the value: the customer or the provider."),
+    )
+    set_by = models.ForeignKey(
+        to=User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text=_("The user who last set the value."),
+    )
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                fields=["resource", "option_name"],
+                name="marketplace_resource_option_secret_unique",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"Secret of option {self.option_name} of {self.resource}"
+
+
 class ResourceApiKeyDailyUsage(TimeStampedModel):
     """A resource API key's usage of one component on one UTC date.
 

@@ -92,6 +92,7 @@ from waldur_mastermind.marketplace import (
     billing_mode,
     derived_limits,
     k8s_egress,
+    network_options,
     spending_limits,
 )
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
@@ -737,10 +738,13 @@ def resource_options_from_attributes(offering, attributes):
     """A new resource's options: the values of the offering's resource options
     found in the ordered attributes, on every model unless it chose one, and
     without the values of options those attributes hide. A k8s_egress_rules
-    option takes the egress rules of the cluster configuration it pairs with."""
+    option takes the egress rules of the cluster configuration it pairs with,
+    and a cidr or ipsec_vpn_config option only the value of an order option of
+    the same name and type. A secret option's value is never copied: it is
+    stored against the resource (see network_options)."""
     resource_options = (offering.resource_options or {}).get("options") or {}
     attributes = attributes or {}
-    return strip_hidden_options(
+    options = strip_hidden_options(
         resource_options,
         model_lists.with_default_selection(
             offering,
@@ -750,6 +754,7 @@ def resource_options_from_attributes(offering, attributes):
                     for key in resource_options
                     if key in attributes
                     and not k8s_egress.is_egress_option(resource_options[key])
+                    and network_options.can_seed_resource_option(offering, key)
                 },
                 # Taken from the validated cluster configuration only, never
                 # from an attribute of the same name, which nothing checked.
@@ -757,6 +762,7 @@ def resource_options_from_attributes(offering, attributes):
             },
         ),
     )
+    return network_options.strip_secrets(offering, options)
 
 
 def copy_order_options_to_resource(order):

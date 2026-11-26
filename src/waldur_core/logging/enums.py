@@ -138,6 +138,10 @@ class EventType(StrEnum):
     MARKETPLACE_RESOURCE_API_KEY_DELETED = "marketplace_resource_api_key_deleted"
     MARKETPLACE_RESOURCE_API_KEY_FAILED = "marketplace_resource_api_key_failed"
     MARKETPLACE_RESOURCE_API_KEY_REVEALED = "marketplace_resource_api_key_revealed"
+    MARKETPLACE_RESOURCE_OPTION_SECRET_SET = "marketplace_resource_option_secret_set"
+    MARKETPLACE_RESOURCE_OPTION_SECRET_REVEALED = (
+        "marketplace_resource_option_secret_revealed"
+    )
     MARKETPLACE_RESOURCE_S3_OBJECT_DOWNLOADED = (
         "marketplace_resource_s3_object_downloaded"
     )
@@ -929,6 +933,8 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_API_KEY_REQUESTED,
         EventType.MARKETPLACE_RESOURCE_API_KEY_RESUMED,
         EventType.MARKETPLACE_RESOURCE_API_KEY_REVEALED,
+        EventType.MARKETPLACE_RESOURCE_OPTION_SECRET_REVEALED,
+        EventType.MARKETPLACE_RESOURCE_OPTION_SECRET_SET,
         EventType.MARKETPLACE_RESOURCE_S3_OBJECT_DOWNLOADED,
         EventType.MARKETPLACE_RESOURCE_S3_STORAGE_CHANGED,
         EventType.MARKETPLACE_RESOURCE_API_KEY_ROTATED,

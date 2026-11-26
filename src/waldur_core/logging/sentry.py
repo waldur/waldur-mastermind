@@ -19,6 +19,7 @@ Django models or anything that needs the app registry.
 
 import ast
 import re
+from contextvars import ContextVar
 
 from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
 
@@ -85,7 +86,9 @@ def normalize_for_fingerprint(message):
 def before_send(event, hint):
     """Normalise structlog-rendered log events and redact secrets before they
     are sent to Sentry."""
-    return redact_secrets(_normalise_log_event(event, hint), hint)
+    return redact_option_secrets(
+        redact_secrets(_normalise_log_event(event, hint), hint)
+    )
 
 
 def _normalise_log_event(event, hint):
@@ -158,6 +161,8 @@ _SECRET_NAMES = [
     "registration_token",
     "client_secret",
     "api_secret",
+    # A pre-shared key, such as an IPsec VPN's.
+    "psk",
     "auth_token",
     "raw_token",
     # A re-authentication grant, as a request header and in request.META.
@@ -321,3 +326,84 @@ def redact_secrets(event, hint):
     if event is None:
         return None
     return _redact(event)
+
+
+# Values of secret options (marketplace option type ``secret``) seen while
+# handling the current request. Their option names are chosen by providers, so
+# no name gives them away: the values themselves are redacted wherever they
+# appear in an event (request body, frame locals, messages). Reset when each
+# request starts (see waldur_core.logging.apps).
+_request_secret_values: ContextVar[frozenset] = ContextVar(
+    "waldur_request_secret_values", default=frozenset()
+)
+# A shorter secret is replaced only where it is a whole string, so that it
+# does not mangle the rest of the event.
+_MIN_SECRET_SUBSTRING_LENGTH = 8
+# The request bodies whose "value" is a secret.
+_SECRET_VALUE_PATHS = ("/set_option_secret/",)
+
+
+def register_secret_value(value):
+    """Have every event of the current request leave out ``value``."""
+    if isinstance(value, str) and value:
+        _request_secret_values.set(_request_secret_values.get() | {value})
+
+
+def reset_secret_values(**kwargs):
+    _request_secret_values.set(frozenset())
+
+
+def _redact_values(value, secrets, long_secrets):
+    if isinstance(value, str):
+        if value in secrets:
+            return "[Filtered]"
+        for secret in long_secrets:
+            if secret in value:
+                value = value.replace(secret, "[Filtered]")
+        return value
+    if isinstance(value, dict):
+        return {
+            key: _redact_values(item, secrets, long_secrets)
+            for key, item in value.items()
+        }
+    if isinstance(value, list | tuple):
+        return [_redact_values(item, secrets, long_secrets) for item in value]
+    return value
+
+
+def redact_option_secrets(event):
+    """Leave secret option values out of the event.
+
+    The ``value`` of a set_option_secret request body is filtered by the path,
+    and any value a secret option received in this request, by its content.
+    """
+    if event is None:
+        return None
+    request = event.get("request")
+    if isinstance(request, dict) and any(
+        path in str(request.get("url") or "") for path in _SECRET_VALUE_PATHS
+    ):
+        data = request.get("data")
+        if isinstance(data, dict):
+            request["data"] = {
+                **data,
+                **({"value": "[Filtered]"} if "value" in data else {}),
+            }
+        elif data:
+            request["data"] = "[Filtered]"
+    secrets = _request_secret_values.get()
+    if not secrets:
+        return event
+    # Frame locals arrive as their repr, newlines and quotes escaped, so a
+    # multiline secret is looked for in that form too.
+    long_secrets = sorted(
+        {
+            form
+            for secret in secrets
+            if len(secret) >= _MIN_SECRET_SUBSTRING_LENGTH
+            for form in (secret, repr(secret)[1:-1])
+        },
+        key=len,
+        reverse=True,
+    )
+    return _redact_values(event, secrets, long_secrets)

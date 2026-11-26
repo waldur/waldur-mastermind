@@ -39,6 +39,16 @@ class EventsConfig(AppConfig):
                 dispatch_uid="waldur_core.logging.handlers.scrub_logged_request",
             )
 
+        # Secret option values registered for Sentry belong to one request.
+        from django.core.signals import request_started
+
+        from waldur_core.logging.sentry import reset_secret_values
+
+        request_started.connect(
+            reset_secret_values,
+            dispatch_uid="waldur_core.logging.sentry.reset_secret_values",
+        )
+
         # Patch APIView.initial so all DRF views (incl. token-authenticated) bind user_uuid
         # after perform_authentication; middleware signals fire before that for token auth
         from waldur_core.logging.middleware import set_current_auth, set_current_user

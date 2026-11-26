@@ -38,6 +38,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import network_options
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes
@@ -1435,6 +1436,12 @@ class CallResourceTemplateSerializer(
             if requested_offering:
                 offering = requested_offering.offering
                 utils.normalize_option_values(attributes, offering)
+                if "attributes" in attrs:
+                    # A template is copied into every request made from it, so
+                    # it never keeps the value of a secret option.
+                    attrs["attributes"] = network_options.strip_secrets(
+                        offering, attrs["attributes"]
+                    )
                 _validate_prepaid_duration(attributes, offering, None)
                 # A request made from the template cannot add what it leaves
                 # out, so a required option missing here would block every

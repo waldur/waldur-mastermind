@@ -206,6 +206,7 @@ class EncryptedFieldDiscoveryTest(SimpleTestCase):
             _labels(encrypted_scalar_fields()),
             {
                 "marketplace.ResourceApiKey.key_ciphertext",
+                "marketplace.ResourceOptionSecret.value",
                 "matrix_chat.MatrixBotIdentity.access_token",
                 "matrix_chat.MatrixBotIdentity.cross_signing_seeds",
                 "matrix_chat.MatrixBotIdentity.pickle_key",
