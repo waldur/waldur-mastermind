@@ -8995,6 +8995,9 @@ class Command(BaseCommand):
                     ),
                     "allocation_date": allocation_date,
                 }
+                # Kept when given: new proposal slugs are built from it.
+                if round_data.get("slug"):
+                    defaults["slug"] = round_data["slug"]
                 # Where a round stands after its cut-off, for a round shown as
                 # already decided (results published, closed). Imported as is:
                 # nothing of the transitions that lead there is replayed.
@@ -9113,6 +9116,42 @@ class Command(BaseCommand):
                         proposal_data.get("completed_at")
                     ),
                 }
+                # Set only when the dump carries them, so an update from an
+                # older dump does not blank what is stored. A given slug is
+                # the proposal's public ID and is kept as is.
+                if proposal_data.get("slug"):
+                    defaults["slug"] = proposal_data["slug"]
+                if "submitted_at" in proposal_data:
+                    defaults["submitted_at"] = self._parse_datetime(
+                        proposal_data["submitted_at"]
+                    )
+                if "decision_held" in proposal_data:
+                    defaults["decision_held"] = bool(proposal_data["decision_held"])
+                if "completed_by_uuid" in proposal_data:
+                    defaults["completed_by"] = (
+                        User.objects.filter(
+                            uuid=proposal_data["completed_by_uuid"]
+                        ).first()
+                        if proposal_data["completed_by_uuid"]
+                        else None
+                    )
+                if "science_sub_domain_code" in proposal_data:
+                    code = proposal_data["science_sub_domain_code"]
+                    sub_domain = (
+                        ScienceSubDomain.objects.filter(code=code).first()
+                        if code
+                        else None
+                    )
+                    if code and sub_domain is None:
+                        # Imported without it rather than skipped: the
+                        # proposal itself is still whole.
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Proposal {uuid}: science sub-domain {code} "
+                                "not found, importing it without one"
+                            )
+                        )
+                    defaults["science_sub_domain"] = sub_domain
 
                 if not self.dry_run:
                     existing = Proposal.objects.filter(uuid=uuid).first()
