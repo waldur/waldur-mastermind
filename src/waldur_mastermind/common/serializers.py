@@ -40,7 +40,7 @@ K8S_TOPOLOGY_DATACENTER_COUNTS = {
 }
 
 
-K8S_CONFIG_FIELD_TYPES = ("single_datacenter_k8s_config", "multi_datacenter_k8s_config")
+K8S_CLUSTER_CONFIG_FIELD_TYPE = "k8s_cluster_config"
 K8S_EGRESS_RULES_FIELD_TYPE = "k8s_egress_rules"
 
 K8S_RULE_PROTOCOLS = ("TCP", "UDP", "ICMP")
@@ -246,7 +246,7 @@ class K8sConfigField(serializers.DictField):
     Kubernetes cluster configuration chosen in the order form.
 
     The offering's topology_mode decides which topology the value may carry;
-    when the option does not set it, the option type decides. Values that lack
+    when the option does not set it, the customer chooses. Values that lack
     the topology or datacenters keys are left alone, so orders placed before
     these checks existed still validate.
 
@@ -254,12 +254,10 @@ class K8sConfigField(serializers.DictField):
     (see K8sEgressRulesField).
     """
 
-    default_topology = None
-
     def __init__(self, *args, **kwargs):
         self.default_configs = kwargs.pop("default_configs", None) or {}
         self.topology_mode = (
-            self.default_configs.get("topology_mode") or self.default_topology
+            self.default_configs.get("topology_mode") or K8S_TOPOLOGY_CUSTOMER_CHOICE
         )
         super().__init__(*args, **kwargs)
 
@@ -316,18 +314,6 @@ class K8sConfigField(serializers.DictField):
                 f'The "{topology}" cluster topology requires {expected} '
                 f"datacenter(s), but {len(datacenters)} were given."
             )
-
-
-class SingleDatacenterK8sConfigField(K8sConfigField):
-    """Field for single-datacenter Kubernetes cluster configuration"""
-
-    default_topology = K8S_TOPOLOGY_ONE_DATACENTER
-
-
-class MultiDatacenterK8sConfigField(K8sConfigField):
-    """Field for multi-datacenter Kubernetes cluster configuration"""
-
-    default_topology = K8S_TOPOLOGY_THREE_DATACENTERS
 
 
 class StorageFolderManagerField(serializers.Serializer):
@@ -1468,8 +1454,7 @@ FIELD_CLASSES = {
     "component_multiplier": serializers.IntegerField,
     "component_formula": serializers.IntegerField,
     "storage_folder_manager": StorageFolderManagerField,
-    "single_datacenter_k8s_config": SingleDatacenterK8sConfigField,
-    "multi_datacenter_k8s_config": MultiDatacenterK8sConfigField,
+    K8S_CLUSTER_CONFIG_FIELD_TYPE: K8sConfigField,
     K8S_EGRESS_RULES_FIELD_TYPE: K8sEgressRulesField,
     CIDR_FIELD_TYPE: CidrField,
     IPSEC_VPN_CONFIG_FIELD_TYPE: IpsecVpnConfigField,

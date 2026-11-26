@@ -491,7 +491,7 @@ class PolicyOnSaveTest(test.APISimpleTestCase):
         valid, serializer = self.validate(
             {
                 "k8s": {
-                    "type": "single_datacenter_k8s_config",
+                    "type": "k8s_cluster_config",
                     "label": "Cluster",
                     "default_configs": {
                         "topology_mode": "1-datacenter",

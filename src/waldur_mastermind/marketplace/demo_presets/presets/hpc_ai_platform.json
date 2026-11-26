@@ -368,11 +368,12 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "single_datacenter_k8s_config",
+            "type": "k8s_cluster_config",
             "label": "AI/ML Cluster Configuration",
             "help_text": "Configure your GPU-accelerated Kubernetes cluster for AI/ML workloads",
             "required": true,
             "default_configs": {
+              "topology_mode": "1-datacenter",
               "default_controller_vcpus": 8,
               "default_controller_ram_gb": 32,
               "default_controller_system_disk_gb": 200,
@@ -418,11 +419,12 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "multi_datacenter_k8s_config",
+            "type": "k8s_cluster_config",
             "label": "Multi-Region AI Platform Configuration",
             "help_text": "Configure your globally distributed AI training platform with GPU nodes across regions",
             "required": true,
             "default_configs": {
+              "topology_mode": "3-datacenter",
               "default_controller_vcpus": 16,
               "default_controller_ram_gb": 64,
               "default_controller_system_disk_gb": 500,

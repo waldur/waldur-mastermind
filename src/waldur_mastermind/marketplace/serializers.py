@@ -109,6 +109,7 @@ from waldur_mastermind.common.serializers import (
     CIDR_POLICY_KEYS,
     IPSEC_POLICY_KEYS,
     IPSEC_VPN_CONFIG_FIELD_TYPE,
+    K8S_CLUSTER_CONFIG_FIELD_TYPE,
     K8S_EGRESS_RULES_FIELD_TYPE,
     K8S_TOPOLOGY_MODES,
     MAX_PATTERN_LENGTH,
@@ -3819,8 +3820,7 @@ FIELD_TYPES = (
     "component_multiplier",
     "component_formula",
     "component_sum",
-    "single_datacenter_k8s_config",
-    "multi_datacenter_k8s_config",
+    K8S_CLUSTER_CONFIG_FIELD_TYPE,
     K8S_EGRESS_RULES_FIELD_TYPE,
     "storage_folder_manager",
     CIDR_FIELD_TYPE,
@@ -4050,9 +4050,8 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
         required=False,
         help_text="Cluster topology: one site with three controllers "
         "(1-datacenter), three sites with one controller each (3-datacenter) "
-        "or the customer's pick (customer_choice). When omitted, the option "
-        "type decides: 1-datacenter for single_datacenter_k8s_config, "
-        "3-datacenter for multi_datacenter_k8s_config.",
+        "or the customer's pick (customer_choice). Treated as customer_choice "
+        "when omitted.",
     )
 
     # Worker node requirements
@@ -4554,10 +4553,7 @@ class OptionFieldSerializer(serializers.Serializer):
                     "storage_folder_config is required for storage_folder_manager type"
                 )
 
-        if field_type in (
-            "single_datacenter_k8s_config",
-            "multi_datacenter_k8s_config",
-        ):
+        if field_type == K8S_CLUSTER_CONFIG_FIELD_TYPE:
             # default_configs is optional for K8s config types
             # When not provided, the frontend will show configuration warnings
             pass

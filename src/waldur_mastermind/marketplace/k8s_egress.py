@@ -14,7 +14,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from waldur_mastermind.common.serializers import (
-    K8S_CONFIG_FIELD_TYPES,
+    K8S_CLUSTER_CONFIG_FIELD_TYPE,
     K8S_EGRESS_POLICY_KEYS,
     K8S_EGRESS_RULES_FIELD_TYPE,
 )
@@ -64,7 +64,7 @@ def pair_resource_options(resource_options, order_options):
     sources = [
         name
         for name, option in (order_options or {}).items()
-        if option.get("type") in K8S_CONFIG_FIELD_TYPES
+        if option.get("type") == K8S_CLUSTER_CONFIG_FIELD_TYPE
     ]
     if len(sources) != 1:
         raise serializers.ValidationError(

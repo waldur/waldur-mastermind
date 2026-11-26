@@ -46,12 +46,12 @@ BASELINE_RULE = {
 }
 
 
-def k8s_options(**default_configs):
+def k8s_options(field_type="k8s_cluster_config", **default_configs):
     return {
         "order": ["cluster_config"],
         "options": {
             "cluster_config": {
-                "type": "single_datacenter_k8s_config",
+                "type": field_type,
                 "label": "Cluster configuration",
                 "default_configs": default_configs,
             }
@@ -317,7 +317,7 @@ class EgressResourceOptionPairingTest(test.APITestCase):
         options = k8s_options()
         options["options"]["second"] = {
             **options["options"]["cluster_config"],
-            "type": "multi_datacenter_k8s_config",
+            "type": "k8s_cluster_config",
         }
         self.offering.options = options
         self.offering.save()
@@ -594,7 +594,10 @@ class MoveEgressRowsTest(test.APISimpleTestCase):
 
 class MoveEgressRowsMigrationTest(test.APITestCase):
     def test_orders_and_resources_are_migrated_and_offering_enabled(self):
-        offering = factories.OfferingFactory(options=k8s_options())
+        # Migration 0333 ran before the types were merged.
+        offering = factories.OfferingFactory(
+            options=k8s_options("single_datacenter_k8s_config")
+        )
         config = {"public_access_rules": [MoveEgressRowsTest.EGRESS]}
         order = factories.OrderFactory(
             offering=offering, attributes={"cluster_config": copy.deepcopy(config)}
@@ -602,7 +605,9 @@ class MoveEgressRowsMigrationTest(test.APITestCase):
         resource = factories.ResourceFactory(
             offering=offering, attributes={"cluster_config": copy.deepcopy(config)}
         )
-        untouched = factories.OfferingFactory(options=k8s_options())
+        untouched = factories.OfferingFactory(
+            options=k8s_options("single_datacenter_k8s_config")
+        )
 
         migration.forwards(apps, None)
 
