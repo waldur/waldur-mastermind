@@ -7,9 +7,9 @@ from django.db import transaction
 from django_fsm import TransitionNotAllowed
 
 from waldur_core.configuration import config
+from waldur_core.core.cors import is_public_cors_path
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import UserRole
-from waldur_core.server.middleware import is_public_cors_path
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.marketplace.enums import OrderStates
 

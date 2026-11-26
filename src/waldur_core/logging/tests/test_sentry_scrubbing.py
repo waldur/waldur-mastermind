@@ -274,6 +274,20 @@ class EventScrubberTest(SimpleTestCase):
                 self.assertIn(key.lower(), denylist, key)
         self.assertNotIn("matrix_homeserver_url", denylist)
 
+    def test_event_scrubber_accepts_explicit_constance_config(self):
+        custom_config = {
+            "CUSTOM_OAUTH_CREDENTIAL": ("", "Custom secret", "secret_field"),
+            "CUSTOM_PUBLIC_URL": ("", "Public URL", str),
+        }
+        try:
+            denylist = set(sentry.event_scrubber(custom_config).denylist)
+            self.assertIn("custom_oauth_credential", denylist)
+            self.assertNotIn("custom_public_url", denylist)
+            self.assertTrue(sentry.is_secret_setting("CUSTOM_OAUTH_CREDENTIAL"))
+            self.assertFalse(sentry.is_secret_setting("CUSTOM_PUBLIC_URL"))
+        finally:
+            sentry.configure_constance_config({})
+
     def test_secrets_inside_values_and_nested_dicts_are_filtered(self):
         # Names alone miss them: nio puts the appservice token into every
         # request path, and httpx keeps the Authorization header in a dict.

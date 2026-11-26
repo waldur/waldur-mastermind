@@ -1,7 +1,11 @@
+import importlib
+
+from celery import current_app
 from celery.schedules import crontab
 from django.test import SimpleTestCase
 
 from waldur_core.core.management.commands.print_scheduled_jobs import format_schedule
+from waldur_core.server import celeryconf
 
 
 class FormatScheduleTest(SimpleTestCase):
@@ -31,3 +35,13 @@ class FormatScheduleTest(SimpleTestCase):
             format_schedule(crontab(minute=30, hour=0)),
             "Cron: `30 0 * * * (m/h/dM/MY/d)`",
         )
+
+
+class CeleryCurrentAppIdentityTest(SimpleTestCase):
+    def test_aliased_server_import_does_not_replace_current_app(self):
+        # Pytest imports test modules under ``src.waldur_core.server.*``;
+        # ``waldur_core.server.__init__`` must reuse the canonical celeryconf
+        # module instead of creating a second Celery app that hijacks current_app.
+        aliased = importlib.import_module("src.waldur_core.server")
+        self.assertIs(aliased.celery_app, celeryconf.app)
+        self.assertIs(current_app._get_current_object(), celeryconf.app)

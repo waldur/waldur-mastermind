@@ -43,6 +43,7 @@ require_ignore_directive_reasons = "error"
 
 [[modules]]
 path = "waldur_core.server"
+visibility = []
 depends_on = [
     "waldur_core.changelog",
     "waldur_core.checklist",
@@ -240,8 +241,6 @@ depends_on = [
     "waldur_core.structure",
     "waldur_mastermind.marketplace",
     "waldur_mastermind.policy",
-    # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_core.server",  # -> composition
 ]
 
 [[modules]]
@@ -428,8 +427,6 @@ depends_on = [
     "waldur_mastermind.chat",
     "waldur_mastermind.marketplace",
     "waldur_mastermind.support",
-    # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_core.server",  # -> composition
 ]
 
 [[modules]]
@@ -439,8 +436,6 @@ depends_on = [
     "waldur_core.logging",
     "waldur_core.permissions",
     "waldur_mastermind.chat",
-    # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_core.server",  # -> composition
 ]
 
 [[modules]]
@@ -500,8 +495,6 @@ depends_on = [
     "waldur_core.structure",
     "waldur_mastermind.marketplace",
     "waldur_mastermind.notifications",
-    # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_core.server",  # -> composition
 ]
 
 [[modules]]
@@ -630,7 +623,6 @@ depends_on = [
     "waldur_core.structure",
     # Upward dependencies (modularization debt; do not add new ones):
     "waldur_auth_social",  # -> integrations
-    "waldur_core.server",  # -> composition
     "waldur_freeipa",  # -> integrations
     "waldur_mastermind.marketplace",  # -> marketplace
 ]
@@ -664,7 +656,6 @@ depends_on = [
     # Upward dependencies (modularization debt; do not add new ones):
     "waldur_auth_social",  # -> integrations
     "waldur_core.changelog",  # -> tenancy
-    "waldur_core.server",  # -> composition
     "waldur_core.structure",  # -> tenancy
     "waldur_core.users",  # -> tenancy
     "waldur_mastermind.marketplace",  # -> marketplace
@@ -681,7 +672,6 @@ depends_on = [
     "waldur_core.configuration",
     "waldur_core.permissions",
     # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_core.server",  # -> composition
     "waldur_core.structure",  # -> tenancy
     "waldur_mastermind.marketplace",  # -> marketplace
 ]

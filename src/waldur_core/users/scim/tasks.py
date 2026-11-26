@@ -9,11 +9,11 @@ from waldur_core.configuration import config
 from waldur_core.core.models import User
 from waldur_core.core.utils import chunks
 from waldur_core.permissions.models import UserRole
-from waldur_core.server.celery_settings import (
-    DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS,
-)
 from waldur_core.structure import models as structure_models
 from waldur_core.users.scim.client import ScimClient, ScimError
+from waldur_core.users.scim.constants import (
+    DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS,
+)
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import OfferingUserStates
 

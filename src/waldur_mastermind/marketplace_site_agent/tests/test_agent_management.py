@@ -353,7 +353,7 @@ class AgentTaskStatsViewSetTest(test.APITestCase):
         return "/api/marketplace-site-agent-task-stats/"
 
     @data("staff", "global_support")
-    @mock.patch("waldur_core.server.celeryconf.app")
+    @mock.patch("waldur_mastermind.marketplace_site_agent.views.current_app")
     def test_task_stats_access_allowed(self, user_role, mock_app):
         mock_inspect = mock.MagicMock()
         mock_inspect.active.return_value = {}

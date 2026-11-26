@@ -7,6 +7,9 @@ from celery.schedules import crontab
 from kombu import Exchange, Queue
 
 from waldur_core.core import WaldurExtension
+from waldur_core.users.scim.constants import (
+    DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS,
+)
 
 # An optional suffix on every queue name, so stacks sharing one broker -- the
 # dev stacks of one machine, say -- each consume only their own tasks. Unset
@@ -170,9 +173,6 @@ CELERY_BROKER_TRANSPORT_OPTIONS = {
 CELERY_CREATE_MISSING_QUEUES = False
 # If queues are auto-created, use topic exchanges (consistent with our config)
 CELERY_TASK_CREATE_MISSING_QUEUES_EXCHANGE_TYPE = "topic"
-
-# Default schedule interval for SCIM entitlement reconciliation task (in hours)
-DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS = 1
 
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {

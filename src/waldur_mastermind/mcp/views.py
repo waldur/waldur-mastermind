@@ -21,11 +21,11 @@ from rest_framework.response import Response
 
 from waldur_core.core import access
 from waldur_core.core.auth_utils import is_delegated
+from waldur_core.core.cors import add_public_cors_headers
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
-from waldur_core.server.middleware import add_public_cors_headers
 from waldur_mastermind.mcp import models, serializers
 from waldur_mastermind.mcp.oauth import (
     ADVERTISED_SCOPES,

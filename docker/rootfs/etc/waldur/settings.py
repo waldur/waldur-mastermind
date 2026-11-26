@@ -252,7 +252,7 @@ if sentry_dsn:
         before_send=sentry_before_send,
         before_breadcrumb=sentry_before_breadcrumb,
         before_send_transaction=sentry_redact_secrets,
-        event_scrubber=sentry_event_scrubber(),
+        event_scrubber=sentry_event_scrubber(CONSTANCE_CONFIG),
         # https://docs.sentry.io/platforms/python/guides/django/performance/
         traces_sampler=_traces_sampler,
         # Profiles fill the gap between instrumented spans and wall-clock

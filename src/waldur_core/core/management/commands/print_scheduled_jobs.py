@@ -1,10 +1,9 @@
 import re
 from datetime import timedelta
 
+from celery import current_app
+from django.conf import settings
 from django.core.management.base import BaseCommand
-
-from waldur_core.server.celery_settings import CELERY_BEAT_SCHEDULE
-from waldur_core.server.celeryconf import app
 
 
 def format_schedule(schedule):
@@ -60,8 +59,7 @@ def format_schedule(schedule):
 
 def get_task_description(task_name):
     """Get task description from Celery task registry."""
-    # Get task from Celery registry using the same app instance as celeryconf.py
-    task = app.tasks.get(task_name)
+    task = current_app.tasks.get(task_name)
     if task and hasattr(task, "__doc__") and task.__doc__:
         # Clean up the docstring and make it markdown table-friendly
         doc = task.__doc__.strip()
@@ -88,8 +86,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         # Force Celery to import all autodiscovered task modules
-        # This executes the @shared_task decorators and populates app.tasks
-        app.loader.import_default_modules()
+        # This executes the @shared_task decorators and populates current_app.tasks
+        current_app.loader.import_default_modules()
 
         output_file = options.get("output_file")
 
@@ -142,7 +140,7 @@ td:nth-child(4) {
         all_jobs = {}
 
         # all jobs are loaded into CELERY_BEAT_SCHEDULE
-        for name, config in CELERY_BEAT_SCHEDULE.items():
+        for name, config in getattr(settings, "CELERY_BEAT_SCHEDULE", {}).items():
             all_jobs[name] = config
 
         # Write jobs section

@@ -39,12 +39,12 @@ from waldur_core.core.auth_utils import (
     AUTH_METHOD_TOKEN,
     get_auth_method,
 )
+from waldur_core.core.cors import add_public_cors_headers
 from waldur_core.core.models import User
 from waldur_core.core.utils import get_rate_limit_address
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
-from waldur_core.server.middleware import add_public_cors_headers
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
 
