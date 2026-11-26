@@ -649,11 +649,33 @@ of type `component_formula` with the same internal name as the order option:
 - A component may be derived by only one option.
 - A sum may not include its own target, and sums may not form a cycle.
 
+### Kubernetes Cluster Configuration
+
+An option of type `k8s_cluster_config` asks the customer for a Kubernetes
+cluster: version, topology, the OpenStack infrastructure and node groups of
+each datacenter, access rules and egress rules. Its `default_configs` holds
+the provider's policy: node sizes, available versions, the load balancer
+mode and the topology.
+
+`topology_mode` decides how many sites a cluster spans:
+
+- `1-datacenter`: one site with three controllers.
+- `3-datacenter`: three sites with one controller each.
+- `customer_choice` (the default when unset): the customer picks one of the two.
+
+The value's `topology`, when present, must be allowed by the mode, and the
+number of `datacenters` must match it.
+
+It replaced `single_datacenter_k8s_config` and `multi_datacenter_k8s_config`,
+which are no longer accepted. Migration `marketplace.0338` converted the
+options of existing offerings and offering templates, setting `topology_mode`
+to what the old type implied (`1-datacenter` or `3-datacenter`) where the
+option had none.
+
 ### Kubernetes Egress Rules
 
-A Kubernetes cluster configuration (`single_datacenter_k8s_config` or
-`multi_datacenter_k8s_config`) can carry the outbound destinations the
-cluster may reach, in its `egress_rules` list. Waldur validates and stores
+A Kubernetes cluster configuration (`k8s_cluster_config`) can carry the
+outbound destinations the cluster may reach, in its `egress_rules` list. Waldur validates and stores
 them; enforcing them (security groups, network policy, an egress proxy) is
 the provider's automation's job.
 

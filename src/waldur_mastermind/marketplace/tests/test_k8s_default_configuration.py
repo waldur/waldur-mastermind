@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.tests.test_order_crud import BaseOrderCreateT
 class K8sLoadBalancerModeTest(test.APISimpleTestCase):
     def build_option(self, default_configs):
         return {
-            "type": "single_datacenter_k8s_config",
+            "type": "k8s_cluster_config",
             "label": "Cluster configuration",
             "default_configs": default_configs,
         }
@@ -50,7 +50,7 @@ class K8sLoadBalancerModeTest(test.APISimpleTestCase):
                 "order": ["cluster_config"],
                 "options": {
                     "cluster_config": {
-                        "type": "multi_datacenter_k8s_config",
+                        "type": "k8s_cluster_config",
                         "label": "Cluster configuration",
                         "default_configs": {"load_balancer_mode": "optional"},
                     }
@@ -67,7 +67,7 @@ class K8sLoadBalancerModeTest(test.APISimpleTestCase):
 
 
 class K8sTopologyModeTest(test.APISimpleTestCase):
-    def build_option(self, default_configs, field_type="single_datacenter_k8s_config"):
+    def build_option(self, default_configs, field_type="k8s_cluster_config"):
         return {
             "type": field_type,
             "label": "Cluster configuration",
@@ -75,19 +75,15 @@ class K8sTopologyModeTest(test.APISimpleTestCase):
         }
 
     def test_topology_mode_accepts_known_values(self):
-        for field_type in (
-            "single_datacenter_k8s_config",
-            "multi_datacenter_k8s_config",
-        ):
-            for mode in ("1-datacenter", "3-datacenter", "customer_choice"):
-                serializer = serializers.OptionFieldSerializer(
-                    data=self.build_option({"topology_mode": mode}, field_type)
-                )
-                self.assertTrue(serializer.is_valid(), serializer.errors)
-                self.assertEqual(
-                    serializer.validated_data["default_configs"]["topology_mode"],
-                    mode,
-                )
+        for mode in ("1-datacenter", "3-datacenter", "customer_choice"):
+            serializer = serializers.OptionFieldSerializer(
+                data=self.build_option({"topology_mode": mode})
+            )
+            self.assertTrue(serializer.is_valid(), serializer.errors)
+            self.assertEqual(
+                serializer.validated_data["default_configs"]["topology_mode"],
+                mode,
+            )
 
     def test_topology_mode_rejects_unknown_value(self):
         serializer = serializers.OptionFieldSerializer(
@@ -132,19 +128,21 @@ class K8sClusterConfigValidationTest(test.APISimpleTestCase):
         }
 
     @data(
-        # No topology_mode: the option type decides.
-        ("single_datacenter_k8s_config", None, "1-datacenter", 1),
-        ("multi_datacenter_k8s_config", None, "3-datacenter", 3),
-        # A fixed mode overrides the type.
-        ("single_datacenter_k8s_config", "3-datacenter", "3-datacenter", 3),
-        ("multi_datacenter_k8s_config", "1-datacenter", "1-datacenter", 1),
+        # No topology_mode: the customer picks.
+        ("k8s_cluster_config", None, "1-datacenter", 1),
+        ("k8s_cluster_config", None, "3-datacenter", 3),
+        ("k8s_cluster_config", None, None, 1),
+        ("k8s_cluster_config", None, None, 3),
+        # A fixed mode decides.
+        ("k8s_cluster_config", "1-datacenter", "1-datacenter", 1),
+        ("k8s_cluster_config", "3-datacenter", None, 3),
+        ("k8s_cluster_config", "3-datacenter", "3-datacenter", 3),
         # The customer picks.
-        ("single_datacenter_k8s_config", "customer_choice", "1-datacenter", 1),
-        ("single_datacenter_k8s_config", "customer_choice", "3-datacenter", 3),
-        ("multi_datacenter_k8s_config", "customer_choice", "1-datacenter", 1),
+        ("k8s_cluster_config", "customer_choice", "1-datacenter", 1),
+        ("k8s_cluster_config", "customer_choice", "3-datacenter", 3),
         # Values without a topology key are checked against the fixed topology.
-        ("single_datacenter_k8s_config", None, None, 1),
-        ("multi_datacenter_k8s_config", "customer_choice", None, 3),
+        ("k8s_cluster_config", "1-datacenter", None, 1),
+        ("k8s_cluster_config", "customer_choice", None, 3),
     )
     @unpack
     def test_allowed_config_is_accepted(
@@ -156,8 +154,9 @@ class K8sClusterConfigValidationTest(test.APISimpleTestCase):
         )
 
     @data(
-        ("single_datacenter_k8s_config", None),
-        ("multi_datacenter_k8s_config", "customer_choice"),
+        ("k8s_cluster_config", None),
+        ("k8s_cluster_config", "1-datacenter"),
+        ("k8s_cluster_config", "customer_choice"),
     )
     @unpack
     def test_non_string_topology_is_rejected(self, field_type, topology_mode):
@@ -177,28 +176,28 @@ class K8sClusterConfigValidationTest(test.APISimpleTestCase):
     ):
         with self.assertRaises(ValidationError) as cm:
             validate_options(
-                self.build_options("single_datacenter_k8s_config", "customer_choice"),
+                self.build_options("k8s_cluster_config", "customer_choice"),
                 {"cluster_config": build_cluster_config(None, datacenter_count)},
             )
         self.assertIn("cluster_config", cm.exception.detail)
 
     def test_customer_choice_value_without_topology_or_datacenters_is_accepted(self):
         validate_options(
-            self.build_options("single_datacenter_k8s_config", "customer_choice"),
+            self.build_options("k8s_cluster_config", "customer_choice"),
             {"cluster_config": {"kubernetes_version": "1.30.0"}},
         )
 
     def test_value_without_topology_or_datacenters_is_accepted(self):
         validate_options(
-            self.build_options("multi_datacenter_k8s_config"),
+            self.build_options("k8s_cluster_config", "3-datacenter"),
             {"cluster_config": {"kubernetes_version": "1.30.0"}},
         )
 
     @data(
-        ("single_datacenter_k8s_config", None, "3-datacenter", 3),
-        ("multi_datacenter_k8s_config", None, "1-datacenter", 1),
-        ("single_datacenter_k8s_config", "3-datacenter", "1-datacenter", 1),
-        ("multi_datacenter_k8s_config", "customer_choice", "2-datacenter", 2),
+        ("k8s_cluster_config", "1-datacenter", "3-datacenter", 3),
+        ("k8s_cluster_config", None, "2-datacenter", 2),
+        ("k8s_cluster_config", "3-datacenter", "1-datacenter", 1),
+        ("k8s_cluster_config", "customer_choice", "2-datacenter", 2),
     )
     @unpack
     def test_disallowed_topology_is_rejected(
@@ -212,10 +211,12 @@ class K8sClusterConfigValidationTest(test.APISimpleTestCase):
         self.assertIn("cluster_config", cm.exception.detail)
 
     @data(
-        ("single_datacenter_k8s_config", None, "1-datacenter", 3),
-        ("multi_datacenter_k8s_config", None, "3-datacenter", 1),
-        ("single_datacenter_k8s_config", "customer_choice", "3-datacenter", 2),
-        ("multi_datacenter_k8s_config", None, None, 1),
+        ("k8s_cluster_config", None, "1-datacenter", 3),
+        ("k8s_cluster_config", None, None, 2),
+        ("k8s_cluster_config", "1-datacenter", "1-datacenter", 3),
+        ("k8s_cluster_config", "3-datacenter", "3-datacenter", 1),
+        ("k8s_cluster_config", "customer_choice", "3-datacenter", 2),
+        ("k8s_cluster_config", "3-datacenter", None, 1),
     )
     @unpack
     def test_datacenter_count_mismatch_is_rejected(
@@ -237,7 +238,7 @@ class K8sTopologyOrderTest(BaseOrderCreateTest):
                 "order": ["cluster_config"],
                 "options": {
                     "cluster_config": {
-                        "type": "single_datacenter_k8s_config",
+                        "type": "k8s_cluster_config",
                         "label": "Cluster configuration",
                         "default_configs": {"topology_mode": topology_mode},
                     }

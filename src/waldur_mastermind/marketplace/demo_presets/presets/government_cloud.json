@@ -355,11 +355,12 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "single_datacenter_k8s_config",
+            "type": "k8s_cluster_config",
             "label": "Secure Cluster Configuration",
             "help_text": "Configure your security-hardened Kubernetes cluster with government compliance requirements",
             "required": true,
             "default_configs": {
+              "topology_mode": "1-datacenter",
               "default_controller_vcpus": 4,
               "default_controller_ram_gb": 16,
               "default_controller_system_disk_gb": 100,
@@ -404,11 +405,12 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "multi_datacenter_k8s_config",
+            "type": "k8s_cluster_config",
             "label": "Multi-DC Government Cluster Configuration",
             "help_text": "Configure your disaster-recovery enabled Kubernetes cluster across multiple secure EU datacenters",
             "required": true,
             "default_configs": {
+              "topology_mode": "3-datacenter",
               "default_controller_vcpus": 8,
               "default_controller_ram_gb": 16,
               "default_controller_system_disk_gb": 100,
