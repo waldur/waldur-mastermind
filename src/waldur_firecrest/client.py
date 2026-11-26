@@ -128,7 +128,9 @@ class FirecrestClient:
                 status_code=504,
             )
         except requests.exceptions.RequestException as e:
-            raise FirecrestException(f"Unable to reach FirecREST: {e}")
+            # The error names internal hosts, and the message reaches users.
+            logger.warning("Unable to reach FirecREST at %s: %s", self.api_url, e)
+            raise FirecrestException("Unable to reach FirecREST.") from e
         if not response.ok:
             raise FirecrestException(
                 self._error_message(response),

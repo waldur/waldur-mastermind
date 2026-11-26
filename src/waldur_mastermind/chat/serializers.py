@@ -64,6 +64,11 @@ class ToolExecuteSerializer(serializers.Serializer):
     )
     arguments = serializers.JSONField(default=dict, help_text="Tool arguments.")
 
+    def validate_arguments(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Expected an object.")
+        return value
+
 
 class ChatResponseSerializer(serializers.Serializer):
     """

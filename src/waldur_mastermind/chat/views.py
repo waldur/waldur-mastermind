@@ -652,10 +652,12 @@ class ToolViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         tool_executor = ToolExecutor(request.user, delegated=delegated)
         result = tool_executor.execute_tool(tool_name, arguments)
 
-        # ToolExecutor returns {"type": "error", ...} for injection blocks and other errors
+        # ToolExecutor returns {"type": "error", ...} for injection blocks and other errors.
+        # Summaries don't reveal what the caller can't see: hidden and missing
+        # objects read the same.
         if result.get("type") == "error":
             return Response(
-                {"detail": result.get("error", "Unable to process this request.")},
+                {"detail": result.get("summary") or "Unable to process this request."},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
 

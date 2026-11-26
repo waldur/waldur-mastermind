@@ -12,6 +12,7 @@ from collections import defaultdict
 from django.utils import timezone
 
 from waldur_firecrest import charts
+from waldur_mastermind.chat.tools.arguments import shorten
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.hpc.helpers import (
@@ -308,7 +309,7 @@ class GetHpcClusterLoadTool(BaseTool):
             if partition and partition not in known:
                 return {
                     "type": "validation_error",
-                    "summary": f"No partition '{partition}'. Known: {', '.join(sorted(known))}.",
+                    "summary": f"No partition '{shorten(partition)}'. Known: {', '.join(sorted(known))}.",
                 }
             if arguments.get("view") == "reservations":
                 chart = charts.reservations(load)

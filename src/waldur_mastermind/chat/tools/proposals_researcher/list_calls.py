@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
+from waldur_mastermind.chat.tools.arguments import shorten
 from waldur_mastermind.chat.tools.base import (
     MAX_LIST_RESULTS,
     BaseTool,
@@ -160,17 +161,17 @@ Skip-ahead is fine and expected.\
         if manager_uuid and not validate_uuid(manager_uuid):
             return {
                 "type": "validation_error",
-                "summary": f"Invalid UUID for manager_uuid: {manager_uuid}",
+                "summary": f"Invalid UUID for manager_uuid: {shorten(manager_uuid)}",
             }
         if state and state not in _VALID_CALL_STATES:
             return {
                 "type": "validation_error",
-                "summary": f"Invalid state: {state}",
+                "summary": f"Invalid state: {shorten(state)}",
             }
         if round_status and round_status not in _VALID_ROUND_STATUSES:
             return {
                 "type": "validation_error",
-                "summary": f"Invalid round_status: {round_status}",
+                "summary": f"Invalid round_status: {shorten(round_status)}",
             }
 
         qs = filter_queryset_for_user(Call.objects.all(), user).select_related(

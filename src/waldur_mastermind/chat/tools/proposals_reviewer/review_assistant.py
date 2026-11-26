@@ -5,6 +5,7 @@ from django.db.models import Avg, Count
 from waldur_core.checklist.models import Answer, ChecklistCompletion
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
+from waldur_mastermind.chat.tools.arguments import shorten
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import applicant_details
@@ -96,7 +97,7 @@ class ReviewAssistantTool(BaseTool):
         if proposal_uuid and not validate_uuid(proposal_uuid):
             return {
                 "type": "validation_error",
-                "summary": f"Invalid UUID for uuid: {proposal_uuid}",
+                "summary": f"Invalid UUID for uuid: {shorten(proposal_uuid)}",
             }
 
         qs = filter_queryset_for_user(Proposal.objects.all(), user).select_related(

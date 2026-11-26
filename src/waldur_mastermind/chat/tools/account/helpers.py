@@ -17,6 +17,7 @@ from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer, Project
+from waldur_mastermind.chat.tools.arguments import unknown_arguments_error
 from waldur_mastermind.marketplace.models import Resource
 
 
@@ -50,24 +51,17 @@ def iso_or_none(value) -> str | None:
 def unknown_arguments(arguments: dict, definition) -> str:
     """An error naming arguments the tool's inputSchema lacks, else "".
 
-    Dropping a misnamed filter would present an unfiltered list as filtered.
+    The executor refuses them first; this is the check for direct calls.
     """
-    allowed = definition.inputSchema.get("properties", {})
-    unknown = sorted(set(arguments) - set(allowed))
-    if not unknown:
-        return ""
-    return (
-        f"Unknown argument: {', '.join(name[:64] for name in unknown)}. "
-        f"Valid arguments: {', '.join(allowed)}."
-    )
+    return unknown_arguments_error(arguments, definition.inputSchema) or ""
 
 
 def text_arguments(arguments: dict, *names: str) -> tuple[dict[str, str], str]:
     """Stripped string values of ``names``, plus an error when one is not text.
 
-    A missing or null argument reads as "". The executor does not check
-    arguments against inputSchema, so a number or list must not reach
-    ``.strip()`` or the ORM.
+    A missing or null argument reads as "". The executor checks arguments
+    against inputSchema first; this keeps a direct call from reaching
+    ``.strip()`` or the ORM with a number or list.
     """
     values = {}
     for name in names:

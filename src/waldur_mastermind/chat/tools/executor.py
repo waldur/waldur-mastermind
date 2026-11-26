@@ -9,6 +9,7 @@ from waldur_mastermind.chat.input_guards import (
     SeverityLevel,
     get_detection_service,
 )
+from waldur_mastermind.chat.tools.arguments import argument_error, without_nulls
 from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
@@ -22,6 +23,7 @@ class ToolExecutor:
     """Executes tools internally — data never leaves Waldur.
 
     Responsibilities:
+    - Argument check against the tool's inputSchema (see arguments.py)
     - Injection detection on tool arguments (fail-closed)
     - Role check: only tools in the caller's tool set run, whatever the origin
       of the call (chat, REST execute endpoint, MCP). Callers must run tools
@@ -74,6 +76,14 @@ class ToolExecutor:
             # an injection block with an audit event.
             if ToolName.parse(tool_name) not in self.permitted:
                 raise PermissionDenied
+
+            if isinstance(arguments, dict):
+                arguments = without_nulls(arguments)
+            # Before the guard, which reads the arguments as an object, and
+            # before the tool, which trusts them to match its schema. Refused
+            # arguments are never scanned, so they leave no injection event.
+            if error := argument_error(tool.definition, arguments):
+                return {"type": "validation_error", "summary": error}
 
             injection_block = self._check_injection(tool_name, arguments)
             if injection_block:

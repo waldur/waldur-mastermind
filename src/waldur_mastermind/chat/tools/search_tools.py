@@ -40,7 +40,6 @@ class SearchToolsTool(BaseTool):
 
     @property
     def definition(self) -> ToolDefinition:
-        category_values = [c.value for c in ToolCategory]
         return ToolDefinition(
             name=ToolName.SEARCH_TOOLS,
             # category=None by design — this tool opts out of the taxonomy.
@@ -58,10 +57,9 @@ class SearchToolsTool(BaseTool):
                 "properties": {
                     "categories": {
                         "type": "array",
-                        "items": {
-                            "type": "string",
-                            "enum": category_values,
-                        },
+                        # No enum: the tool loads the known categories and
+                        # reports the rest, where a refusal would load none.
+                        "items": {"type": "string"},
                         "minItems": 1,
                         "description": (
                             "Categories whose tools to load. Use the "

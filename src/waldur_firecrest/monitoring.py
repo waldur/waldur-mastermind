@@ -106,7 +106,11 @@ class MonitorClient:
                 timeout=self.timeout,
             )
         except requests.exceptions.RequestException as e:
-            raise MonitorException(f"Unable to reach the cluster monitor: {e}")
+            # The error names internal hosts, and the message reaches users.
+            logger.warning(
+                "Unable to reach the cluster monitor at %s: %s", self.api_url, e
+            )
+            raise MonitorException("Unable to reach the cluster monitor.") from e
         if not response.ok:
             try:
                 detail = response.json().get("detail")

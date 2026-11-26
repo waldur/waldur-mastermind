@@ -20,7 +20,7 @@ OUTPUT_LINES = 60
 OUTPUT_CHARS = 6000
 
 JOB_ID_PROPERTY = {
-    "job_id": {"type": "string", "description": "Slurm job ID."},
+    "job_id": {"type": "string", "description": 'Slurm job ID, as a string: "12345".'},
 }
 
 

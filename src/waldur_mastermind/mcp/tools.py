@@ -6,15 +6,12 @@ the ORM pool through run_orm_async.
 
 import json
 import logging
-import re
 from contextlib import contextmanager
 from dataclasses import dataclass
 
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError, transaction
 from django.utils import timezone
-from jsonschema import Draft202012Validator, ValidationError
-from jsonschema.exceptions import best_match
 from mcp import types
 from mcp.server.auth.provider import AccessToken
 
@@ -25,6 +22,12 @@ from waldur_core.core.models import PersonalAccessToken, User
 from waldur_core.logging import event_logger
 from waldur_core.logging import middleware as logging_middleware
 from waldur_core.logging.enums import EventType
+from waldur_mastermind.chat.tools.arguments import (
+    argument_error,
+    schema_error,
+    shorten,
+    without_nulls,
+)
 from waldur_mastermind.chat.tools.base import ToolDefinition
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -35,13 +38,9 @@ from waldur_mastermind.mcp.utils import MCP_PATH
 logger = logging.getLogger(__name__)
 
 TOOL_ERROR = "An error occurred while executing the tool."
-MAX_ARGUMENT_DEPTH = 32
 # The input guards' email pattern is quadratic and holds the GIL, so a long
 # argument stalls every client: 0.06 s at this size, 7 s at 50,000 characters.
 MAX_ARGUMENT_CHARS = 4000
-MAX_ECHO_CHARS = 64
-# PostgreSQL refuses NUL, and UTF-8 can't encode a lone surrogate.
-UNSTORABLE_TEXT = re.compile("[\x00\ud800-\udfff]")
 
 
 class InvalidToken(Exception):
@@ -117,64 +116,12 @@ def to_mcp_tool(definition: ToolDefinition) -> types.Tool:
     )
 
 
-def shorten(text: str) -> str:
-    return text if len(text) <= MAX_ECHO_CHARS else f"{text[:MAX_ECHO_CHARS]}..."
-
-
 def text_content(text: str) -> types.TextContent:
     return types.TextContent(type="text", text=text)
 
 
 def error_result(message: str) -> types.CallToolResult:
     return types.CallToolResult(content=[text_content(message)], is_error=True)
-
-
-def schema_error(schema: dict, value) -> ValidationError | None:
-    # No format checker: it wants dashes in UUIDs, and Waldur's have none.
-    return best_match(Draft202012Validator(schema).iter_errors(value))
-
-
-def argument_problem(arguments: dict) -> str | None:
-    """What a schema can't say about these arguments.
-
-    A loop, because this much nesting is what breaks recursion.
-    """
-    remaining = MAX_ARGUMENT_CHARS
-    stack = [(arguments, 0)]
-    while stack:
-        value, depth = stack.pop()
-        remaining -= len(value) if isinstance(value, str) else 1
-        if remaining < 0:
-            return f"over {MAX_ARGUMENT_CHARS} characters in total."
-        if depth > MAX_ARGUMENT_DEPTH:
-            return "nested too deeply."
-        if isinstance(value, dict):
-            stack.extend((item, depth + 1) for pair in value.items() for item in pair)
-        elif isinstance(value, list):
-            stack.extend((item, depth + 1) for item in value)
-        elif isinstance(value, str) and UNSTORABLE_TEXT.search(value):
-            return "text can't contain NUL or unpaired surrogate characters."
-    return None
-
-
-def argument_error(definition: ToolDefinition, arguments: dict) -> str | None:
-    """Why these arguments can't be passed to the tool, in terms a model can fix.
-
-    The SDK's low-level server doesn't check them, and tools assume they match
-    the schema.
-    """
-    # First, because the schema check's messages repeat the value they refuse.
-    if problem := argument_problem(arguments):
-        return f"Invalid arguments: {problem}"
-    error = schema_error(definition.inputSchema, arguments)
-    if error:
-        message = error.message
-        # Unknown-property messages name the object's keys, not the object.
-        keys = list(error.instance) if isinstance(error.instance, dict) else []
-        for value in map(repr, [error.instance, *keys]):
-            message = message.replace(value, shorten(value))
-        return f"Invalid arguments at {shorten(error.json_path)}: {message}"
-    return None
 
 
 def to_call_result(result: dict, definition: ToolDefinition) -> types.CallToolResult:
@@ -257,9 +204,10 @@ def call_tool(
     definition = get_visible_definitions(caller).get(name)
     if definition is None:
         return error_result(f"Unknown tool: {shorten(name)!r}")
-    # Clients send null for options left unset, and tools read it as missing.
-    arguments = {key: value for key, value in arguments.items() if value is not None}
-    if error := argument_error(definition, arguments):
+    arguments = without_nulls(arguments)
+    # Here as well as in the executor, so that refused arguments leave no audit
+    # record, and so that the size limit applies.
+    if error := argument_error(definition, arguments, MAX_ARGUMENT_CHARS):
         return error_result(error)
     with caller_context(caller, client_ip):
         # Before the tool, so that nothing is read without a record of it.

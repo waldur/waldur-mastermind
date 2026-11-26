@@ -7,6 +7,7 @@ from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.marketplace.compare_offerings import (
     CompareOfferingsTool,
 )
@@ -289,7 +290,7 @@ class SearchOfferingsRegistrationTest(TestCase):
         tool = tool_registry.get(ToolName.SEARCH_OFFERINGS)
         self.assertEqual(tool.definition.name, ToolName.SEARCH_OFFERINGS)
         self.assertIn("keyword", tool.definition.inputSchema["properties"])
-        self.assertEqual(tool.definition.inputSchema["required"], ["keyword"])
+        self.assertEqual(tool.definition.inputSchema["required"], [])
 
 
 class SearchOfferingsExecuteTest(TestCase):
@@ -390,6 +391,24 @@ class SearchOfferingsExecuteTest(TestCase):
         assert_matches_output_schema(self.tool, result)
         names = [o["name"] for o in result["data"]["offerings"]]
         self.assertEqual(names, ["GPU A"])
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_category_is_browsed_without_keyword(self):
+        cat = mp_factories.CategoryFactory(title="Compute")
+        mp_factories.OfferingFactory(
+            name="HPC A", category=cat, shared=True, state=OfferingStates.ACTIVE
+        )
+        mp_factories.OfferingFactory(
+            name="Other", shared=True, state=OfferingStates.ACTIVE
+        )
+        result = ToolExecutor(self.user).execute_tool(
+            "search_offerings", {"category_name": "Compute"}
+        )
+        self.assertEqual(result["type"], "success", result)
+        assert_matches_output_schema(self.tool, result)
+        names = [o["name"] for o in result["data"]["offerings"]]
+        self.assertEqual(names, ["HPC A"])
+        self.assertEqual(result["summary"], "Found 1 offering(s).")
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_malformed_filters_are_rejected(self):
