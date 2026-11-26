@@ -945,3 +945,188 @@ class RenewalOrderTermsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         order.refresh_from_db()
         self.assertEqual(order.attributes, {"old_limits": {"storage": 50}})
+
+
+@freeze_time("2026-11-25")
+class RenewalDerivedLimitsTest(test.APITestCase):
+    """A renewal is priced at the limits the server applies, derived ones included.
+
+    Backup is the sum of data, both prepaid; 10 of each are paid until
+    25 Nov 2027.
+    """
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory(is_staff=True)
+        self.offering = factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            state=OfferingStates.ACTIVE,
+            options={
+                "order": ["backup"],
+                "options": {
+                    "backup": {
+                        "type": "component_sum",
+                        "label": "Backup",
+                        "component_sum_config": {
+                            "target_component": "backup",
+                            "components": ["data"],
+                        },
+                    }
+                },
+            },
+        )
+        self.plan = factories.PlanFactory(
+            offering=self.offering,
+            unit=models.Plan.Units.PER_MONTH,
+            unit_price=Decimal("0"),
+        )
+        for component_type, price in (("data", "1"), ("backup", "10")):
+            component = factories.OfferingComponentFactory(
+                offering=self.offering,
+                billing_type=BillingTypes.ONE_TIME,
+                is_prepaid=True,
+                limit_period=LimitPeriods.MONTH,
+                type=component_type,
+                name=component_type,
+            )
+            factories.PlanComponentFactory(
+                plan=self.plan, component=component, price=Decimal(price)
+            )
+        project = self.offering.customer.projects.create(name="test-project")
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            project=project,
+            limits={"data": 10, "backup": 10},
+            end_date=datetime.date(2027, 11, 25),
+        )
+        self.resource.set_state_ok()
+        self.resource.save()
+        self.client.force_authenticate(self.user)
+
+    def _renew(self, limits):
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "renew"),
+            {"extension_months": 12, "limits": limits},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return models.Order.objects.get(resource=self.resource, type=OrderTypes.UPDATE)
+
+    def _renew_without_limits(self):
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "renew"),
+            {"extension_months": 12},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return models.Order.objects.get(resource=self.resource, type=OrderTypes.UPDATE)
+
+    def _estimate(self, limits):
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "estimate_renewal"),
+            {"extension_months": 12, "limits": limits},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return Decimal(response.data["total"])
+
+    def _priced_limits(self, order, term):
+        return {
+            line["component_type"]: Decimal(line["new_limit"])
+            for line in order.attributes["cost_lines"]
+            if line["term"] == term
+        }
+
+    def test_a_derived_limit_sent_lower_is_priced_at_the_derived_value(self):
+        order = self._renew({"backup": 1})
+
+        self.assertEqual(order.limits, {"data": 10, "backup": 10})
+        self.assertEqual(
+            self._priced_limits(order, RenewalTerms.EXTENSION),
+            {"data": Decimal("10"), "backup": Decimal("10")},
+        )
+        # (10 x 1 + 10 x 10) x 12
+        self.assertEqual(order.cost, Decimal("1320"))
+        self.assertEqual(order.attributes["paid_up_end_date"], "2027-11-25")
+
+    def test_a_derived_limit_sent_lower_cannot_stretch_the_paid_term(self):
+        self.offering.plugin_options = {
+            "renewal_limit_decrease_policy": "stretch_paid_term"
+        }
+        self.offering.save()
+
+        order = self._renew({"backup": 1})
+
+        self.assertEqual(order.attributes["paid_up_end_date"], "2027-11-25")
+        self.assertEqual(order.attributes["new_end_date"], "2028-11-25")
+
+    def test_a_raise_that_changes_a_sum_charges_the_sum_too(self):
+        order = self._renew({"data": 20})
+
+        self.assertEqual(order.limits, {"data": 20, "backup": 20})
+        self.assertEqual(
+            self._priced_limits(order, RenewalTerms.CURRENT),
+            {"data": Decimal("20"), "backup": Decimal("20")},
+        )
+        # Current term: 10 x 1 x 12 + 10 x 10 x 12; extension: (20 + 200) x 12.
+        self.assertEqual(order.cost, Decimal("1320") + Decimal("2640"))
+
+    def test_estimate_prices_the_derived_limits(self):
+        self.assertEqual(self._estimate({"backup": 1}), Decimal("1320"))
+        self.assertEqual(self._estimate({"data": 20}), Decimal("3960"))
+
+    def test_estimate_lines_carry_the_derived_limits(self):
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "estimate_renewal"),
+            {"extension_months": 12, "limits": {"backup": 1}},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            {
+                line["component_type"]: line["new_limit"]
+                for line in response.data["components"]
+            },
+            {"data": 10, "backup": 10},
+        )
+
+    def test_a_renewal_without_limits_is_priced_at_the_rederived_limits(self):
+        # Stored before the sum option existed, so out of step with it.
+        self.resource.limits = {"data": 10, "backup": 1}
+        self.resource.save()
+
+        order = self._renew_without_limits()
+
+        self.assertEqual(order.limits, {"data": 10, "backup": 10})
+        self.assertEqual(
+            self._priced_limits(order, RenewalTerms.EXTENSION),
+            {"data": Decimal("10"), "backup": Decimal("10")},
+        )
+        # Backup rises from the 1 paid for to 10: 9 x 10 x 12 for the rest of
+        # the term, plus the extension at (10 x 1 + 10 x 10) x 12.
+        self.assertEqual(order.cost, Decimal("1080") + Decimal("1320"))
+
+    def test_a_formula_derived_limit_sent_lower_is_priced_at_the_formula(self):
+        self.offering.options = {
+            "order": ["size"],
+            "options": {
+                "size": {
+                    "type": "component_formula",
+                    "label": "Size",
+                    "component_formula_config": {
+                        "targets": [
+                            {"component_type": "backup", "formula": "input * 2"}
+                        ]
+                    },
+                }
+            },
+        }
+        self.offering.save()
+        self.resource.attributes = {"size": 5}
+        self.resource.save()
+
+        order = self._renew({"backup": 1})
+
+        self.assertEqual(order.limits, {"data": 10, "backup": 10})
+        self.assertEqual(order.cost, Decimal("1320"))

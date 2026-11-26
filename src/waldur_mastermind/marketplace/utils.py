@@ -811,6 +811,19 @@ RENEWAL_ORDER_ATTRIBUTES = (
 )
 
 
+def renewal_limits(resource, new_limits):
+    """The limits a renewal applies, validated and with derived limits set.
+
+    Limits left out of the request keep their current values. The renewal is
+    priced at these, the same limits the order's validation stores on it, so a
+    derived limit sent by the client is never what is charged.
+    """
+    limits = {**(resource.limits or {}), **(new_limits or {})}
+    # Validated even when no limits are sent: the order re-derives them, and a
+    # stored derived limit can be stale (an option added after the resource).
+    return validate_limits(limits, resource.offering, resource, plan=resource.plan)
+
+
 def serialize_renewal_lines(lines):
     """``Resource.get_renewal_lines`` as JSON for a renewal order's attributes."""
     return [

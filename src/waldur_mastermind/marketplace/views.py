@@ -12011,14 +12011,15 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         request_comment = serializer.validated_data.get("request_comment", "")
         attachment = serializer.validated_data.get("attachment")
 
-        # Limits left out of the request keep their current values, as in the quote.
-        final_limits = {**(resource.limits or {}), **(new_limits or {})}
+        # Priced at the limits the order will apply: those left out keep their
+        # current values and derived ones are set by the server.
+        final_limits = utils.renewal_limits(resource, new_limits)
 
         # Extend from the current end date, or from today if it has passed (the
         # local date, as for the end-date sweeps and the estimate). A renewal
         # that only lowers limits extends from where the paid-up value spread
         # over the lower limits runs out instead.
-        quote = resource.get_renewal_quote(extension_months, new_limits)
+        quote = resource.get_renewal_quote(extension_months, final_limits)
         new_end_date = quote["new_end_date"]
 
         # The priced lines are recorded on the order, so that it shows what the
@@ -12105,7 +12106,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
         estimate = resource.get_renewal_estimate(
             serializer.validated_data["extension_months"],
-            serializer.validated_data.get("limits"),
+            utils.renewal_limits(resource, serializer.validated_data.get("limits")),
         )
         response_serializer = serializers.RenewalEstimateResponseSerializer(estimate)
         return Response(response_serializer.data)
