@@ -252,6 +252,23 @@ def log_resource_s3_storage_changed(
     )
 
 
+def log_offering_user_initial_password_revealed(
+    offering_user: models.OfferingUser, user
+):
+    """Audit a reveal of an initial password, as an API key's reveal is audited.
+
+    The view refuses impersonation; were it ever admitted, the message would
+    name the impersonator, as an API key's reveal does.
+    """
+    event_logger.emit(
+        f"Initial password of user {event_logger.literal(offering_user.user)} in "
+        f"offering {event_logger.literal(offering_user.offering.name)} has been "
+        f"revealed to {event_logger.literal(_acting_user(user))}.",
+        event_type=EventType.MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_REVEALED,
+        event_context={"offering_user": offering_user},
+    )
+
+
 def log_resource_end_date_has_been_updated(resource, user, template=None):
     template = template or (
         "End date of marketplace resource %(resource_name)s has been updated."

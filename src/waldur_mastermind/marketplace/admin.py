@@ -564,6 +564,8 @@ class OfferingUserAdmin(admin.ModelAdmin):
         "user",
         "username",
     )
+    # Only the user reveals it, through the API, where each reveal is logged.
+    exclude = ("initial_password_ciphertext",)
 
 
 class OrderAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):

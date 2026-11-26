@@ -4302,6 +4302,16 @@ class OfferingUser(BaseAccount):
             "POSIX attributes are owned there and must not be written here."
         ),
     )
+    # The password the site agent created the user's account with at the backend
+    # (e.g. an Open WebUI chat account), Fernet-encrypted. Only the user reveals
+    # it. It is the *initial* password: a change the user makes at the backend
+    # never reaches Waldur, so after one it no longer works. Wiped on deletion
+    # and on a username change (_initial_password_is_stale). db_default keeps the
+    # default in Postgres, so an insert that does not name the column (a pod still
+    # on the old code during a rolling deploy, or raw SQL) still gets ''.
+    initial_password_ciphertext = core_fields.CiphertextField(
+        blank=True, default="", db_default=""
+    )
 
     tracker = cast(
         FieldInstanceTracker,
@@ -4385,7 +4395,38 @@ class OfferingUser(BaseAccount):
                 self.pull_from_provider_account()
             else:
                 self._refuse_delegated_write()
+        if self._initial_password_is_stale():
+            self.initial_password_ciphertext = ""
+            if kwargs.get("update_fields") is not None:
+                kwargs["update_fields"] = {
+                    *kwargs["update_fields"],
+                    "initial_password_ciphertext",
+                }
         return super().save(*args, **kwargs)
+
+    def _initial_password_is_stale(self) -> bool:
+        """Whether the stored initial password no longer opens the account it was for.
+
+        It belongs to the backend account the agent created: once the account is
+        gone (DELETED) or replaced (a set username changed, or was removed), the
+        password is wiped. The agent stores the new account's password on its
+        next pass. A first username wipes nothing, and DELETION_REQUESTED and
+        DELETING keep it, since both can still go back to OK.
+
+        Decided from the tracked state and username, not from the value held in
+        memory: an instance loaded before the agent stored a password still
+        wipes the stored one.
+        """
+        if not self.pk:
+            return False
+        deleted = (
+            self.tracker.has_changed("state")
+            and self.state == OfferingUserStates.DELETED
+        )
+        renamed = self.tracker.has_changed("username") and bool(
+            self.tracker.previous("username")
+        )
+        return deleted or renamed
 
     def _refuse_delegated_write(self):
         parent = self.service_provider_account

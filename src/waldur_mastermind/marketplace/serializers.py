@@ -13685,6 +13685,7 @@ class OfferingUserSerializer(
     requires_reconsent = serializers.SerializerMethodField()
     offering_has_active_tos = serializers.SerializerMethodField()
     has_compliance_checklist = serializers.SerializerMethodField()
+    has_initial_password = serializers.SerializerMethodField()
     consent_data = serializers.SerializerMethodField()
     is_profile_complete = serializers.SerializerMethodField()
     missing_profile_attributes = serializers.SerializerMethodField()
@@ -13789,6 +13790,7 @@ class OfferingUserSerializer(
             "requires_reconsent",
             "offering_has_active_tos",
             "has_compliance_checklist",
+            "has_initial_password",
             "consent_data",
             "is_profile_complete",
             "missing_profile_attributes",
@@ -13970,6 +13972,10 @@ class OfferingUserSerializer(
     @extend_schema_field(serializers.BooleanField())
     def get_offering_has_active_tos(self, obj) -> bool:
         return self._has_active_terms_of_service(obj.offering)
+
+    def get_has_initial_password(self, offering_user) -> bool:
+        """Whether the site agent stored an initial password the user can reveal."""
+        return bool(offering_user.initial_password_ciphertext)
 
     def get_has_compliance_checklist(self, offering_user) -> bool:
         """Check if the offering user has a connected compliance checklist completion."""
@@ -14759,6 +14765,35 @@ class OfferingUserStateTransitionSerializer(serializers.Serializer):
             raise rf_exceptions.PermissionDenied()
 
         return attrs
+
+
+class OfferingUserInitialPasswordSerializer(serializers.Serializer):
+    """The password the site agent created the user's backend account with."""
+
+    password = serializers.CharField(
+        max_length=255,
+        trim_whitespace=False,
+        help_text=_(
+            "The initial password of the user's account at the backend. It stops "
+            "working once the user changes it there."
+        ),
+    )
+
+
+class OfferingUserSetInitialPasswordSerializer(OfferingUserInitialPasswordSerializer):
+    """The agent's request to store an initial password."""
+
+    username = serializers.CharField(
+        required=False,
+        # Compared exactly with the stored username; trimming would turn a
+        # username with surrounding whitespace into a 409 on every pass.
+        trim_whitespace=False,
+        help_text=_(
+            "The offering user's username the password was created for. When "
+            "given, the password is refused if the offering user no longer has "
+            "it, so a password for a replaced account is never stored."
+        ),
+    )
 
 
 class OfferingUserServiceProviderCommentSerializer(serializers.ModelSerializer):
