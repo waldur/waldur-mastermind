@@ -637,6 +637,9 @@
 - freeipa_profile_enabled
 - marketplace_offering_user_created
 - marketplace_offering_user_deleted
+- marketplace_offering_user_initial_password_cleared
+- marketplace_offering_user_initial_password_revealed
+- marketplace_offering_user_initial_password_set
 - marketplace_offering_user_restriction_updated
 - matrix_encryption_reset_started
 - matrix_password_generated

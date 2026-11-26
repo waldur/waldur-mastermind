@@ -120,6 +120,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`PreviewTestMixin`](#previewtestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_preview` | No description available |
 | [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.marketplace.tests.test_demo_preset_settings` | No description available |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
+| [`SecretAbsenceMixin`](#secretabsencemixin) | `waldur_mastermind.marketplace.tests.test_network_options` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
 | [`OrderResourceVisibilityMixin`](#orderresourcevisibilitymixin) | `waldur_mastermind.marketplace.tests.test_order_resource_visibility` | No description available |
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
@@ -1672,6 +1673,12 @@ another, set as its extra directory.
 ### DerivedLimitsOrderMixin
 
 **Module:** `waldur_mastermind.marketplace.tests.test_derived_limits`
+
+**Description:** No description available.
+
+### SecretAbsenceMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_network_options`
 
 **Description:** No description available.
 
