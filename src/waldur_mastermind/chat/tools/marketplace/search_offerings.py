@@ -96,7 +96,7 @@ class SearchOfferingsTool(BaseTool):
                             "name, description, category title, tags, plan "
                             "names and component names/types. DO NOT pass a "
                             "full sentence — pick one hardware or capability "
-                            "term."
+                            "term. Leave out to browse a category."
                         ),
                     },
                     "category_uuid": {
@@ -127,13 +127,12 @@ class SearchOfferingsTool(BaseTool):
                         "maximum": MAX_LIST_RESULTS,
                         "default": MAX_LIST_RESULTS,
                         "description": (
-                            "Maximum number of offerings to return. Hard "
-                            f"capped at {MAX_LIST_RESULTS} regardless of "
-                            "value passed."
+                            "Maximum number of offerings to return, at most "
+                            f"{MAX_LIST_RESULTS}."
                         ),
                     },
                 },
-                "required": ["keyword"],
+                "required": [],
             },
             mcp_exposed=True,
             read_only=True,
@@ -208,12 +207,13 @@ class SearchOfferingsTool(BaseTool):
         truncated = total_count > limit
 
         if not offerings:
-            summary = (
-                f"No offerings match '{keyword}'. Try a broader keyword or "
-                "remove category/type filters."
+            found = (
+                f"No offerings match '{keyword}'." if keyword else "No offerings found."
             )
+            summary = f"{found} Try a broader keyword or remove category/type filters."
         else:
-            summary = f"Found {len(offerings)} offering(s) matching '{keyword}'."
+            matching = f" matching '{keyword}'" if keyword else ""
+            summary = f"Found {len(offerings)} offering(s){matching}."
             if truncated:
                 summary += (
                     f" Showing first {limit} of {total_count} — "

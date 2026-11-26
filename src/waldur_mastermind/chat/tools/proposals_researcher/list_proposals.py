@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
+from waldur_mastermind.chat.tools.arguments import shorten
 from waldur_mastermind.chat.tools.base import (
     MAX_LIST_RESULTS,
     BaseTool,
@@ -119,14 +120,14 @@ class ListProposalsTool(BaseTool):
         if call_uuid and not validate_uuid(call_uuid):
             return {
                 "type": "validation_error",
-                "summary": f"Invalid UUID for call_uuid: {call_uuid}",
+                "summary": f"Invalid UUID for call_uuid: {shorten(call_uuid)}",
             }
 
         invalid_states = [s for s in states if s not in _VALID_PROPOSAL_STATES]
         if invalid_states:
             return {
                 "type": "validation_error",
-                "summary": f"Invalid proposal state(s): {invalid_states}",
+                "summary": f"Invalid proposal state(s): {shorten(str(invalid_states))}",
             }
 
         qs = filter_queryset_for_user(Proposal.objects.all(), user).select_related(

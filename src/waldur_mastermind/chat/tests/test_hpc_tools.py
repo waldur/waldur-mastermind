@@ -4,7 +4,7 @@ import time
 import jwt
 import responses
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from waldur_auth_social import oauth_tokens
 from waldur_core.configuration.testing import override_config
@@ -19,6 +19,7 @@ from waldur_mastermind.chat.tools.hpc.cluster import (
     GetHpcClusterStatusTool,
     ListHpcAllocationsTool,
 )
+from waldur_mastermind.chat.tools.hpc.helpers import job_summary
 from waldur_mastermind.chat.tools.hpc.insights import (
     GetHpcAllocationUsageTool,
     GetHpcClusterLoadTool,
@@ -409,6 +410,29 @@ class HpcInsightToolsTest(HpcToolsTestBase):
         )
         self.assertEqual(chart_block(result)["chart_type"], "heatmap")
 
+    @responses.activate
+    def test_cluster_load_unknown_partition_is_echoed_cut(self):
+        responses.get(
+            f"{API_URL}/status/{SYSTEM}/nodes",
+            json={
+                "nodes": [
+                    {
+                        "name": "n1",
+                        "partitions": ["batch"],
+                        "state": ["IDLE"],
+                        "cpus": 4,
+                    }
+                ]
+            },
+        )
+        responses.get(
+            f"{API_URL}/status/{SYSTEM}/reservations", json={"reservations": []}
+        )
+        result = GetHpcClusterLoadTool().execute(self.user, {"partition": "x" * 1000})
+        self.assertEqual(result["type"], "validation_error", result)
+        self.assertIn("Known: batch.", result["summary"])
+        self.assertNotIn("x" * 65, result["summary"])
+
     def test_allocation_usage_without_components(self):
         result = GetHpcAllocationUsageTool().execute(self.user, {})
         self.assertEqual(result["type"], "success")
@@ -527,3 +551,9 @@ class MonitorOnlyToolsTest(HpcToolsTestBase):
     def test_job_id_must_be_ascii_digits(self):
         result = GetHpcJobTool().execute(self.user, {"job_id": "\u00b2"})
         self.assertEqual(result["type"], "validation_error")
+
+
+class JobSummaryTest(SimpleTestCase):
+    def test_job_id_is_text_for_the_job_tools(self):
+        self.assertEqual(job_summary({"jobId": 7})["job_id"], "7")
+        self.assertIsNone(job_summary({})["job_id"])

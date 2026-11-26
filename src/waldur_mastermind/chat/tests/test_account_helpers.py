@@ -123,7 +123,7 @@ class UnknownArgumentsTest(TestCase):
         staff = structure_factories.UserFactory(is_staff=True)
         result = GetOrderTool().execute(staff, {"x" * 1000: "a", "y": "b"})
         self.assertEqual(result["type"], "validation_error")
-        self.assertIn("Unknown argument: " + "x" * 64 + ", y.", result["summary"])
+        self.assertIn("Unknown argument: " + "x" * 64 + "..., y.", result["summary"])
         self.assertNotIn("x" * 65, result["summary"])
 
 

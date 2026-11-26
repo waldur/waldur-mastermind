@@ -27,6 +27,7 @@ from waldur_core.logging import middleware as logging_middleware
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.chat.tools.arguments import MAX_ARGUMENT_DEPTH, MAX_ECHO_CHARS
 from waldur_mastermind.chat.tools.base import BaseTool
 from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.executor import ToolExecutor
@@ -642,12 +643,11 @@ class ArgumentValidationTest(MCPToolsTestCase):
     def test_nesting_up_to_the_limit_is_left_to_the_schema(self):
         tool = StubTool(ToolName.LIST_PROJECTS).install(self)
 
-        result = self.direct_call(
-            {"unknown": self.nested(tools.MAX_ARGUMENT_DEPTH - 1)}
-        )
+        result = self.direct_call({"search": self.nested(MAX_ARGUMENT_DEPTH - 1)})
 
-        self.assertFalse(result.is_error)
-        self.assertEqual(len(tool.calls), 1)
+        self.assertTrue(result.is_error)
+        self.assertIn("is not of type 'string'", texts(result)[0])
+        self.assertEqual(tool.calls, [])
 
     def test_refused_value_is_not_echoed_in_full(self):
         result = call(self.token, "list_projects", {"uuid": ["a" * 3000]})
@@ -662,22 +662,22 @@ class ArgumentValidationTest(MCPToolsTestCase):
         self.assertTrue(result.is_error)
         self.assertLess(len(texts(result)[0]), 200)
 
-    def test_long_unknown_argument_name_is_not_echoed_in_full(self):
-        # No exposed tool forbids extra keys yet, so this one is made to.
-        schema = tool_registry.get(ToolName.LIST_PROJECTS).definition.inputSchema
-        tool = StubTool(
+    def test_unknown_argument_is_refused(self):
+        self.assert_refused(
             ToolName.LIST_PROJECTS,
-            inputSchema={**schema, "additionalProperties": False},
-        ).install(self)
+            {"serach": "a"},
+            "Unknown argument: serach. Valid arguments: ",
+        )
+
+    def test_long_unknown_argument_name_is_not_echoed_in_full(self):
+        tool = StubTool(ToolName.LIST_PROJECTS).install(self)
 
         result = call(self.token, "list_projects", {"x" * 300: 1, "y": 2})
 
         self.assertTrue(result.is_error)
         text = texts(result)[0]
-        self.assertIn("Additional properties are not allowed", text)
-        self.assertIn(tools.shorten(repr("x" * 300)), text)
-        self.assertNotIn("x" * tools.MAX_ECHO_CHARS, text)
-        self.assertIn("'y'", text)
+        self.assertIn("Unknown argument: " + "x" * MAX_ECHO_CHARS + "..., y.", text)
+        self.assertNotIn("x" * (MAX_ECHO_CHARS + 1), text)
         self.assertEqual(tool.calls, [])
 
     def test_null_argument_counts_as_missing(self):

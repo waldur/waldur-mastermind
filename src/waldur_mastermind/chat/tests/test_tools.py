@@ -6,11 +6,13 @@ from pydantic import ValidationError
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.persona import PERSONA_TEMPLATE
 from waldur_mastermind.chat.tools import tool_sets
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import ToolRegistry, tool_registry
 from waldur_mastermind.chat.tools.tool_sets import (
     _ACCOUNT_TOOLS,
@@ -544,10 +546,7 @@ class SearchToolsCategoriesTest(TestCase):
         cats_schema = schema["properties"]["categories"]
         self.assertEqual(cats_schema["type"], "array")
         self.assertEqual(cats_schema["minItems"], 1)
-        self.assertEqual(
-            set(cats_schema["items"]["enum"]),
-            {c.value for c in ToolCategory},
-        )
+        self.assertEqual(cats_schema["items"], {"type": "string"})
 
     def test_input_schema_no_longer_accepts_tool_names(self):
         schema = self.tool.definition.inputSchema
@@ -591,6 +590,15 @@ class SearchToolsCategoriesTest(TestCase):
         )
         self.assertEqual(result["type"], "success")
         self.assertIn("not_a_category", result["data"]["missing"])
+        self.assertIn("search_offerings", result["data"]["fetched_names"])
+
+    def test_executor_passes_unknown_category_to_the_tool(self):
+        user = structure_factories.UserFactory()
+        result = ToolExecutor(user).execute_tool(
+            "search_tools", {"categories": ["list_projects", "marketplace"]}
+        )
+        self.assertEqual(result["type"], "success", result)
+        self.assertEqual(result["data"]["missing"], ["list_projects"])
         self.assertIn("search_offerings", result["data"]["fetched_names"])
 
     def test_execute_all_unknown_returns_error(self):

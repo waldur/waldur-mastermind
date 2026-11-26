@@ -104,8 +104,11 @@ def run(user, arguments: dict, action) -> dict:
 def job_summary(job: dict) -> dict:
     status = job.get("status") or {}
     time = job.get("time") or {}
+    job_id = job.get("jobId")
     return {
-        "job_id": job.get("jobId"),
+        # FirecREST lists ids as numbers, and the model copies them into
+        # job_id, which takes a string.
+        "job_id": None if job_id is None else str(job_id),
         "name": job.get("name"),
         "state": status.get("state"),
         "state_reason": status.get("stateReason"),
