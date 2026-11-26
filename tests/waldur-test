@@ -67,6 +67,7 @@ case "$(echo "${FULL_TEST_RUN:-}" | tr '[:upper:]' '[:lower:]')" in
 esac
 echo "[+] Marker expression: ${MARKERS}"
 PYTEST_BASE_CMD="uv run pytest \
+    -p no:tach \
     --reuse-db \
     --junitxml=report.xml \
     --cov=src/ \

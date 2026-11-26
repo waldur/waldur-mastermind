@@ -28,6 +28,15 @@ repos:
         language: fail
         files: '^.*/migrations/\d{4}_auto_\d{8}_\d{4}.py$'
 
+      - id: tach-check
+        name: check module boundaries (tach)
+        entry: tach check
+        language: python
+        pass_filenames: false
+        files: '^(src/.*\.py|tach\.toml)$'
+        additional_dependencies:
+          - 'tach==0.35.3'
+
       - id: mermaid-validate
         name: validate mermaid diagrams
         description: |
