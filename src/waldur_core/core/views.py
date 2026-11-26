@@ -71,7 +71,11 @@ from waldur_core.core.authentication import (
     refresh_token,
     set_authentication_method,
 )
-from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
+from waldur_core.core.enums import (
+    LoginFailureCode,
+    ReauthenticationAction,
+    ReauthenticationMethod,
+)
 from waldur_core.core.exceptions import (
     ExtensionDisabled,
     IncorrectStateException,
@@ -1185,9 +1189,14 @@ def login_completed(token, method="default"):
     return HttpResponseRedirect(url)
 
 
-def login_failed(message):
+def login_failed(code: LoginFailureCode):
+    """Send the browser to the frontend's login-failed page.
+
+    Only the code travels in the URL; the page has its own text for each. Put
+    any detail in the failed-login event or the logs, never here.
+    """
     url_template = format_homeport_link("login_failed/")
-    return redirect_with(url_template, message=message)
+    return redirect_with(url_template, code=LoginFailureCode(code).value)
 
 
 def logout_completed():

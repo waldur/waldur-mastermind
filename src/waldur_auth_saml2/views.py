@@ -32,6 +32,7 @@ from waldur_core.core.authentication import (
     refresh_token,
     set_authentication_method,
 )
+from waldur_core.core.enums import LoginFailureCode
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import (
     login_completed,
@@ -256,14 +257,16 @@ class Saml2LoginCompleteView(BaseSaml2View):
 
     serializer_class = serializers.Saml2LoginCompleteSerializer
 
-    def login_failed(self, reason):
+    def login_failed(self, code: LoginFailureCode, reason):
+        """Record the failure with its detail, and send the browser on with
+        only the code: the detail may come from the identity provider."""
         event_logger.emit_failed_login(
             "SAML2 authentication failed: {reason}",
             event_type=EventType.AUTH_LOGIN_FAILED_WITH_SAML2,
             event_context={"reason": str(reason)},
             identity=str(reason),
         )
-        return login_failed(reason)
+        return login_failed(code)
 
     @validate_saml2
     def post(self, request):
@@ -300,25 +303,31 @@ class Saml2LoginCompleteView(BaseSaml2View):
             )
         except StatusRequestDenied:
             return self.login_failed(
+                LoginFailureCode.SAML2_DENIED,
                 _(
                     "Authentication request has been denied by identity provider. "
                     "Please check your credentials."
-                )
+                ),
             )
         except Exception as e:
             logger.error("SAML response parsing failed %s", e)
-            return self.login_failed(_("SAML2 response has errors."))
+            return self.login_failed(
+                LoginFailureCode.SAML2_INVALID_RESPONSE,
+                _("SAML2 response has errors."),
+            )
 
         if response is None:
             logger.error("SAML response is None")
             return self.login_failed(
-                _("SAML response has errors. Please check the logs")
+                LoginFailureCode.SAML2_EMPTY_RESPONSE,
+                _("SAML response has errors. Please check the logs"),
             )
 
         if response.assertion is None:
             logger.error("SAML response assertion is None")
             return self.login_failed(
-                _("SAML response has errors. Please check the logs")
+                LoginFailureCode.SAML2_NO_ASSERTION,
+                _("SAML response has errors. Please check the logs"),
             )
 
         session_id = response.session_id()
@@ -340,9 +349,14 @@ class Saml2LoginCompleteView(BaseSaml2View):
                 create_unknown_user=create_unknown_user,
             )
         except ValidationError as e:
-            return self.login_failed(e.message)
+            # A ValidationError built from a list or dict has no .message.
+            return self.login_failed(
+                LoginFailureCode.SAML2_REJECTED, "; ".join(e.messages)
+            )
         if user is None:
-            return self.login_failed(_("SAML2 authentication failed."))
+            return self.login_failed(
+                LoginFailureCode.SAML2_FAILED, _("SAML2 authentication failed.")
+            )
 
         registration_method = settings.WALDUR_AUTH_SAML2.get("NAME", "saml2")
         if user.registration_method != registration_method:

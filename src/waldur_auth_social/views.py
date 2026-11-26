@@ -43,6 +43,7 @@ from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
+from waldur_core.core.enums import LoginFailureCode
 from waldur_core.core.models import TokenExchangeCode, User
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser, has_staff_access
 from waldur_core.core.serializers import EmptySerializer
@@ -321,12 +322,12 @@ class OAuthViewComplete(BaseOAuthView):
             )
             # The complete endpoint is reached via a top-level browser navigation
             # (the IdP redirects here directly), so raising a DRF exception would
-            # render raw JSON in the browser. For user-facing messages (e.g. the
-            # configurable uninvited-user block message) redirect to the Homeport
-            # login-failed page so the message is shown consistently with the rest
-            # of the UI. Other errors keep their default rendering.
-            if getattr(e, "user_facing", False):
-                return login_failed(e.user_message)
+            # render raw JSON in the browser. A failure with a code goes to the
+            # Homeport login-failed page, which shows its own text for the code
+            # (the configured message, for the block codes). Other errors keep
+            # their default rendering.
+            if isinstance(e, OAuthException) and e.code:
+                return login_failed(e.code)
             raise
 
     @staticmethod
@@ -361,7 +362,9 @@ class OAuthViewComplete(BaseOAuthView):
             # to the IdP page, a bookmarked IdP URL, a stale tab), so the
             # browser lands on the login-failed page rather than a bare 401.
             raise OAuthException(
-                self.config.provider, INVALID_STATE_MESSAGE, user_facing=True
+                self.config.provider,
+                INVALID_STATE_MESSAGE,
+                code=LoginFailureCode.OIDC_INVALID_STATE,
             )
         # A state is good for one callback. The session survives sign-in
         # (set_authentication_method only cycles its key), so without this a
