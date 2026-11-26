@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+from django.db import IntegrityError
 from django.test import TestCase
 from rest_framework import status
 from rest_framework.reverse import reverse
@@ -11,6 +12,7 @@ from waldur_auth_social.serializers import (
     IdentityBridgeRequestSerializer,
 )
 from waldur_auth_social.utils import (
+    CIVIL_NUMBER_UNRESOLVED_MESSAGE,
     remove_user_from_isd,
     update_user_attributes_from_source,
 )
@@ -885,6 +887,236 @@ class IdentityBridgePrivilegedAccountTest(TestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["created"])
+
+
+@override_config(
+    FEDERATED_IDENTITY_SYNC_ENABLED=True,
+    FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=[
+        "first_name",
+        "last_name",
+        "civil_number",
+    ],
+    ENABLED_USER_PROFILE_ATTRIBUTES=["civil_number"],
+)
+class IdentityBridgeCivilNumberMatchTest(TestCase):
+    """A push for a person known only by civil number reuses their account."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.manager = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:rancher"],
+        )
+        self.client.force_authenticate(self.manager)
+
+    def push(self, **extra):
+        payload = {
+            "username": "ee37004040004",
+            "source": "isd:rancher",
+            "first_name": "Mallory",
+            "civil_number": "EE37004040004",
+            **extra,
+        }
+        return self.client.post(BRIDGE_URL, payload, format="json")
+
+    def test_existing_user_with_the_civil_number_is_returned_unchanged(self):
+        target = structure_factories.UserFactory(
+            username="a1b2c3d4e5f6", first_name="Peeter", civil_number="EE37004040004"
+        )
+        response = self.push(civil_number="ee37004040004")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {"uuid": target.uuid.hex, "created": False, "updated_fields": []},
+        )
+        target.refresh_from_db()
+        self.assertEqual(target.first_name, "Peeter")
+        self.assertEqual(target.active_isds, [])
+        self.assertEqual(target.attribute_sources, {})
+        self.assertFalse(User.objects.filter(username="ee37004040004").exists())
+
+    def test_push_without_civil_number_creates_as_before(self):
+        structure_factories.UserFactory(civil_number="EE37004040004")
+        response = self.client.post(
+            BRIDGE_URL,
+            {"username": "ee37004040004", "source": "isd:rancher"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["created"])
+
+    def test_new_civil_number_creates_a_user_holding_it(self):
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["created"])
+        self.assertIn("civil_number", response.data["updated_fields"])
+        user = User.objects.get(username="ee37004040004")
+        self.assertEqual(user.civil_number, "EE37004040004")
+
+    def test_several_active_users_with_the_civil_number_are_refused(self):
+        structure_factories.UserFactory(civil_number="EE37004040004")
+        structure_factories.UserFactory(civil_number="ee37004040004")
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(str(response.data["detail"]), CIVIL_NUMBER_UNRESOLVED_MESSAGE)
+        self.assertFalse(User.objects.filter(username="ee37004040004").exists())
+
+    def test_only_a_deactivated_user_with_the_civil_number_is_refused(self):
+        structure_factories.UserFactory(civil_number="EE37004040004", is_active=False)
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Same answer as for several matches: the caller learns nothing
+        # about the state of an account it cannot otherwise see.
+        self.assertEqual(str(response.data["detail"]), CIVIL_NUMBER_UNRESOLVED_MESSAGE)
+        self.assertFalse(User.objects.filter(username="ee37004040004").exists())
+
+    def test_active_user_wins_over_a_deactivated_one(self):
+        # The column is unique, but only as written: case variants can coexist.
+        structure_factories.UserFactory(civil_number="ee37004040004", is_active=False)
+        target = structure_factories.UserFactory(civil_number="EE37004040004")
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], target.uuid.hex)
+
+    def test_username_match_takes_precedence(self):
+        structure_factories.UserFactory(civil_number="EE36007070007")
+        by_username = structure_factories.UserFactory(username="ee37004040004")
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], by_username.uuid.hex)
+        by_username.refresh_from_db()
+        self.assertEqual(by_username.first_name, "Mallory")
+        self.assertIn("isd:rancher", by_username.active_isds)
+
+    def test_username_match_is_not_given_another_accounts_civil_number(self):
+        # Writing it would leave a case twin (or hit the unique constraint).
+        other = structure_factories.UserFactory(civil_number="ee37004040004")
+        by_username = structure_factories.UserFactory(
+            username="ee37004040004", first_name="Peeter"
+        )
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertNotIn(other.uuid.hex, str(response.data))
+        by_username.refresh_from_db()
+        self.assertEqual(by_username.first_name, "Peeter")
+
+    def test_privileged_account_is_not_given_to_a_non_staff_caller(self):
+        for flag in ("is_staff", "is_support", "is_identity_manager"):
+            with self.subTest(flag=flag):
+                User.objects.filter(civil_number="EE37004040004").delete()
+                target = structure_factories.UserFactory(
+                    first_name="Alice", civil_number="EE37004040004", **{flag: True}
+                )
+                response = self.push()
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertEqual(
+                    str(response.data["detail"]), CIVIL_NUMBER_UNRESOLVED_MESSAGE
+                )
+                self.assertNotIn(target.uuid.hex, str(response.data))
+                target.refresh_from_db()
+                self.assertEqual(target.first_name, "Alice")
+                self.assertFalse(User.objects.filter(username="ee37004040004").exists())
+
+    def test_staff_caller_gets_a_privileged_account_unchanged(self):
+        self.client.force_authenticate(structure_factories.UserFactory(is_staff=True))
+        target = structure_factories.UserFactory(
+            is_staff=True, first_name="Alice", civil_number="EE37004040004"
+        )
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {"uuid": target.uuid.hex, "created": False, "updated_fields": []},
+        )
+        target.refresh_from_db()
+        self.assertEqual(target.first_name, "Alice")
+
+    def test_civil_number_the_bridge_may_not_set_is_never_matched(self):
+        # Refused by validation before any lookup: no account is found or made.
+        existing = structure_factories.UserFactory(civil_number="EE37004040004")
+        for overrides in (
+            {"FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": ["first_name"]},
+            {"ENABLED_USER_PROFILE_ATTRIBUTES": []},
+        ):
+            with self.subTest(**overrides), override_config(**overrides):
+                response = self.push()
+                self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+                self.assertNotIn(existing.uuid.hex, str(response.data))
+                self.assertFalse(User.objects.filter(username="ee37004040004").exists())
+
+    def test_civil_number_of_another_account_is_not_written_on_update(self):
+        structure_factories.UserFactory(civil_number="EE37004040004")
+        mine = structure_factories.UserFactory(username="ee37004040004")
+        own_civil_number = mine.civil_number
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(str(response.data["detail"]), CIVIL_NUMBER_UNRESOLVED_MESSAGE)
+        mine.refresh_from_db()
+        self.assertEqual(mine.civil_number, own_civil_number)
+
+    def test_civil_number_conflict_is_logged_masked(self):
+        structure_factories.UserFactory(civil_number="EE37004040004")
+        structure_factories.UserFactory(username="ee37004040004")
+        with self.assertLogs("waldur_auth_social.utils", level="WARNING") as logs:
+            self.push()
+        output = "\n".join(logs.output)
+        # The pushed username is the civil number here; neither may appear.
+        self.assertNotIn("37004040004", output)
+
+    def test_own_civil_number_in_another_case_is_not_a_conflict(self):
+        mine = structure_factories.UserFactory(
+            username="ee37004040004", civil_number="ee37004040004"
+        )
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], mine.uuid.hex)
+
+    @override_config(
+        FEDERATED_IDENTITY_AUTHORITATIVE_ISD="isd:passport",
+        FEDERATED_IDENTITY_LOCKED_FIELDS=["civil_number"],
+    )
+    def test_locked_civil_number_is_not_checked(self):
+        # The field would not be written, so another account holding the
+        # number must not refuse the whole push.
+        structure_factories.UserFactory(civil_number="EE37004040004")
+        mine = structure_factories.UserFactory(
+            username="ee37004040004",
+            civil_number="EE11111111111",
+            active_isds=["isd:passport"],
+        )
+        response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mine.refresh_from_db()
+        self.assertEqual(mine.civil_number, "EE11111111111")
+
+    def test_concurrent_create_returns_the_account_the_other_push_made(self):
+        # The other push creates the account between this push's lookup and
+        # its create; the create then fails on the unique civil number.
+        other = structure_factories.UserFactory(username="other-push")
+        with (
+            patch(
+                "waldur_auth_social.utils.find_bridge_user",
+                side_effect=[(None, False), (other, True)],
+            ),
+            patch.object(
+                User.objects,
+                "create_user",
+                side_effect=IntegrityError("duplicate key value"),
+            ),
+        ):
+            response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {"uuid": other.uuid.hex, "created": False, "updated_fields": []},
+        )
+
+    def test_failed_create_with_nothing_to_return_is_a_bad_request(self):
+        with patch.object(
+            User.objects, "create_user", side_effect=IntegrityError("boom")
+        ):
+            response = self.push()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class UserSerializerIdentityBridgeFieldsTest(TestCase):

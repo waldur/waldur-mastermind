@@ -30,8 +30,10 @@ from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.id_token import validate_id_token
 from waldur_auth_social.utils import (
+    CIVIL_NUMBER_UNRESOLVED_MESSAGE,
     create_or_update_bridge_user,
     create_or_update_oauth_user,
+    find_bridge_user,
     get_identity_bridge_stats,
     pull_remote_eduteams_user,
     remove_user_from_isd,
@@ -749,6 +751,17 @@ class IdentityBridgeView(generics.GenericAPIView):
         description=(
             "Allows Identity Service Domains (ISDs) to push user attributes to Waldur. "
             "Creates or updates a user based on username (CUID). "
+            "When no user has the username and the push carries a civil_number "
+            "the bridge may set, an existing user with that civil number "
+            "(ignoring case) is returned unchanged instead of a second account "
+            "being created: no attributes are written, no ISD is added and the "
+            "pushed username is not stored. A caller without staff access is "
+            "never given a staff, support or identity manager account this way. "
+            "When the civil number does not resolve to exactly one active account "
+            "it may be given, the push is refused with 400 and one generic "
+            "message; the same answer is given when an update would set a civil "
+            "number another account holds. The endpoint therefore resolves civil "
+            "numbers to account UUIDs for its callers. "
             "Requires FEDERATED_IDENTITY_SYNC_ENABLED to be True. "
             "Caller must be staff or an identity manager with the declared source in managed_isds. "
             "Only staff may change staff, support or identity manager accounts: "
@@ -803,7 +816,12 @@ class IdentityBridgeView(generics.GenericAPIView):
         # it back unchanged: its UUID lets the caller give it project roles,
         # while its attributes, ISDs and active state stay as they are.
         if not has_staff_access(request):
-            existing = User.all_objects.filter(username=username).first()
+            existing, by_civil_number = find_bridge_user(username, attributes)
+            if existing and by_civil_number and is_privileged_account(existing):
+                # A civil number is not the caller's to choose the account
+                # by: answering with a privileged account would hand an ISD
+                # the staff account behind any national identity code.
+                raise ParseError(CIVIL_NUMBER_UNRESOLVED_MESSAGE)
             if existing and is_privileged_account(existing):
                 if not existing.is_active:
                     raise ParseError(f"User {username} is deactivated.")
