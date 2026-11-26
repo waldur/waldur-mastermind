@@ -32,6 +32,8 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         ("enable_resource_access_subnets", True),
         ("conceal_subnet_restricted_resources", True),
         ("resource_projects_limit_policy", "per_project"),
+        ("renewal_limit_decrease_policy", "stretch_paid_term"),
+        ("renewal_limit_decrease_policy", "no_credit"),
         ("enable_resource_limit_change_requests", True),
         ("enable_resource_limit_change_requests", False),
         ("enable_scim_entitlements", True),

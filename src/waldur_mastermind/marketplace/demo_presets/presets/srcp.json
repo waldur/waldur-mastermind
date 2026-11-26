@@ -291,7 +291,8 @@
         "enable_resource_projects": true,
         "auto_ok_resource_projects": true,
         "resource_projects_limit_policy": "aggregate",
-        "resource_projects_limits_required": true
+        "resource_projects_limits_required": true,
+        "renewal_limit_decrease_policy": "stretch_paid_term"
       },
       "getting_started": "## Getting started with {resource_name}\n\nPlatform ID: `{backend_id}`\n\nEach SRCP project of this store is mounted on your SRCP platforms at `/rds/{backend_id}/<project-id>`.\n\nUpload or download data through the Data Management Server (University network or VPN, SSH key registered under My access):\n\n```\nsftp <crsid>@data-{backend_id}.srcp.hpc.cam.ac.uk\n```\n\nSupport: rcs-support@cam.ac.uk"
     },

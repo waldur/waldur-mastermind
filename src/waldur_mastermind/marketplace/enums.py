@@ -78,6 +78,39 @@ PLAN_MODE_BY_SWITCH_MODE = {
 }
 
 
+class RenewalTerms:
+    """The term a priced line of a prepaid renewal covers."""
+
+    # What is left of the term already paid for: a raised limit applies at once.
+    CURRENT = "current_term"
+    # From the current end date to the new one.
+    EXTENSION = "extension"
+
+    CHOICES = (
+        (CURRENT, "Rest of the current term"),
+        (EXTENSION, "Extension"),
+    )
+
+
+class RenewalLimitDecreasePolicies:
+    """What a renewal that only lowers prepaid limits does with the value
+    already paid for the rest of the current term. An offering sets it in
+    ``plugin_options["renewal_limit_decrease_policy"]``."""
+
+    # The lower limits apply at once and the extension starts at the current
+    # end date; the rest of the term is neither credited nor carried over.
+    NO_CREDIT = "no_credit"
+    # The value left is spread over the lower limits, so the paid-up period
+    # lasts longer, and the extension starts when it runs out.
+    STRETCH_PAID_TERM = "stretch_paid_term"
+
+    DEFAULT = NO_CREDIT
+    CHOICES = (
+        (NO_CREDIT, "No credit"),
+        (STRETCH_PAID_TERM, "Stretch the paid-up term"),
+    )
+
+
 class LimitPeriods:
     MONTH = "month"
     QUARTERLY = "quarterly"
