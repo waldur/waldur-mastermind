@@ -2591,7 +2591,7 @@ If true, block creation of an account on OIDC login if user email is not provide
 
 **Default value:** Account creation is blocked for uninvited users.
 
-The message to show when OIDC account creation is blocked for uninvited users. URLs are rendered as clickable links; include the scheme (e.g. https://example.com) so bare URLs are linked.
+The message to show when OIDC account creation is blocked for uninvited users. URLs are rendered as clickable links; include the scheme (e.g. https://example.com) so bare URLs are linked. Public: the login-failed page reads it from the configuration for the oidc_uninvited code.
 
 #### OIDC_ALLOWED_USER_EMAIL_PATTERNS
 
@@ -2605,7 +2605,7 @@ Comma-separated list of regular expressions matched against the user email, e.g.
 
 **Default value:** Access to this deployment is restricted.
 
-The message to show when an existing account is refused at login because its email no longer matches OIDC_ALLOWED_USER_EMAIL_PATTERNS. Kept separate from the account creation message so a long-standing user is not told their account cannot be created. URLs are rendered as clickable links; include the scheme (e.g. https://example.com) so bare URLs are linked.
+The message to show when an existing account is refused at login because its email no longer matches OIDC_ALLOWED_USER_EMAIL_PATTERNS. Kept separate from the account creation message so a long-standing user is not told their account cannot be created. URLs are rendered as clickable links; include the scheme (e.g. https://example.com) so bare URLs are linked. Public: the login-failed page reads it from the configuration for the oidc_blocked code.
 
 #### OIDC_MATCHMAKING_BY_EMAIL
 

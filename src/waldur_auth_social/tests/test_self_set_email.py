@@ -26,7 +26,11 @@ from waldur_auth_social.utils import (
 from waldur_auth_social.views import OIDC_STATE_KEY
 from waldur_core.configuration.testing import override_config
 from waldur_core.core import reauthentication
-from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
+from waldur_core.core.enums import (
+    LoginFailureCode,
+    ReauthenticationAction,
+    ReauthenticationMethod,
+)
 from waldur_core.core.models import ChangeEmailRequest, User
 from waldur_core.structure import views
 from waldur_core.structure.tests import factories as structure_factories
@@ -103,8 +107,7 @@ class SelfSetEmailSignInTest(test.APITestCase):
         assert_login_failed_redirect(
             self,
             response,
-            "This sign-in cannot be completed for this email address. "
-            "Please contact support.",
+            LoginFailureCode.OIDC_EMAIL_NOT_TRUSTED,
         )
         self.user.refresh_from_db()
         self.assertEqual(self.user.username, "account-holder")

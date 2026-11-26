@@ -28,7 +28,7 @@ from waldur_auth_social.models import IdentityProvider
 from waldur_autoprovisioning.models import Rule
 from waldur_core.configuration import config
 from waldur_core.core import signals as core_signals
-from waldur_core.core.enums import GENDER_CHOICES
+from waldur_core.core.enums import GENDER_CHOICES, LoginFailureCode
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.service_accounts import note_service_account_sign_in
 from waldur_core.core.user_attributes import (
@@ -224,7 +224,7 @@ def check_login_allowed(
     raise OAuthException(
         identity_provider.provider,
         config.OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE,
-        user_facing=True,
+        code=LoginFailureCode.OIDC_BLOCKED,
     )
 
 
@@ -477,7 +477,7 @@ def _find_by_email(identity_provider, email, is_interactive_login) -> list[User]
             identity_provider.provider,
             "This sign-in cannot be completed for this email address. "
             "Please contact support.",
-            user_facing=True,
+            code=LoginFailureCode.OIDC_EMAIL_NOT_TRUSTED,
         )
     return matches
 
@@ -703,7 +703,7 @@ def create_or_update_oauth_user(
                 raise OAuthException(
                     identity_provider.provider,
                     "User email is not provided. Account creation is blocked.",
-                    user_facing=True,
+                    code=LoginFailureCode.OIDC_EMAIL_MISSING,
                 )
 
             allowed = (
@@ -715,7 +715,7 @@ def create_or_update_oauth_user(
                 raise OAuthException(
                     identity_provider.provider,
                     config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
-                    user_facing=True,
+                    code=LoginFailureCode.OIDC_UNINVITED,
                 )
         created = True
 

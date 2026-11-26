@@ -1285,7 +1285,8 @@ CONSTANCE_CONFIG = {
         "Account creation is blocked for uninvited users.",
         "The message to show when OIDC account creation is blocked for uninvited users. "
         "URLs are rendered as clickable links; include the scheme "
-        "(e.g. https://example.com) so bare URLs are linked.",
+        "(e.g. https://example.com) so bare URLs are linked. Public: the login-failed "
+        "page reads it from the configuration for the oidc_uninvited code.",
         "text_field",
     ),
     "OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE": (
@@ -1294,7 +1295,8 @@ CONSTANCE_CONFIG = {
         "no longer matches OIDC_ALLOWED_USER_EMAIL_PATTERNS. Kept separate from the account "
         "creation message so a long-standing user is not told their account cannot be created. "
         "URLs are rendered as clickable links; include the scheme "
-        "(e.g. https://example.com) so bare URLs are linked.",
+        "(e.g. https://example.com) so bare URLs are linked. Public: the login-failed "
+        "page reads it from the configuration for the oidc_blocked code.",
         "text_field",
     ),
     "OIDC_ALLOWED_USER_EMAIL_PATTERNS": (
@@ -2688,6 +2690,10 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "LOGIN_PAGE_STATS",
     "LOGIN_PAGE_CAROUSEL_SLIDES",
     "LOGIN_PAGE_NEWS",
+    # The login-failed page shows these for the oidc_blocked and
+    # oidc_uninvited codes (core.enums.LoginFailureCode).
+    "OIDC_BLOCKED_LOGIN_RESPONSE_MESSAGE",
+    "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE",
     "MARKETPLACE_LANDING_PAGE",
     "MARKETPLACE_LAYOUT_MODE",
     "MARKETPLACE_CARD_STYLE",

@@ -33,6 +33,7 @@ from waldur_auth_social.views import (
 from waldur_autoprovisioning.tests import factories as autoprovisioning_factories
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.authentication import AUTHENTICATION_METHOD_KEY
+from waldur_core.core.enums import LoginFailureCode
 from waldur_core.core.models import TokenExchangeCode, User
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
@@ -43,13 +44,14 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories as user_factories
 
 
-def assert_login_failed_redirect(test_case, response, expected_message):
-    """Assert the response redirects to the Homeport login-failed page with the message."""
+def assert_login_failed_redirect(test_case, response, expected_code):
+    """Assert the response redirects to the Homeport login-failed page with
+    the code, and with nothing else: no text travels in the URL."""
     test_case.assertEqual(response.status_code, status.HTTP_302_FOUND)
     parsed_url = urlparse(response.url)
     test_case.assertEqual(parsed_url.path, "/login_failed/")
     query_params = parse_qs(parsed_url.query)
-    test_case.assertEqual(query_params["message"], [expected_message])
+    test_case.assertEqual(query_params, {"code": [LoginFailureCode(expected_code)]})
 
 
 class OAuthViewInitTest(test.APITestCase):
@@ -645,7 +647,9 @@ class OAuthViewCompleteTest(test.APITestCase):
 
     def _assert_refused_state(self, response):
         """The browser lands on the login-failed page, and nobody is signed in."""
-        assert_login_failed_redirect(self, response, views.INVALID_STATE_MESSAGE)
+        assert_login_failed_redirect(
+            self, response, LoginFailureCode.OIDC_INVALID_STATE
+        )
         self.assertNotIn(AUTHENTICATION_METHOD_KEY, self.client.session)
         self.assertFalse(TokenExchangeCode.objects.exists())
         self.assertFalse(Token.objects.exists())
@@ -911,7 +915,7 @@ class OAuthViewCompleteTest(test.APITestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert
-        assert_login_failed_redirect(self, response, "It is blocked")
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertEqual(User.objects.count(), 0)
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -961,9 +965,7 @@ class OAuthViewCompleteTest(test.APITestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -984,7 +986,7 @@ class OAuthViewCompleteTest(test.APITestCase):
 
         # Assert
         assert_login_failed_redirect(
-            self, response, "User email is not provided. Account creation is blocked."
+            self, response, LoginFailureCode.OIDC_EMAIL_MISSING
         )
         self.assertEqual(User.objects.count(), 0)
 
@@ -1031,9 +1033,7 @@ class OAuthViewCompleteTest(test.APITestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert: user should NOT be created
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -1058,9 +1058,7 @@ class OAuthViewCompleteTest(test.APITestCase):
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
         # Assert: user should NOT be created
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -1087,9 +1085,7 @@ class OAuthViewCompleteTest(test.APITestCase):
 
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -2550,9 +2546,7 @@ class OIDCEmailMatchmakingTest(test.APITestCase):
 
         response = self.client.get(self.url, {"state": self.state, "code": self.code})
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
 
     @override_config(OIDC_MATCHMAKING_BY_EMAIL=True)
     def test_email_matchmaking_updates_attributes(self):
@@ -2665,9 +2659,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(user_info)
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username="lookalike_user").exists())
 
     @override_config(
@@ -2702,9 +2694,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(user_info)
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username="broken_pattern_user").exists())
 
     @override_config(
@@ -2722,9 +2712,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(user_info)
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(
             User.objects.filter(username="dangerous_pattern_user").exists()
         )
@@ -2777,9 +2765,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(user_info)
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username="unmatched_user").exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
@@ -2795,9 +2781,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(user_info)
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username="unfiltered_rule_user").exists())
 
     # --- Login path ---
@@ -2819,9 +2803,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(self._user_info_for(user))
 
-        assert_login_failed_redirect(
-            self, response, "Access to this deployment is restricted."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_BLOCKED)
 
     @override_config(
         OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
@@ -2835,9 +2817,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(self._user_info_for(user))
 
-        assert_login_failed_redirect(
-            self, response, "Ask your administrator for access."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_BLOCKED)
 
     @override_config(
         OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
@@ -2940,9 +2920,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(self._user_info_for(user))
 
-        assert_login_failed_redirect(
-            self, response, "Access to this deployment is restricted."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_BLOCKED)
 
     @override_config(
         OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
@@ -3016,9 +2994,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(self._user_info_for(user))
 
-        assert_login_failed_redirect(
-            self, response, "Access to this deployment is restricted."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_BLOCKED)
 
     @override_config(
         OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True,
@@ -3064,9 +3040,7 @@ class OIDCAllowedEmailPatternsTest(test.APITestCase):
 
         response = self._login(user_info)
 
-        assert_login_failed_redirect(
-            self, response, "Account creation is blocked for uninvited users."
-        )
+        assert_login_failed_redirect(self, response, LoginFailureCode.OIDC_UNINVITED)
         self.assertFalse(User.objects.filter(username="rule_lookalike_user").exists())
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
