@@ -2789,6 +2789,11 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         label="Backed by a service provider account",
         widget=BooleanWidget,
     )
+    has_initial_password = django_filters.BooleanFilter(
+        method="filter_has_initial_password",
+        label="Has an initial password stored",
+        widget=BooleanWidget,
+    )
     state = core_filters.MappedMultipleChoiceFilter(
         OfferingUserStates.CHOICES, label="Offering user state"
     )
@@ -2842,6 +2847,12 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
 
     def filter_is_provider_backed(self, queryset, name, value):
         return queryset.filter(service_provider_account__isnull=not value)
+
+    def filter_has_initial_password(self, queryset, name, value):
+        if value is None:
+            return queryset
+        missing = Q(initial_password_ciphertext="")
+        return queryset.exclude(missing) if value else queryset.filter(missing)
 
     def filter_has_consent(self, queryset, name, value):
         if value is None:

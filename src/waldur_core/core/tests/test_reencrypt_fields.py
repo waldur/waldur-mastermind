@@ -205,6 +205,7 @@ class EncryptedFieldDiscoveryTest(SimpleTestCase):
         self.assertEqual(
             _labels(encrypted_scalar_fields()),
             {
+                "marketplace.OfferingUser.initial_password_ciphertext",
                 "marketplace.ResourceApiKey.key_ciphertext",
                 "marketplace.ResourceOptionSecret.value",
                 "matrix_chat.MatrixBotIdentity.access_token",

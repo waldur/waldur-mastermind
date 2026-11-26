@@ -14865,6 +14865,168 @@ class OfferingUsersViewSet(
     update_comments_permissions = [_check_update_comments_state]
 
     @extend_schema(
+        summary="Set the user's initial password",
+        description=(
+            "Stores the password the site agent created the user's account with "
+            "at the backend (e.g. an Open WebUI chat account), so the user can "
+            "reveal it in Waldur instead of being sent it. Stored encrypted; "
+            "replaces any value stored before. Only the user reveals it. It is "
+            "the initial password: a change the user makes at the backend never "
+            "reaches Waldur. Wiped when the offering user is deleted or its "
+            "username changes. Refused with 409 for a deleted offering user, and "
+            "when `username` is given and the offering user no longer has it."
+        ),
+        request=serializers.OfferingUserSetInitialPasswordSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_initial_password(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        serializer = serializers.OfferingUserSetInitialPasswordSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        derived_for = serializer.validated_data.get("username")
+        ciphertext = encryption.encrypt_value(serializer.validated_data["password"])
+        # Locked, so a store and a wipe (deletion, username change) on the same
+        # row run one after the other rather than interleaved.
+        with transaction.atomic():
+            offering_user = models.OfferingUser.objects.select_for_update().get(
+                pk=offering_user.pk
+            )
+            if offering_user.state == OfferingUserStates.DELETED:
+                raise IncorrectStateException(
+                    "An initial password cannot be stored for a deleted offering user."
+                )
+            # The agent read the username before sending; if it has changed since,
+            # the password is for an account the offering user no longer has.
+            if derived_for is not None and derived_for != offering_user.username:
+                raise IncorrectStateException(
+                    "The offering user's username has changed since the password "
+                    "was created; it is for another account."
+                )
+            offering_user.initial_password_ciphertext = ciphertext
+            offering_user.save(update_fields=["initial_password_ciphertext"])
+
+        event_logger.emit(
+            f"Initial password of user {event_logger.literal(offering_user.user)} "
+            f"in offering {event_logger.literal(offering_user.offering.name)} "
+            "has been set.",
+            event_type=EventType.MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_SET,
+            event_context={"offering_user": offering_user},
+        )
+        return Response(status=status.HTTP_200_OK)
+
+    set_initial_password_serializer_class = (
+        serializers.OfferingUserSetInitialPasswordSerializer
+    )
+    set_initial_password_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer", "offering"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Clear the user's initial password",
+        description=(
+            "Removes the stored initial password, e.g. a wrong value or one for an "
+            "account that was replaced. Succeeds when none is stored. The site "
+            "agent stores the password again on its next pass if it still holds "
+            "the account it created."
+        ),
+        request=None,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def clear_initial_password(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        cleared = (
+            models.OfferingUser.objects.filter(pk=offering_user.pk)
+            .exclude(initial_password_ciphertext="")
+            .update(initial_password_ciphertext="")
+        )
+        if cleared:
+            event_logger.emit(
+                f"Initial password of user {event_logger.literal(offering_user.user)} "
+                f"in offering {event_logger.literal(offering_user.offering.name)} "
+                "has been cleared.",
+                event_type=EventType.MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_CLEARED,
+                event_context={"offering_user": offering_user},
+            )
+        return Response(status=status.HTTP_200_OK)
+
+    clear_initial_password_permissions = set_initial_password_permissions
+
+    @access.describes(
+        access.custom(
+            "The offering user's own user alone, signed in as themselves. Staff, "
+            "support and service providers are no exception, nor is staff "
+            "impersonating the user. A personal access token never reveals it, "
+            "whatever its scopes."
+        ),
+        needs_object=True,
+    )
+    def _can_reveal_initial_password(request, view, obj=None):
+        if not obj:
+            return
+        # A personal access token is a script's credential, not trusted with a
+        # live secret, as with an API key's reveal. Staff impersonating the user
+        # are refused too: the password is the user's own login at the backend,
+        # where whatever is done with it is attributed to the user, as with the
+        # Matrix recovery key. An OIDC access token is admitted, as for an API
+        # key's reveal, because HomePort may sign in with one.
+        if is_pat_auth(request.auth):
+            raise PermissionDenied(
+                "An initial password cannot be revealed with a personal access token."
+            )
+        if getattr(request.user, "impersonator", None):
+            raise PermissionDenied(
+                "An initial password cannot be revealed while impersonating the user."
+            )
+        if obj.user_id != request.user.id:
+            raise PermissionDenied("Only the user can reveal their initial password.")
+
+    @extend_schema(
+        summary="Reveal the user's initial password",
+        description=(
+            "Returns the password the site agent created the user's account with "
+            "at the backend. Revealed only to the user it belongs to, signed in "
+            "as themselves: refused with 403 to anyone else, to staff "
+            "impersonating the user, and to a personal access token. "
+            "Audit-logged. It is the initial password: once the user changes it "
+            "at the backend, it no longer works."
+        ),
+        responses={200: serializers.OfferingUserInitialPasswordSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def reveal_initial_password(self, request, uuid=None):
+        offering_user: models.OfferingUser = self.get_object()
+        if not offering_user.initial_password_ciphertext:
+            raise IncorrectStateException("No initial password is stored.")
+        try:
+            password = encryption.decrypt_value(
+                offering_user.initial_password_ciphertext
+            )
+        except InvalidToken:
+            raise IncorrectStateException(
+                "The stored initial password cannot be decrypted with the "
+                "configured encryption keys; check FIELD_ENCRYPTION_KEY and "
+                "FIELD_ENCRYPTION_KEY_FALLBACKS."
+            )
+        log.log_offering_user_initial_password_revealed(offering_user, request.user)
+        response = Response(
+            serializers.OfferingUserInitialPasswordSerializer(
+                {"password": password}
+            ).data
+        )
+        # The body carries a live secret; no cache may retain it.
+        response["Cache-Control"] = "no-store"
+        return response
+
+    reveal_initial_password_permissions = [_can_reveal_initial_password]
+
+    @extend_schema(
         summary="Update runtime state",
         description=(
             "Allows a service provider to set the operational/access state of an offering user. "

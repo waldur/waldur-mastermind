@@ -84,6 +84,15 @@ class EventType(StrEnum):
     MARKETPLACE_OFFERING_USER_CREATED = "marketplace_offering_user_created"
     MARKETPLACE_OFFERING_USER_UPDATED = "marketplace_offering_user_updated"
     MARKETPLACE_OFFERING_USER_DELETED = "marketplace_offering_user_deleted"
+    MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_SET = (
+        "marketplace_offering_user_initial_password_set"
+    )
+    MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_REVEALED = (
+        "marketplace_offering_user_initial_password_revealed"
+    )
+    MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_CLEARED = (
+        "marketplace_offering_user_initial_password_cleared"
+    )
     MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED = (
         "marketplace_offering_user_restriction_updated"
     )
@@ -1128,6 +1137,9 @@ EVENT_GROUP_MAPPING = {
         EventType.FREEIPA_PROFILE_ENABLED,
         EventType.MARKETPLACE_OFFERING_USER_CREATED,
         EventType.MARKETPLACE_OFFERING_USER_DELETED,
+        EventType.MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_CLEARED,
+        EventType.MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_REVEALED,
+        EventType.MARKETPLACE_OFFERING_USER_INITIAL_PASSWORD_SET,
         EventType.MARKETPLACE_OFFERING_USER_RESTRICTION_UPDATED,
         EventType.SSH_KEY_CREATION_SUCCEEDED,
         EventType.SSH_KEY_DELETION_SUCCEEDED,

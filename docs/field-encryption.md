@@ -19,6 +19,7 @@ accepted limitations. For the resource API key lifecycle specifically, see
 | `structure.ServiceSettings.password` | whole value | |
 | `structure.ServiceSettings.token` | whole value | |
 | `structure.ServiceSettings.options` | **selective** — only credential-named values in the JSON | `client_secret`, `keycloak_password`, `vault_token`, … |
+| `marketplace.OfferingUser.initial_password_ciphertext` | whole value | the password the site agent created a member's backend account with (e.g. Open WebUI); only that member can reveal it; see [Offering user initial password](offering-user-initial-password.md) |
 | `marketplace.ResourceApiKey.key_ciphertext` | whole value | see [Resource API Keys](resource-api-keys.md#encryption-at-rest) |
 | `marketplace.ResourceOptionSecret.value` | whole value | the value of a resource's secret option, such as a VPN pre-shared key or an API token; see [custom options](guides/marketplace-custom-options.md#secret) |
 | `matrix_chat.MatrixUserProfile.recovery_key` | whole value | Matrix secret-storage recovery key; see the Matrix appservice setup guide |
