@@ -264,3 +264,13 @@ def update_remote_resource_end_date(
     transaction.on_commit(
         lambda: within_request(utils.push_resource_end_date, instance)
     )
+
+
+def schedule_sync_remote_project(serialized_projects):
+    """Schedule remote project synchronization from Django admin."""
+    tasks.sync_remote_project.delay(serialized_projects)
+
+
+def schedule_clean_remote_projects():
+    """Schedule stale remote project cleanup from Django admin."""
+    tasks.clean_remote_projects.delay()

@@ -334,3 +334,17 @@ def prepare_finalization(invoices):
             recheck_vat_code(customer)
         except Exception:
             logger.exception("Unable to re-check the VAT number of %s.", customer)
+
+
+def explain_customer_vat(customer: Customer, context: dict) -> tuple:
+    """Compute and cache ``(percent, rule_label)`` for ``CustomerSerializer``."""
+    cache = context.setdefault("_vat_explanations", {})
+    if customer.pk not in cache:
+        if "_vat_rates" not in context:
+            context["_vat_rates"] = get_rates()
+        try:
+            percent, rule = explain_vat(customer, context["_vat_rates"])
+            cache[customer.pk] = (percent, str(rule.label))
+        except VATError as e:
+            cache[customer.pk] = (None, str(e))
+    return cache[customer.pk]

@@ -1,7 +1,7 @@
 import decimal
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Sum
+from django.db.models import F, OuterRef, Subquery, Sum
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -173,6 +173,71 @@ def _bulk_compute_project_estimates(project_ids, year, month):
             cache[pid] = _to_price_estimate_strings(dict(_EMPTY_ESTIMATE))
 
     return cache
+
+
+def bulk_fetch_project_billing_estimates(request, project_ids):
+    """Bulk loader for ``ProjectListSerializer`` billing estimates."""
+    if not request:
+        return {}
+    year, month = _parse_period_from_request(request)
+    return _bulk_compute_project_estimates(project_ids, year, month)
+
+
+def bulk_fetch_customer_billing_estimates(visibility_map, customer_ids):
+    """Bulk loader for ``CustomerListSerializer`` billing estimates."""
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+
+    full_visibility_cids = [cid for cid, pids in visibility_map.items() if pids is None]
+    restricted_visibility_map = {
+        cid: pids for cid, pids in visibility_map.items() if pids is not None
+    }
+
+    all_restricted_pids = []
+    for pids in restricted_visibility_map.values():
+        all_restricted_pids.extend(pids)
+
+    estimates_cache = {}
+
+    # 1. Fetch customer-level estimates for full visibility
+    if full_visibility_cids:
+        customer_estimates = models.PriceEstimate.objects.filter(
+            content_type=customer_ct, object_id__in=full_visibility_cids
+        ).select_related("content_type")
+        for est in customer_estimates:
+            estimates_cache[est.object_id] = est
+
+    # 2. Fetch project-level estimates for restricted visibility
+    if all_restricted_pids:
+        project_estimates = models.PriceEstimate.objects.filter(
+            content_type=project_ct, object_id__in=all_restricted_pids
+        ).select_related("content_type")
+
+        # Group project estimates by customer
+        project_to_customer = dict(
+            structure_models.Project.available_objects.filter(
+                id__in=all_restricted_pids
+            ).values_list("id", "customer_id")
+        )
+
+        for est in project_estimates:
+            cid = project_to_customer.get(est.object_id)
+            if cid:
+                if cid not in estimates_cache:
+                    estimates_cache[cid] = []
+                if isinstance(estimates_cache[cid], list):
+                    estimates_cache[cid].append(est)
+
+    return {"billing_estimates": estimates_cache}
+
+
+def get_project_estimated_cost_subquery():
+    """Return a Subquery annotating each Project with its PriceEstimate.total."""
+    ct = ContentType.objects.get_for_model(structure_models.Project)
+    estimates = models.PriceEstimate.objects.filter(
+        content_type=ct, object_id=OuterRef("pk")
+    )
+    return Subquery(estimates.values("total")[:1])
 
 
 @extend_schema_field(NestedPriceEstimateSerializer)

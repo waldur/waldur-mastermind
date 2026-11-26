@@ -31,14 +31,12 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
-from waldur_auth_social.const import ProviderChoices
-from waldur_auth_social.utils import pull_remote_eduteams_user
 from waldur_core.checklist import mixins as checklist_mixins
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.models import Answer, ChecklistCompletion, Question
 from waldur_core.checklist.utils import latest_answers_by_question
 from waldur_core.configuration import config as constance_config
-from waldur_core.core import access, reauthentication
+from waldur_core.core import access, auth_hooks, reauthentication
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
@@ -46,7 +44,12 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.db_template_cache import add_template_to_cache
-from waldur_core.core.enums import CoreStates, ReauthenticationAction, ReviewStates
+from waldur_core.core.enums import (
+    CoreStates,
+    ProviderChoices,
+    ReauthenticationAction,
+    ReviewStates,
+)
 from waldur_core.core.permissions import (
     PATScopeAwareIsAdminUser,
     has_staff_access,
@@ -2343,7 +2346,11 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             raise ValidationError(
                 _("Remote eduTEAMS account synchronization extension is disabled.")
             )
-        pull_remote_eduteams_user(user.username)
+        if not auth_hooks.has_remote_user_puller(ProviderChoices.EDUTEAMS):
+            raise ValidationError(
+                _("Remote eduTEAMS account synchronization extension is not available.")
+            )
+        auth_hooks.pull_remote_user(ProviderChoices.EDUTEAMS, user.username)
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(

@@ -2,6 +2,7 @@ import logging
 
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from python_freeipa import exceptions as freeipa_exceptions
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import get_skip_side_effects
@@ -10,7 +11,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.quotas.models import QuotaLimit
 
-from . import models, tasks, utils
+from . import backend, models, tasks, utils
 from .models import Profile
 
 logger = logging.getLogger(__name__)
@@ -162,3 +163,21 @@ def update_user(sender, instance: User, created=False, **kwargs):
         transaction.on_commit(
             lambda: tasks.update_user.delay(core_utils.serialize_instance(profile))
         )
+
+
+@transaction.atomic
+def get_or_create_profile(user, username, password):
+    profile = models.Profile.objects.filter(user=user).first()
+    if profile:
+        return profile, False
+
+    profile = models.Profile.objects.create(
+        user=user,
+        username=username,
+    )
+    try:
+        backend.FreeIPABackend().create_profile(profile, password=password)
+        tasks.schedule_sync()
+    except freeipa_exceptions.DuplicateEntry:
+        pass
+    return profile, True

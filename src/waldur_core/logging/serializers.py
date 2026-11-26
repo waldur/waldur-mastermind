@@ -1,5 +1,7 @@
 import logging
 import uuid
+from collections.abc import Callable
+from typing import Any
 from urllib.parse import urlsplit
 
 from django.contrib.contenttypes.models import ContentType
@@ -324,10 +326,12 @@ QUEUES_FOR_ACCESSIBLE_OFFERING = access.custom(
 )
 
 
-_offering_access_validator = None
+_offering_access_validator: Callable[[Any, Any], None] | None = None
 
 
-def register_offering_access_validator(validator) -> None:
+def register_offering_access_validator(
+    validator: Callable[[Any, Any], None],
+) -> None:
     """Register ``validator(user, offering_uuid) -> None`` for event subscription queues.
 
     Higher-layer apps (marketplace) register offering existence and access
@@ -357,7 +361,7 @@ class EventSubscriptionQueueCreateSerializer(serializers.Serializer):
 
         if _offering_access_validator is None:
             raise serializers.ValidationError(
-                f"Offering with UUID {value} does not exist"
+                "Offering access validation is not available"
             )
 
         _offering_access_validator(request.user, value)

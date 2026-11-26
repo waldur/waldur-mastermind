@@ -104,18 +104,23 @@ Progress:
   `waldur_core.permissions` into `waldur_mastermind.*` and `waldur_auth_social`
   have been eliminated (zero `kernel -> waldur_mastermind.*` or
   `kernel -> integrations` dependencies remain).
+- **Wave 3 — Tenancy quick wins (`waldur_core.users` and `waldur_core.structure`)**:
+  all 8 upward edges from `waldur_core.users` (`waldur_auth_social`,
+  `waldur_freeipa`, `waldur_mastermind.marketplace`) and `waldur_core.structure`
+  (`waldur_auth_social`, `billing`, `invoices`, `marketplace_metrics`,
+  `marketplace_remote`) have been eliminated (`waldur_core.users` now has zero
+  upward dependencies).
 
 Current snapshot (excluding `migrations/` and `tests/`, with `waldur_core.core`
-as a utility module): 66 modules, 321 declared edges, of which **32 edges
-across 7 modules** remain as upward layer violations (59 modules already
+as a utility module): 66 modules, 314 declared edges, of which **24 edges
+across 6 modules** remain as upward layer violations (60 modules already
 respect the target layer order):
 
 | Module | Target Layer | Upward Edges | Upward Targets |
 | --- | --- | --- | --- |
 | `waldur_mastermind.marketplace` | `marketplace` | 15 | `analytics`, `billing`, `invoices`, `matrix_chat`, `notifications`, `policy`, `promotions`, `proposal`, `support`, `marketplace_openstack`, `marketplace_rancher`, `marketplace_site_agent`, `waldur_freeipa`, `waldur_openstack`, `waldur_pid` |
-| `waldur_core.structure` | `tenancy` | 7 | `waldur_auth_social`, `billing`, `invoices`, `marketplace`, `marketplace_metrics`, `marketplace_remote`, `proposal` |
 | `waldur_core.core` | `kernel` | 3 | `changelog`, `structure`, `users` |
-| `waldur_core.users` | `tenancy` | 3 | `waldur_auth_social`, `waldur_freeipa`, `marketplace` |
+| `waldur_core.structure` | `tenancy` | 2 | `marketplace`, `proposal` |
 | `waldur_mastermind.chat` | `supporting` | 2 | `waldur_firecrest`, `waldur_openstack` |
 | `waldur_core.logging` | `kernel` | 1 | `structure` |
 | `waldur_core.permissions` | `kernel` | 1 | `structure` |

@@ -10,12 +10,11 @@ from waldur_core.core.models import User
 from waldur_core.core.utils import chunks
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
+from waldur_core.users.scim import hooks as scim_hooks
 from waldur_core.users.scim.client import ScimClient, ScimError
 from waldur_core.users.scim.constants import (
     DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS,
 )
-from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OfferingUserStates
 
 logger = logging.getLogger(__name__)
 
@@ -102,45 +101,18 @@ def get_user_ssh_login_nodes(user: User):
     if not project_ids:
         return {}
 
-    # Keep entitlements for resources in transitional states (updating,
-    # terminating, erred): access is revoked only once the resource is gone,
-    # and never granted before it has been provisioned.
-    resources = marketplace_models.Resource.objects.filter(
-        project_id__in=project_ids,
-        offering__plugin_options__enable_scim_entitlements=True,
-    ).exclude(
-        state__in=[
-            marketplace_models.Resource.States.CREATING,
-            marketplace_models.Resource.States.TERMINATED,
-        ]
-    )
-
-    offering_ids = resources.order_by().values_list("offering_id", flat=True).distinct()
-
-    if not offering_ids:
+    provider = scim_hooks.get_scim_offering_provider()
+    if provider is None:
         return {}
 
-    # Get offering users that are in OK state and have a username
-    offering_users = (
-        marketplace_models.OfferingUser.objects.filter(
-            user=user,
-            offering_id__in=offering_ids,
-            state=OfferingUserStates.OK,
-        )
-        .exclude(username__isnull=True)
-        .exclude(username="")
-        .select_related("offering")
-    )
-
-    if not offering_users:
+    offering_user_username_map = provider.get_user_offering_usernames(user, project_ids)
+    if offering_user_username_map is None:
+        return {}
+    if not offering_user_username_map:
         logger.warning(
             "SCIM user %s has no offering users in OK state, skipping.", user.uuid
         )
         return {}
-
-    offering_user_username_map = {
-        off_user.offering: off_user.username for off_user in offering_users
-    }
 
     login_node_username_map = {}
     for offering, offering_username in offering_user_username_map.items():
@@ -236,15 +208,6 @@ def _get_reconciliation_cutoff():
     return timezone.now() - timedelta(hours=lookback_hours)
 
 
-def _get_offering_user_ids_for_reconciliation(**filters):
-    """Offering users tied to a reconcile candidate; sync_user applies add/remove/clear."""
-    return (
-        marketplace_models.OfferingUser.objects.filter(**filters)
-        .values_list("user_id", flat=True)
-        .distinct()
-    )
-
-
 def get_users_for_reconciliation():
     """Users with recent entitlement-relevant changes (grants and revocations).
 
@@ -259,20 +222,9 @@ def get_users_for_reconciliation():
         UserRole.objects.filter(modified__gte=cutoff).values_list("user_id", flat=True)
     )
 
-    user_ids.update(
-        _get_offering_user_ids_for_reconciliation(modified__gte=cutoff),
-    )
-
-    offering_ids_from_resources = (
-        marketplace_models.Resource.objects.filter(modified__gte=cutoff)
-        .values_list("offering_id", flat=True)
-        .distinct()
-    )
-    user_ids.update(
-        _get_offering_user_ids_for_reconciliation(
-            offering_id__in=offering_ids_from_resources
-        ),
-    )
+    provider = scim_hooks.get_scim_offering_provider()
+    if provider is not None:
+        user_ids.update(provider.get_reconciliation_user_ids(cutoff))
 
     users = User.objects.filter(id__in=user_ids)
     logger.debug("SCIM reconcile users count=%s", users.count())
@@ -355,9 +307,12 @@ def sync_users_for_offering_endpoint(offering_uuid: str) -> None:
     if not is_scim_configured():
         return
 
-    try:
-        offering = marketplace_models.Offering.objects.get(uuid=offering_uuid)
-    except marketplace_models.Offering.DoesNotExist:
+    provider = scim_hooks.get_scim_offering_provider()
+    if provider is None:
+        return
+
+    offering = provider.get_offering(offering_uuid)
+    if offering is None:
         logger.warning("SCIM: offering %s not found, skipping.", offering_uuid)
         return
 
@@ -368,17 +323,7 @@ def sync_users_for_offering_endpoint(offering_uuid: str) -> None:
         )
         return
 
-    offering_users = (
-        marketplace_models.OfferingUser.objects.filter(
-            offering=offering,
-            state=OfferingUserStates.OK,
-        )
-        .exclude(username__isnull=True)
-        .exclude(username="")
-        .select_related("user")
-    )
-
-    user_uuids = [ou.user.uuid.hex for ou in offering_users]
+    user_uuids = provider.get_offering_eligible_user_uuids(offering)
 
     if not user_uuids:
         logger.info(

@@ -221,8 +221,13 @@ if sentry_dsn:
         before_breadcrumb as sentry_before_breadcrumb,
     )
     from waldur_core.logging.sentry import before_send as sentry_before_send
+    from waldur_core.logging.sentry import (
+        configure_constance_config as sentry_configure_constance_config,
+    )
     from waldur_core.logging.sentry import event_scrubber as sentry_event_scrubber
     from waldur_core.logging.sentry import redact_secrets as sentry_redact_secrets
+
+    sentry_configure_constance_config(CONSTANCE_CONFIG)
     from waldur_core.server.sentry_crons import (
         build_monitor_config_defaults,
         patch_monitor_config_defaults,

@@ -29,6 +29,11 @@ def get_oidc_logout_url(authentication_method: str) -> str | None:
     return None
 
 
+def get_identity_provider(registration_method: str) -> IdentityProvider | None:
+    """Return the configured IdentityProvider row for ``registration_method``."""
+    return IdentityProvider.objects.filter(provider=registration_method).first()
+
+
 def get_default_idp_info(provider_name: str) -> dict | None:
     """Return public configuration metadata for the active default IdP."""
     try:

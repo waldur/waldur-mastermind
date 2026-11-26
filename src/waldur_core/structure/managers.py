@@ -11,7 +11,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import GenericKeyMixin
 from waldur_core.core.models import User
 from waldur_core.permissions.mixins import PermissionMixin
-from waldur_core.permissions.pat_filtering import _ids_q, _or
+from waldur_core.permissions.pat_filtering import combine_or, ids_q
 from waldur_core.permissions.utils import (
     get_scope_ids,
     get_user_ids,
@@ -406,15 +406,15 @@ def pat_filter_access_subnets(ids):
     organization reaches it: a binding on one of its projects or offerings
     does not reach the organization, and so not its subnets either.
     """
-    return _ids_q("customer_id", ids.get("customer"))
+    return ids_q("customer_id", ids.get("customer"))
 
 
 def pat_filter_end_date_change_requests(ids):
     """The project end date change requests a token's bindings reach: those
     of a project it is bound to, or of a project of an organization it is."""
-    return _or(
-        _ids_q("project_id", ids.get("project")),
-        _ids_q("project__customer_id", ids.get("customer")),
+    return combine_or(
+        ids_q("project_id", ids.get("project")),
+        ids_q("project__customer_id", ids.get("customer")),
     )
 
 

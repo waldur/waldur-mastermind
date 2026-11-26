@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+from unittest import mock
+
 from django.core.management import get_commands
 from django.test import SimpleTestCase
+from rest_framework.exceptions import ValidationError
 
 from waldur_auth_social import const as auth_social_const
 from waldur_auth_social import handlers as auth_social_handlers
@@ -63,6 +67,18 @@ class KernelExtensionHooksTest(SimpleTestCase):
             logging_serializers._offering_access_validator,
             marketplace_core_hooks.validate_offering_access_for_event_subscription,
         )
+
+    def test_offering_access_validator_reports_unavailable_when_unregistered(self):
+        serializer = logging_serializers.EventSubscriptionQueueCreateSerializer(
+            context={"request": SimpleNamespace(user=SimpleNamespace(id=1))}
+        )
+        with mock.patch.object(logging_serializers, "_offering_access_validator", None):
+            with self.assertRaisesMessage(
+                ValidationError, "Offering access validation is not available"
+            ):
+                serializer.validate_offering_uuid(
+                    "00000000-0000-0000-0000-000000000000"
+                )
 
     def test_probe_broker_latency_command_is_discoverable(self):
         commands = get_commands()

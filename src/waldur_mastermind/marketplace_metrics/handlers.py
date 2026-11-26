@@ -24,6 +24,11 @@ def projects_with_metrics(project_ids):
     )
 
 
+def bulk_fetch_projects_with_metrics(request, project_ids):
+    """Bulk loader for ``ProjectListSerializer`` has_metrics flag."""
+    return projects_with_metrics(project_ids)
+
+
 def get_has_metrics(serializer, project) -> bool:
     bulk_data = serializer.context.get("bulk_data", {})
     if "project_has_metrics" in bulk_data:

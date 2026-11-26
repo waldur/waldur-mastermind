@@ -9,10 +9,10 @@ from __future__ import annotations
 
 import logging
 
-from waldur_auth_social.utils import update_user_attributes_from_source
 from waldur_core.configuration import config
 from waldur_core.core import signals as core_signals
 from waldur_core.core.models import User
+from waldur_core.core.user_attributes import update_user_attributes_from_source
 from waldur_core.users.scim.pull.client import ScimError, ScimPullClient
 from waldur_core.users.scim.server.mapping import (
     scim_to_waldur_payload,

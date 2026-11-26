@@ -243,7 +243,7 @@ Check module boundaries:
         - pyproject.toml
         - uv.lock
   script:
-    - pip install uv
+    - pip install uv==0.13.7
     - uv sync --only-group tach --locked
     - uv run --no-sync tach check
 

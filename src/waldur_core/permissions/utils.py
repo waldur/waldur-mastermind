@@ -1,10 +1,11 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Exists, Q
 from django.db.models.query import QuerySet
 from django.utils import timezone
 from rest_framework import exceptions
@@ -56,9 +57,9 @@ class ActiveAccountGuard:
       ``sync_user_deactivation_status`` task to keep query count bounded.
     """
 
-    has_active_account: object
-    deactivation_detail: object
-    active_account_exists: object
+    has_active_account: Callable[[Any], bool]
+    deactivation_detail: Callable[[Any], str | None]
+    active_account_exists: Callable[[], Exists]
 
 
 _active_account_guards: list[ActiveAccountGuard] = []

@@ -25,7 +25,7 @@ from django.conf import settings
 from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
 
 # Populated by the deployment settings file (before Django finishes loading
-# settings) via configure_constance_config() / event_scrubber(CONSTANCE_CONFIG);
+# settings) via configure_constance_config(CONSTANCE_CONFIG);
 # once Django is configured, falls back to settings.CONSTANCE_CONFIG.
 _constance_config: dict = {}
 _secret_keys_cache: frozenset[str] | None = None
@@ -271,24 +271,26 @@ _SECRET_NAMES = [
 _SECRET_SETTING_SUFFIXES = ("_TOKEN", "_SECRET", "_KEY", "_PASSWORD")
 
 
-def is_secret_setting(key):
+def is_secret_setting(key, constance_config=None):
     """Whether the Constance setting `key` holds a secret."""
-    options = _get_constance_config().get(key, ())
+    cfg = _get_constance_config() if constance_config is None else constance_config
+    options = cfg.get(key, ())
     is_secret_field = len(options) > 2 and options[2] == "secret_field"
     return is_secret_field or key.endswith(_SECRET_SETTING_SUFFIXES)
 
 
-def _secret_setting_names():
-    return [key.lower() for key in _get_constance_config() if is_secret_setting(key)]
+def _secret_setting_names(constance_config=None):
+    cfg = _get_constance_config() if constance_config is None else constance_config
+    return [key.lower() for key in cfg if is_secret_setting(key, cfg)]
 
 
 def event_scrubber(constance_config=None):
-    if constance_config is not None:
-        configure_constance_config(constance_config)
     # Recursive: httpx and nio keep the Authorization header, and registration
     # keeps passwords, inside dicts.
     return EventScrubber(
-        denylist=DEFAULT_DENYLIST + _SECRET_NAMES + _secret_setting_names(),
+        denylist=(
+            DEFAULT_DENYLIST + _SECRET_NAMES + _secret_setting_names(constance_config)
+        ),
         recursive=True,
     )
 

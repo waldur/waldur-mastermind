@@ -50,17 +50,24 @@ def register_pat_filter(model, view_aware=False):
     return decorator
 
 
-def _or(*qs: Q | None) -> Q | None:
+def combine_or(*qs: Q | None) -> Q | None:
+    """Combine non-None Q expressions with logical OR."""
     filtered = [q for q in qs if q is not None]
     if not filtered:
         return None
     return reduce(or_, filtered)
 
 
-def _ids_q(field: str, ids: set[int] | None) -> Q | None:
+def ids_q(field: str, ids: set[int] | None) -> Q | None:
+    """Build a ``field__in=ids`` Q filter, or None when ``ids`` is empty."""
     if not ids:
         return None
     return Q(**{f"{field}__in": ids})
+
+
+# Backward-compatible aliases for internal callers.
+_or = combine_or
+_ids_q = ids_q
 
 
 def _bindings_by_type(auth) -> dict[str, set[int]]:

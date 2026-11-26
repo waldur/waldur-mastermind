@@ -11,6 +11,7 @@ from typing import Any
 _logout_hooks: list[Callable[[Any], None]] = []
 _oidc_logout_url_provider: Callable[[str], str | None] | None = None
 _default_idp_provider: Callable[[str], dict[str, Any] | None] | None = None
+_identity_provider_lookup: Callable[[str], Any] | None = None
 _remote_user_pullers: dict[str, Callable[[str], Any]] = {}
 
 
@@ -53,12 +54,29 @@ def get_default_idp_info(provider_name: str) -> dict[str, Any] | None:
     return _default_idp_provider(provider_name)
 
 
+def register_identity_provider_lookup(lookup: Callable[[str], Any]) -> None:
+    """Register ``lookup(registration_method) -> IdentityProvider | None``."""
+    global _identity_provider_lookup
+    _identity_provider_lookup = lookup
+
+
+def get_identity_provider(registration_method: str) -> Any:
+    if _identity_provider_lookup is None:
+        return None
+    return _identity_provider_lookup(registration_method)
+
+
 def register_remote_user_puller(
     provider: str,
     puller: Callable[[str], Any],
 ) -> None:
     """Register ``puller(username)`` for syncing a remote user account."""
     _remote_user_pullers[provider] = puller
+
+
+def has_remote_user_puller(provider: str) -> bool:
+    """Return True when a remote-user puller is registered for ``provider``."""
+    return provider in _remote_user_pullers
 
 
 def pull_remote_user(provider: str, username: str) -> Any:
