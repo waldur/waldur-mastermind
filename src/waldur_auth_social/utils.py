@@ -10,7 +10,7 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import IntegrityError, models, transaction
 from django.db.models import DateField, IntegerField, Q
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
@@ -1022,21 +1022,12 @@ def update_user_attributes_from_source(
     # Fields locked to an authoritative ISD (e.g. EFP/passport) must not be
     # overwritten by other sources pushing over the Identity Bridge, mirroring
     # the guard in create_or_update_oauth_user. See FEDERATED_IDENTITY_*.
-    authoritative_isd = config.FEDERATED_IDENTITY_AUTHORITATIVE_ISD
-    locked_fields = config.FEDERATED_IDENTITY_LOCKED_FIELDS or []
-    lock_active = bool(
-        authoritative_isd
-        and locked_fields
-        and source != authoritative_isd
-        and authoritative_isd in (user.active_isds or [])
-    )
-
     for field, new_value in payload.items():
         if allowed_fields and field not in allowed_fields:
             continue
         if field not in WRITABLE_USER_FIELDS:
             continue
-        if lock_active and field in locked_fields:
+        if _field_locked(user, field, source):
             # Preserve the authoritative ISD's value; do not update or transfer
             # ownership for locked fields.
             continue
@@ -1083,6 +1074,77 @@ def update_user_attributes_from_source(
     return updated_fields
 
 
+CIVIL_NUMBER_UNRESOLVED_MESSAGE = (
+    "Cannot resolve a unique active account for this civil number."
+)
+
+
+def mask_civil_number(value: str) -> str:
+    """A civil number as logs show it: first 4 and last 2 characters."""
+    if len(value) <= 6:
+        return "…"
+    return f"{value[:4]}…{value[-2:]}"
+
+
+def find_bridge_user(username: str, attributes: dict) -> tuple[User | None, bool]:
+    """Find the account an Identity Bridge push is about.
+
+    Returns ``(user, matched_by_civil_number)``. The username is looked up
+    first. Failing that, a pushed ``civil_number`` that the bridge may set
+    (``FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES``) is matched, ignoring case,
+    against existing accounts: a person who signed up through an identity
+    provider that looks users up by civil number (TARA, Mobile ID) has a
+    generated username. Creating an account for them under the pushed
+    username fails on the unique civil number (a server error), or, when the
+    case differs, leaves two accounts their login cannot tell apart.
+
+    Several active accounts with the civil number, or only deactivated ones,
+    are refused rather than guessed at, with one message for both so the
+    answer does not tell the caller which; the details are logged.
+    """
+    user = User.all_objects.filter(username=username).first()
+    if user is not None:
+        return user, False
+
+    civil_number = (attributes.get("civil_number") or "").strip()
+    if (
+        not civil_number
+        or "civil_number" not in get_federated_identity_sync_allowed_fields()
+    ):
+        return None, False
+
+    matches = list(User.all_objects.filter(civil_number__iexact=civil_number))
+    if not matches:
+        return None, False
+    active = [match for match in matches if match.is_active]
+    if len(active) != 1:
+        logger.warning(
+            "Identity Bridge: civil number %s matches %d active and %d deactivated "
+            "accounts; refusing the push",
+            mask_civil_number(civil_number),
+            len(active),
+            len(matches) - len(active),
+        )
+        raise ParseError(CIVIL_NUMBER_UNRESOLVED_MESSAGE)
+    return active[0], True
+
+
+def _field_locked(user: User, field: str, source: str) -> bool:
+    """Whether ``source`` may not write ``field`` of ``user``.
+
+    Fields in FEDERATED_IDENTITY_LOCKED_FIELDS belong to the authoritative
+    ISD once it has asserted the user; other sources cannot change them.
+    """
+    authoritative_isd = config.FEDERATED_IDENTITY_AUTHORITATIVE_ISD
+    locked_fields = config.FEDERATED_IDENTITY_LOCKED_FIELDS or []
+    return bool(
+        authoritative_isd
+        and field in locked_fields
+        and source != authoritative_isd
+        and authoritative_isd in (user.active_isds or [])
+    )
+
+
 def create_or_update_bridge_user(
     username: str,
     attributes: dict,
@@ -1090,6 +1152,10 @@ def create_or_update_bridge_user(
 ) -> tuple[User, bool, set[str]]:
     """
     Create or update a user via the Identity Bridge.
+
+    An account found by civil number rather than username (see
+    ``find_bridge_user``) is returned unchanged: the push did not name it, so
+    it neither writes its attributes nor adds the ISD to it.
 
     Args:
         username: The CUID / username to look up.
@@ -1101,12 +1167,34 @@ def create_or_update_bridge_user(
     """
     allowed_fields = get_federated_identity_sync_allowed_fields()
 
-    try:
-        user = cast(User, User.all_objects.get(username=username))
-        created = False
+    existing, by_civil_number = find_bridge_user(username, attributes)
+    if by_civil_number:
+        return cast(User, existing), False, set()
 
+    if existing is not None:
+        user = cast(User, existing)
         if not user.is_active:
             raise ParseError(f"User {username} is deactivated.")
+        civil_number = (attributes.get("civil_number") or "").strip()
+        if (
+            civil_number
+            and "civil_number" in allowed_fields
+            and not _field_locked(user, "civil_number", source)
+            and (user.civil_number or "").lower() != civil_number.lower()
+            and User.all_objects.filter(civil_number__iexact=civil_number)
+            .exclude(pk=user.pk)
+            .exists()
+        ):
+            # Writing it would hit the unique constraint (a server error) or,
+            # in another case, leave two accounts with one civil number. The
+            # answer is the generic one: a distinct message would tell the
+            # caller that some account, of any kind, holds this number. The
+            # username is not logged: it can be the civil number itself.
+            logger.warning(
+                "Identity Bridge: pushed civil number %s belongs to another account",
+                mask_civil_number(civil_number),
+            )
+            raise ParseError(CIVIL_NUMBER_UNRESOLVED_MESSAGE)
         note_service_account_sign_in(
             user, via=f"identity bridge ({source})", identity=username
         )
@@ -1114,41 +1202,48 @@ def create_or_update_bridge_user(
         updated_fields = update_user_attributes_from_source(
             user, attributes, source, allowed_fields=allowed_fields
         )
-        return user, created, updated_fields
+        return user, False, updated_fields
 
-    except User.DoesNotExist:
-        created = True
+    # Filter attributes to allowed fields
+    filtered_attrs = {
+        k: v
+        for k, v in attributes.items()
+        if k in allowed_fields and k in WRITABLE_USER_FIELDS
+    }
 
-        # Filter attributes to allowed fields
-        filtered_attrs = {
-            k: v
-            for k, v in attributes.items()
-            if k in allowed_fields and k in WRITABLE_USER_FIELDS
-        }
+    now_iso = timezone.now().isoformat()
+    attribute_sources = {
+        field: {"source": source, "timestamp": now_iso}
+        for field, value in filtered_attrs.items()
+        if value not in (None, "", [])
+    }
 
-        now_iso = timezone.now().isoformat()
-        attribute_sources = {
-            field: {"source": source, "timestamp": now_iso}
-            for field, value in filtered_attrs.items()
-            if value not in (None, "", [])
-        }
+    try:
+        with transaction.atomic():
+            user = cast(
+                User,
+                User.objects.create_user(
+                    username=username,
+                    registration_method=source,
+                    **filtered_attrs,
+                ),
+            )
+            user.set_unusable_password()
+            user.notifications_enabled = False
+            user.attribute_sources = attribute_sources
+            user.active_isds = [source]
+            user._change_source = source
+            user.save()
+    except IntegrityError:
+        # A concurrent push for the same person created the account between
+        # the lookup and this create (the username and civil number are
+        # unique). Return what it created, unchanged.
+        existing, _ = find_bridge_user(username, attributes)
+        if existing is None:
+            raise ParseError("The account could not be created; push it again.")
+        return cast(User, existing), False, set()
 
-        user = cast(
-            User,
-            User.objects.create_user(
-                username=username,
-                registration_method=source,
-                **filtered_attrs,
-            ),
-        )
-        user.set_unusable_password()
-        user.notifications_enabled = False
-        user.attribute_sources = attribute_sources
-        user.active_isds = [source]
-        user._change_source = source
-        user.save()
-
-        return user, created, set(filtered_attrs.keys())
+    return user, True, set(filtered_attrs.keys())
 
 
 @transaction.atomic
