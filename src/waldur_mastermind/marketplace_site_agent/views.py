@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from datetime import timedelta
 
+from celery import current_app
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
@@ -981,8 +982,6 @@ class AgentTaskStatsViewSet(generics.GenericAPIView):
         responses={200: serializers.AgentTaskStatsResponseSerializer},
     )
     def get(self, request, *args, **kwargs):
-        from waldur_core.server.celeryconf import app
-
         agent_tasks = [
             "waldur_mastermind.marketplace_site_agent.tasks.sync_offering_users",
             "waldur_mastermind.marketplace_site_agent.tasks.mark_offering_backend_as_disconnected_after_timeout",
@@ -992,7 +991,7 @@ class AgentTaskStatsViewSet(generics.GenericAPIView):
         ]
 
         try:
-            inspect = app.control.inspect()
+            inspect = current_app.control.inspect()
             active = inspect.active() or {}
             scheduled = inspect.scheduled() or {}
             reserved = inspect.reserved() or {}

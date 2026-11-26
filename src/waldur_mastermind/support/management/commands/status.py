@@ -1,10 +1,9 @@
 import logging
 
+from celery import current_app as celery_app
 from django.core.management.base import BaseCommand
 from django.db import connection
 from django.db.utils import OperationalError
-
-from waldur_core.server.celeryconf import app as celery_app
 
 
 class Command(BaseCommand):

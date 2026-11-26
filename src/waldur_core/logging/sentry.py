@@ -21,10 +21,30 @@ import ast
 import re
 from contextvars import ContextVar
 
+from django.conf import settings
 from sentry_sdk.scrubber import DEFAULT_DENYLIST, EventScrubber
 
-# A plain dict of declarations, importable before Django is set up.
-from waldur_core.server.constance_settings import CONSTANCE_CONFIG
+# Populated by the deployment settings file (before Django finishes loading
+# settings) via configure_constance_config() / event_scrubber(CONSTANCE_CONFIG);
+# once Django is configured, falls back to settings.CONSTANCE_CONFIG.
+_constance_config: dict = {}
+_secret_keys_cache: frozenset[str] | None = None
+
+
+def configure_constance_config(constance_config) -> None:
+    """Register CONSTANCE_CONFIG for secret-key scrubbing before Django setup."""
+    global _constance_config, _secret_keys_cache
+    _constance_config = constance_config
+    _secret_keys_cache = None
+
+
+def _get_constance_config():
+    if _constance_config:
+        return _constance_config
+    if settings.configured:
+        return getattr(settings, "CONSTANCE_CONFIG", {})
+    return {}
+
 
 # Keys that may carry the human-readable message, in order of preference.
 # "event" is structlog's default; celery task failures land under "error".
@@ -253,16 +273,18 @@ _SECRET_SETTING_SUFFIXES = ("_TOKEN", "_SECRET", "_KEY", "_PASSWORD")
 
 def is_secret_setting(key):
     """Whether the Constance setting `key` holds a secret."""
-    options = CONSTANCE_CONFIG.get(key, ())
+    options = _get_constance_config().get(key, ())
     is_secret_field = len(options) > 2 and options[2] == "secret_field"
     return is_secret_field or key.endswith(_SECRET_SETTING_SUFFIXES)
 
 
 def _secret_setting_names():
-    return [key.lower() for key in CONSTANCE_CONFIG if is_secret_setting(key)]
+    return [key.lower() for key in _get_constance_config() if is_secret_setting(key)]
 
 
-def event_scrubber():
+def event_scrubber(constance_config=None):
+    if constance_config is not None:
+        configure_constance_config(constance_config)
     # Recursive: httpx and nio keep the Authorization header, and registration
     # keeps passwords, inside dicts.
     return EventScrubber(
@@ -271,7 +293,17 @@ def event_scrubber():
     )
 
 
-_SECRET_KEYS = frozenset(event_scrubber().denylist)
+def _get_secret_keys() -> frozenset[str]:
+    global _secret_keys_cache
+    if _secret_keys_cache is None:
+        keys = frozenset(event_scrubber().denylist)
+        # Only cache once Constance settings are available (either registered
+        # explicitly or loaded via Django settings), so an early call before
+        # settings finish initializing does not freeze an incomplete denylist.
+        if _get_constance_config():
+            _secret_keys_cache = keys
+        return keys
+    return _secret_keys_cache
 
 
 def _filter_secret_names(value):
@@ -280,11 +312,12 @@ def _filter_secret_names(value):
     Not with the scrubber itself: the event is serialized by then, and the
     AnnotatedValue markers it leaves would make the send fail.
     """
+    secret_keys = _get_secret_keys()
     if isinstance(value, dict):
         return {
             key: (
                 "[Filtered]"
-                if isinstance(key, str) and key.lower() in _SECRET_KEYS
+                if isinstance(key, str) and key.lower() in secret_keys
                 else _filter_secret_names(item)
             )
             for key, item in value.items()

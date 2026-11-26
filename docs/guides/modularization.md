@@ -81,7 +81,7 @@ not distort production boundaries.
 
 ## Incremental Rollout Plan
 
-### Phase 1: Baseline (active)
+### Phase 1: Baseline (completed)
 
 - All 66 packages under `src/` are declared in `tach.toml` with `exact = true`
   and `root_module = "forbid"`.
@@ -91,26 +91,31 @@ not distort production boundaries.
   `# Upward dependencies (modularization debt; do not add new ones):` so
   reviewers spot regressions immediately.
 
-Baseline snapshot (excluding `migrations/` and `tests/`, with `waldur_core.core`
-as a utility module): 66 modules, 334 declared edges, of which **45 edges
-across 11 modules** are upward layer violations (the remaining 55 modules
-already respect the target layer order):
+### Phase 2: Burn Down Upward Cycles (in progress)
+
+Progress:
+- **Composition layer sealed (`waldur_core.server` `visibility = []`)**: all 7
+  upward edges into `waldur_core.server` have been eliminated, freeing
+  `waldur_core.server`, `waldur_core.changelog`, `waldur_mastermind.feedback`,
+  and `waldur_sram` from the main dependency cycle and permanently preventing
+  any module under `src/` from importing `waldur_core.server`.
+
+Current snapshot (excluding `migrations/` and `tests/`, with `waldur_core.core`
+as a utility module): 66 modules, 327 declared edges, of which **38 edges
+across 7 modules** remain as upward layer violations (59 modules already
+respect the target layer order):
 
 | Module | Target Layer | Upward Edges | Upward Targets |
 | --- | --- | --- | --- |
 | `waldur_mastermind.marketplace` | `marketplace` | 15 | `analytics`, `billing`, `invoices`, `matrix_chat`, `notifications`, `policy`, `promotions`, `proposal`, `support`, `marketplace_openstack`, `marketplace_rancher`, `marketplace_site_agent`, `waldur_freeipa`, `waldur_openstack`, `waldur_pid` |
-| `waldur_core.core` | `kernel` | 7 | `waldur_auth_social`, `changelog`, `server`, `structure`, `users`, `marketplace`, `policy` |
 | `waldur_core.structure` | `tenancy` | 7 | `waldur_auth_social`, `billing`, `invoices`, `marketplace`, `marketplace_metrics`, `marketplace_remote`, `proposal` |
-| `waldur_core.users` | `tenancy` | 4 | `waldur_auth_social`, `server`, `waldur_freeipa`, `marketplace` |
-| `waldur_core.logging` | `kernel` | 3 | `server`, `structure`, `marketplace` |
+| `waldur_core.core` | `kernel` | 6 | `waldur_auth_social`, `changelog`, `structure`, `users`, `marketplace`, `policy` |
+| `waldur_core.users` | `tenancy` | 3 | `waldur_auth_social`, `waldur_freeipa`, `marketplace` |
 | `waldur_core.permissions` | `kernel` | 3 | `structure`, `marketplace`, `proposal` |
+| `waldur_core.logging` | `kernel` | 2 | `structure`, `marketplace` |
 | `waldur_mastermind.chat` | `supporting` | 2 | `waldur_firecrest`, `waldur_openstack` |
-| `waldur_mastermind.marketplace_site_agent` | `integrations` | 1 | `waldur_core.server` |
-| `waldur_mastermind.matrix_chat` | `supporting` | 1 | `waldur_core.server` |
-| `waldur_mastermind.mcp` | `supporting` | 1 | `waldur_core.server` |
-| `waldur_mastermind.support` | `supporting` | 1 | `waldur_core.server` |
 
-### Phase 2: Burn Down Upward Cycles
+Workflow for burning down remaining edges:
 
 1. Pick one upward edge from the table above and inspect its exact import sites:
    ```bash

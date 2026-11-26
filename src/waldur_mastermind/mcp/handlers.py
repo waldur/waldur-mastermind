@@ -4,7 +4,7 @@ from oauth2_provider.models import (
     get_refresh_token_model,
 )
 
-from waldur_core.server.middleware import is_public_cors_path
+from waldur_core.core.cors import is_public_cors_path
 from waldur_mastermind.mcp import models
 
 

@@ -10,6 +10,7 @@ from uuid import UUID
 import requests
 import reversion
 from axes.handlers.proxy import AxesProxyHandler
+from celery import current_app
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
@@ -1543,9 +1544,7 @@ Requires support user permissions.""",
         Returns a snapshot of all registered Celery workers, their active tasks,
         scheduled tasks, reserved tasks, revoked task IDs, and detailed statistics.
         """
-        from waldur_core.server.celeryconf import app
-
-        inspect = app.control.inspect()
+        inspect = current_app.control.inspect()
         data = {
             "active": inspect.active(),
             "scheduled": inspect.scheduled(),
