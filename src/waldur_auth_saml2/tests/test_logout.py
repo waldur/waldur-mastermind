@@ -1,5 +1,6 @@
 import base64
 from unittest import mock
+from urllib.parse import parse_qs, urlparse
 
 from django.conf import settings
 from django.core.cache import cache
@@ -16,6 +17,7 @@ from waldur_core.core.authentication import (
     AUTHENTICATION_METHOD_KEY,
     AuthenticationMethod,
 )
+from waldur_core.core.enums import LogoutFailureCode
 from waldur_core.logging.enums import EventType
 from waldur_core.logging.models import Event
 from waldur_core.structure.tests import factories as structure_factories
@@ -24,6 +26,13 @@ LOGOUT_REQUEST = base64.b64encode(b"<samlp:LogoutRequest/>").decode()
 LOGOUT_RESPONSE = base64.b64encode(b"<samlp:LogoutResponse/>").decode()
 IDP_LOGOUT_URL = "https://idp.example.com/slo"
 IDP = "https://idp.example.com/idp/shibboleth"
+
+
+def assert_logout_failed(case, response, code):
+    """The redirect goes to the logout-failed page, carrying only ``code``."""
+    location = urlparse(response["Location"])
+    case.assertTrue(location.path.endswith("/logout_failed/"))
+    case.assertEqual(parse_qs(location.query), {"code": [code.value]})
 
 
 def name_id(text):
@@ -111,8 +120,11 @@ class Saml2LogoutCompleteTest(test.APITestCase):
             "https://other-idp.example.org/idp/shibboleth"
         )
 
-        self.client.get(self.url, {"SAMLRequest": LOGOUT_REQUEST})
+        response = self.client.get(self.url, {"SAMLRequest": LOGOUT_REQUEST})
 
+        assert_logout_failed(
+            self, response, LogoutFailureCode.SAML2_LOGOUT_WRONG_SESSION
+        )
         self.assert_still_logged_in()
 
     def test_redirect_binding_signature_is_passed_to_pysaml2(self):
@@ -187,7 +199,9 @@ class Saml2LogoutCompleteTest(test.APITestCase):
         self.start_saml2_session()
         response = self.client.get(self.url, {"SAMLRequest": LOGOUT_REQUEST})
 
-        self.assertIn("logout_failed", response["Location"])
+        assert_logout_failed(
+            self, response, LogoutFailureCode.SAML2_LOGOUT_WRONG_SESSION
+        )
         self.assert_still_logged_in()
 
     def test_logout_requested_for_another_subject_keeps_session(self):
@@ -196,8 +210,11 @@ class Saml2LogoutCompleteTest(test.APITestCase):
             "somebody-else"
         )
 
-        self.client.get(self.url, {"SAMLRequest": LOGOUT_REQUEST})
+        response = self.client.get(self.url, {"SAMLRequest": LOGOUT_REQUEST})
 
+        assert_logout_failed(
+            self, response, LogoutFailureCode.SAML2_LOGOUT_WRONG_SESSION
+        )
         self.assert_still_logged_in()
 
     def test_logout_request_without_saml2_login_keeps_session(self):
@@ -239,7 +256,7 @@ class Saml2LogoutCompleteTest(test.APITestCase):
         response = self.client.get(self.url, {"SAMLResponse": LOGOUT_RESPONSE})
 
         self.assertEqual(response.status_code, status.HTTP_302_FOUND)
-        self.assertIn("logout_failed", response["Location"])
+        assert_logout_failed(self, response, LogoutFailureCode.SAML2_LOGOUT_INVALID)
         self.assert_still_logged_in()
 
     def test_confirmed_logout_request_ends_session_even_if_the_reply_fails(self):
@@ -253,7 +270,7 @@ class Saml2LogoutCompleteTest(test.APITestCase):
 
         response = self.client.get(self.url, {"SAMLRequest": LOGOUT_REQUEST})
 
-        self.assertIn("logout_failed", response["Location"])
+        assert_logout_failed(self, response, LogoutFailureCode.SAML2_LOGOUT_INVALID)
         self.assert_session_ended(tokens_revoked=True)
 
     def test_logout_without_session_succeeds(self):
@@ -336,10 +353,11 @@ class Saml2LogoutStartTest(test.APITestCase):
         # A link on another site must not log the user out of the IdP.
         response = self.client.get(self.url)
 
-        self.assertIn("logout_failed", response["Location"])
+        assert_logout_failed(self, response, LogoutFailureCode.SAML2_LOGOUT_FAILED)
         self.saml_client.global_logout.assert_not_called()
 
-    def test_logout_is_started_after_the_portal_logout(self):
+    def log_out_of_portal(self):
+        """The portal's own logout, which keeps the SAML2 identity for the IdP."""
         token, _ = Token.objects.get_or_create(user=self.user)
         self.client.credentials(HTTP_AUTHORIZATION="Token " + token.key)
         with override_settings(
@@ -352,7 +370,34 @@ class Saml2LogoutStartTest(test.APITestCase):
         self.assertEqual(response.data["logout_url"], "http://testserver" + self.url)
         self.client.credentials()
 
+    def test_logout_is_started_after_the_portal_logout(self):
+        self.log_out_of_portal()
+
         response = self.client.get(self.url)
 
         self.assertEqual(response["Location"], IDP_LOGOUT_URL)
         self.saml_client.global_logout.assert_called_once()
+
+    def test_logout_without_a_saml2_identity_fails(self):
+        self.client.logout()
+
+        response = self.client.get(self.url)
+
+        assert_logout_failed(self, response, LogoutFailureCode.SAML2_LOGOUT_FAILED)
+        self.saml_client.global_logout.assert_not_called()
+
+    def test_logout_unknown_to_the_identity_providers_fails(self):
+        self.log_out_of_portal()
+        self.saml_client.global_logout.side_effect = KeyError("subject")
+
+        response = self.client.get(self.url)
+
+        assert_logout_failed(self, response, LogoutFailureCode.SAML2_NOT_LOGGED_IN)
+
+    def test_logout_with_no_identity_provider_to_ask_fails(self):
+        self.log_out_of_portal()
+        self.saml_client.global_logout.return_value = {}
+
+        response = self.client.get(self.url)
+
+        assert_logout_failed(self, response, LogoutFailureCode.SAML2_NOT_LOGGED_IN)

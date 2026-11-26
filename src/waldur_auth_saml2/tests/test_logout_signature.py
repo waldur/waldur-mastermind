@@ -14,6 +14,7 @@ from saml2.server import Server
 from saml2.xmldsig import SIG_RSA_SHA256
 
 from waldur_auth_saml2 import models
+from waldur_core.core.enums import LogoutFailureCode
 
 from .test_response_signature import (
     KNOWN_IDP,
@@ -98,7 +99,13 @@ class Saml2LogoutRequestSignatureTest(Saml2SignedMessagesTestCase):
             self.assertIn('name="SAMLResponse"', page)
 
     def assert_session_kept(self, response):
-        self.assertIn("logout_failed", response["Location"])
+        location = urlparse(response["Location"])
+        self.assertTrue(location.path.endswith("/logout_failed/"))
+        # Only a code, from the documented set, travels in the URL.
+        query = parse_qs(location.query)
+        self.assertEqual(set(query), {"code"})
+        (code,) = query["code"]
+        self.assertIn(code, LogoutFailureCode.values)
         self.assertTrue(self.is_logged_in())
 
     def test_signed_redirect_request_ends_session(self):
