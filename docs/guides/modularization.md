@@ -94,14 +94,19 @@ not distort production boundaries.
 ### Phase 2: Burn Down Upward Cycles (in progress)
 
 Progress:
-- **Composition layer sealed (`waldur_core.server` `visibility = []`)**: all 7
-  upward edges into `waldur_core.server` have been eliminated, freeing
+- **Wave 1 — Composition layer sealed (`waldur_core.server` `visibility = []`)**:
+  all 7 upward edges into `waldur_core.server` have been eliminated, freeing
   `waldur_core.server`, `waldur_core.changelog`, `waldur_mastermind.feedback`,
   and `waldur_sram` from the main dependency cycle and permanently preventing
   any module under `src/` from importing `waldur_core.server`.
+- **Wave 2 — Kernel decoupled from business apps and auth integrations**: all 6
+  upward edges from `waldur_core.core`, `waldur_core.logging`, and
+  `waldur_core.permissions` into `waldur_mastermind.*` and `waldur_auth_social`
+  have been eliminated (zero `kernel -> waldur_mastermind.*` or
+  `kernel -> integrations` dependencies remain).
 
 Current snapshot (excluding `migrations/` and `tests/`, with `waldur_core.core`
-as a utility module): 66 modules, 327 declared edges, of which **38 edges
+as a utility module): 66 modules, 321 declared edges, of which **32 edges
 across 7 modules** remain as upward layer violations (59 modules already
 respect the target layer order):
 
@@ -109,11 +114,11 @@ respect the target layer order):
 | --- | --- | --- | --- |
 | `waldur_mastermind.marketplace` | `marketplace` | 15 | `analytics`, `billing`, `invoices`, `matrix_chat`, `notifications`, `policy`, `promotions`, `proposal`, `support`, `marketplace_openstack`, `marketplace_rancher`, `marketplace_site_agent`, `waldur_freeipa`, `waldur_openstack`, `waldur_pid` |
 | `waldur_core.structure` | `tenancy` | 7 | `waldur_auth_social`, `billing`, `invoices`, `marketplace`, `marketplace_metrics`, `marketplace_remote`, `proposal` |
-| `waldur_core.core` | `kernel` | 6 | `waldur_auth_social`, `changelog`, `structure`, `users`, `marketplace`, `policy` |
+| `waldur_core.core` | `kernel` | 3 | `changelog`, `structure`, `users` |
 | `waldur_core.users` | `tenancy` | 3 | `waldur_auth_social`, `waldur_freeipa`, `marketplace` |
-| `waldur_core.permissions` | `kernel` | 3 | `structure`, `marketplace`, `proposal` |
-| `waldur_core.logging` | `kernel` | 2 | `structure`, `marketplace` |
 | `waldur_mastermind.chat` | `supporting` | 2 | `waldur_firecrest`, `waldur_openstack` |
+| `waldur_core.logging` | `kernel` | 1 | `structure` |
+| `waldur_core.permissions` | `kernel` | 1 | `structure` |
 
 Workflow for burning down remaining edges:
 

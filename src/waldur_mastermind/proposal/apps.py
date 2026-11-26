@@ -389,3 +389,27 @@ class ProposalConfig(AppConfig):
             sender=models.Proposal,
             dispatch_uid="waldur_mastermind.proposal.emit_proposal_state_changed",
         )
+
+        from waldur_core.permissions.pat_filtering import (
+            _ids_q,
+            _or,
+            register_pat_filter,
+        )
+
+        @register_pat_filter(models.CallManagingOrganisation)
+        def _call_organizer(ids):
+            return _or(
+                _ids_q("id", ids.get("call_organizer")),
+                _ids_q("customer_id", ids.get("customer")),
+            )
+
+        @register_pat_filter(models.Call)
+        def _call(ids):
+            # `get_scope_ancestors` does not walk a Call's manager, so we
+            # don't either — bindings on customer/manager don't reach Call.
+            return _ids_q("id", ids.get("call"))
+
+        @register_pat_filter(models.Proposal)
+        def _proposal(ids):
+            # Same — no ancestor inheritance for Proposal.
+            return _ids_q("id", ids.get("proposal"))

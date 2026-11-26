@@ -17,6 +17,7 @@ from .handlers import (
 )
 from .utils import (
     exclude_removed_project_roles,
+    get_active_account_guards,
     get_scope_ancestors,
     is_expiration_exempt,
 )
@@ -57,58 +58,48 @@ def sync_user_deactivation_status():
         )
         return
 
-    # Local import: marketplace depends on waldur_core, so a top-level
-    # import here would form a circular dependency at app-load time.
-    from waldur_mastermind.marketplace.enums import CourseAccountState
-    from waldur_mastermind.marketplace.models import CourseAccount
-
     has_active_role = Exists(
         exclude_removed_project_roles(
             models.UserRole.objects.filter(user=OuterRef("pk"), is_active=True)
         )
     )
-    has_ok_course_account = Exists(
-        CourseAccount.objects.filter(
-            user=OuterRef("pk"),
-            state=CourseAccountState.OK,
-            project__is_removed=False,
-        )
-    )
 
-    # Push the per-user role/course-account checks into SQL via Exists()
-    # subqueries so the DB returns only the (usually tiny) set of users
-    # that actually need a state flip. The previous loop did N user-level
+    # Push the per-user role and external active-account checks into SQL via
+    # Exists() subqueries so the DB returns only the (usually tiny) set of
+    # users that actually need a state flip. The previous loop did N user-level
     # round-trips against UserRole and CourseAccount on every run.
+    annotations = {"has_active_role": has_active_role}
+    active_filter = Q(has_active_role=True)
+    inactive_filter = Q(has_active_role=False)
+
+    for index, guard in enumerate(get_active_account_guards()):
+        key = f"has_active_account_{index}"
+        annotations[key] = guard.active_account_exists()
+        active_filter |= Q(**{key: True})
+        inactive_filter &= Q(**{key: False})
+
     candidates = User.all_objects.filter(is_staff=False, is_support=False).annotate(
-        has_active_role=has_active_role,
-        has_ok_course_account=has_ok_course_account,
+        **annotations
     )
-    to_deactivate = candidates.filter(
-        is_active=True, has_active_role=False, has_ok_course_account=False
-    )
+    to_deactivate = candidates.filter(inactive_filter, is_active=True)
     # Administratively deactivated users are an explicit staff override and
     # must never be revived by the automatic sync, regardless of roles.
     to_reactivate = candidates.filter(
-        is_active=False, is_admin_deactivated=False
-    ).filter(Q(has_active_role=True) | Q(has_ok_course_account=True))
+        active_filter, is_active=False, is_admin_deactivated=False
+    )
 
+    guards = get_active_account_guards()
     deactivated_count = 0
     for user in chunked_queryset(to_deactivate, chunk_size=100, max_records=200_000):
-        # Build the descriptive reason used by audit consumers. For users
-        # that have at least one CourseAccount row (just not an OK one in
-        # an active project), include the breakdown to make support
-        # tickets easier to triage.
-        ca_details = list(
-            CourseAccount.objects.filter(user=user).values_list(
-                "uuid", "state", "project__uuid", "project__is_removed"
-            )
-        )
-        if ca_details:
-            reason = (
-                f"No active roles, {len(ca_details)} course account(s) "
-                f"but none in OK state with active project. Details: {ca_details}"
-            )
-        else:
+        # Build the descriptive reason used by audit consumers. Registered
+        # active-account guards (such as CourseAccount) can attach a breakdown
+        # of inactive rows to make support tickets easier to triage.
+        reason = None
+        for guard in guards:
+            reason = guard.deactivation_detail(user)
+            if reason:
+                break
+        if not reason:
             reason = "No active roles and no course accounts"
         deactivate_user_with_logging(user, reason)
         deactivated_count += 1

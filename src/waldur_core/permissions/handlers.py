@@ -17,6 +17,7 @@ from waldur_core.permissions.utils import (
     build_org_role_name,
     describe_role_event,
     ensure_unique_role_name,
+    get_active_account_guards,
     get_active_roles,
     get_role_customers,
     is_quiet_grant_source,
@@ -102,41 +103,20 @@ def get_deactivation_reason(user: User) -> str | None:
         )
         return None
 
-    from waldur_mastermind.marketplace.enums import CourseAccountState
-    from waldur_mastermind.marketplace.models import CourseAccount
+    for guard in get_active_account_guards():
+        if guard.has_active_account(user):
+            return None
 
-    ok_course_accounts = CourseAccount.objects.filter(
-        user=user,
-        state=CourseAccountState.OK,
-        project__is_removed=False,
-    )
-    if ok_course_accounts.exists():
-        logger.debug(
-            "User %s (uuid=%s) skipped for deactivation: has %d OK course account(s) in active projects",
-            user.username,
-            user.uuid,
-            ok_course_accounts.count(),
-        )
-        return None
-
-    all_course_accounts = CourseAccount.objects.filter(user=user)
-    if all_course_accounts.exists():
-        ca_details = list(
-            all_course_accounts.values_list(
-                "uuid", "state", "project__uuid", "project__is_removed"
+    for guard in get_active_account_guards():
+        detail = guard.deactivation_detail(user)
+        if detail:
+            logger.info(
+                "User %s (uuid=%s) will be deactivated: %s",
+                user.username,
+                user.uuid,
+                detail,
             )
-        )
-        reason = (
-            f"No active roles, {all_course_accounts.count()} course account(s) "
-            f"but none in OK state with active project. Details: {ca_details}"
-        )
-        logger.info(
-            "User %s (uuid=%s) will be deactivated: %s",
-            user.username,
-            user.uuid,
-            reason,
-        )
-        return reason
+            return detail
 
     reason = "No active roles and no course accounts"
     logger.info(
@@ -178,17 +158,7 @@ def should_reactivate_user(user: User) -> bool:
     if get_active_roles(user).exists():
         return True
 
-    from waldur_mastermind.marketplace.enums import CourseAccountState
-    from waldur_mastermind.marketplace.models import CourseAccount
-
-    if CourseAccount.objects.filter(
-        user=user,
-        state=CourseAccountState.OK,
-        project__is_removed=False,
-    ).exists():
-        return True
-
-    return False
+    return any(guard.has_active_account(user) for guard in get_active_account_guards())
 
 
 def deactivate_user_with_logging(user: User, reason: str = "No active roles") -> None:

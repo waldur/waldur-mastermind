@@ -41,6 +41,39 @@ def is_expiration_exempt(user_role) -> bool:
     return any(guard(user_role) for guard in _expiration_guards)
 
 
+@dataclass(frozen=True)
+class ActiveAccountGuard:
+    """Extension point for apps whose active accounts keep a user active even
+    when the user holds no ``UserRole`` (e.g. marketplace ``CourseAccount``).
+
+    - ``has_active_account(user)``: per-user check returning ``True`` when the
+      user has an active account that prevents auto-deactivation / triggers
+      auto-reactivation.
+    - ``deactivation_detail(user)``: optional diagnostic string returned when
+      the user has only inactive/removed accounts; ``None`` otherwise.
+    - ``active_account_exists()``: returns a Django ``Exists`` expression
+      correlated against ``OuterRef("pk")`` on ``User``, used by the periodic
+      ``sync_user_deactivation_status`` task to keep query count bounded.
+    """
+
+    has_active_account: object
+    deactivation_detail: object
+    active_account_exists: object
+
+
+_active_account_guards: list[ActiveAccountGuard] = []
+
+
+def register_active_account_guard(guard: ActiveAccountGuard) -> None:
+    """Register an active-account guard from an app's ``AppConfig.ready()``."""
+    if guard not in _active_account_guards:
+        _active_account_guards.append(guard)
+
+
+def get_active_account_guards() -> tuple[ActiveAccountGuard, ...]:
+    return tuple(_active_account_guards)
+
+
 def _pat_allowed_pairs(auth) -> frozenset:
     """Return the frozenset of ``(content_type_id, object_id)`` bindings.
 

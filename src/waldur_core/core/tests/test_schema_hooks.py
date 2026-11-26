@@ -10,9 +10,7 @@ from rest_framework import serializers, viewsets
 from waldur_core.core import filters as core_filters
 from waldur_core.core.schema_hooks import (
     _to_pascal_case,
-    add_polymorphic_attributes_schema,
     add_result_count_header,
-    create_offering_attributes_schema,
     inject_waldur_operation_ids,
     make_fields_optional,
     preprocess_request_bodies,
@@ -23,6 +21,10 @@ from waldur_core.core.schema_hooks import (
     validate_waldur_operation_ids,
 )
 from waldur_core.server.openapi_settings import SPECTACULAR_SETTINGS
+from waldur_mastermind.marketplace.schema_hooks import (
+    add_polymorphic_attributes_schema,
+    create_offering_attributes_schema,
+)
 
 
 def test_remove_waldur_cookie_auth():

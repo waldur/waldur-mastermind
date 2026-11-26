@@ -654,12 +654,9 @@ depends_on = [
     "waldur_core.web_shell",
     "waldur_mastermind.common",
     # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_auth_social",  # -> integrations
     "waldur_core.changelog",  # -> tenancy
     "waldur_core.structure",  # -> tenancy
     "waldur_core.users",  # -> tenancy
-    "waldur_mastermind.marketplace",  # -> marketplace
-    "waldur_mastermind.policy",  # -> supporting
 ]
 
 [[modules]]
@@ -673,7 +670,6 @@ depends_on = [
     "waldur_core.permissions",
     # Upward dependencies (modularization debt; do not add new ones):
     "waldur_core.structure",  # -> tenancy
-    "waldur_mastermind.marketplace",  # -> marketplace
 ]
 
 [[modules]]
@@ -694,8 +690,6 @@ depends_on = [
     "waldur_core.logging",
     # Upward dependencies (modularization debt; do not add new ones):
     "waldur_core.structure",  # -> tenancy
-    "waldur_mastermind.marketplace",  # -> marketplace
-    "waldur_mastermind.proposal",  # -> supporting
 ]
 
 [[modules]]

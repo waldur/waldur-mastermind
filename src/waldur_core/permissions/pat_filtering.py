@@ -156,15 +156,12 @@ def _install_global_filter() -> None:
 
 
 def _register_rules() -> None:
-    """Register filter rules for the 9 TYPE_MAP entity models.
+    """Register filter rules for core tenancy entity models.
 
-    Done in a function so the imports stay local — these modules import
-    from each other and from this one transitively, so importing them at
-    module load time of `pat_filtering.py` would risk cycles.
+    Marketplace and proposal models register their own rules from their
+    respective ``AppConfig.ready()`` hooks using ``register_pat_filter``.
     """
     from waldur_core.structure import models as structure_models
-    from waldur_mastermind.marketplace import models as marketplace_models
-    from waldur_mastermind.proposal import models as proposal_models
 
     @register_pat_filter(structure_models.Customer)
     def _customer(ids):
@@ -176,92 +173,3 @@ def _register_rules() -> None:
             _ids_q("id", ids.get("project")),
             _ids_q("customer_id", ids.get("customer")),
         )
-
-    @register_pat_filter(marketplace_models.Offering)
-    def _offering(ids):
-        return _or(
-            _ids_q("id", ids.get("offering")),
-            _ids_q("customer_id", ids.get("customer")),
-            _ids_q("customer__serviceprovider__id", ids.get("service_provider")),
-        )
-
-    @register_pat_filter(marketplace_models.Resource)
-    def _resource(ids):
-        # NOTE: ``Resource.customer`` is a property that returns
-        # ``project.customer`` — the *consumer* customer. ``get_scope_ancestors``
-        # therefore only reaches ``project.customer``, never ``offering.customer``.
-        # We must mirror that exactly: a binding to the offering's owner customer
-        # is NOT permitted to act on resources sold via that offering when the
-        # consumer is a different customer, so listing those resources here
-        # would over-disclose. A binding to the offering's *service provider*
-        # is: ``_pat_provider_binding_matches`` allows it, so it is listed here too.
-        return _or(
-            _ids_q("id", ids.get("resource")),
-            _ids_q("offering_id", ids.get("offering")),
-            _ids_q("project_id", ids.get("project")),
-            _ids_q("project__customer_id", ids.get("customer")),
-            _ids_q(
-                "offering__customer__serviceprovider__id",
-                ids.get("service_provider"),
-            ),
-        )
-
-    @register_pat_filter(marketplace_models.ResourceProject)
-    def _resource_project(ids):
-        # Same reasoning as ``_resource`` — only the consumer-side customer
-        # chain is reachable from ``get_scope_ancestors``, plus the service
-        # provider of the resource's offering.
-        return _or(
-            _ids_q("id", ids.get("resource_project")),
-            _ids_q("resource_id", ids.get("resource")),
-            _ids_q("resource__offering_id", ids.get("offering")),
-            _ids_q("resource__project_id", ids.get("project")),
-            _ids_q("resource__project__customer_id", ids.get("customer")),
-            _ids_q(
-                "resource__offering__customer__serviceprovider__id",
-                ids.get("service_provider"),
-            ),
-        )
-
-    @register_pat_filter(marketplace_models.ServiceProvider, view_aware=True)
-    def _service_provider(ids, view=None):
-        # A token bound to an offering may list and retrieve the record of the
-        # provider selling it: the site agent looks it up before anything
-        # else. Only those two actions: a detail action such as list_users
-        # finds the provider through this same filter and checks only the
-        # user's roles, so it must not reach the provider from an offering
-        # binding.
-        offering_ids = (
-            ids.get("offering")
-            if getattr(view, "action", None) in ("list", "retrieve")
-            else None
-        )
-        return _or(
-            _ids_q("id", ids.get("service_provider")),
-            _ids_q("customer_id", ids.get("customer")),
-            Q(
-                customer_id__in=marketplace_models.Offering.objects.filter(
-                    id__in=offering_ids
-                ).values("customer_id")
-            )
-            if offering_ids
-            else None,
-        )
-
-    @register_pat_filter(proposal_models.CallManagingOrganisation)
-    def _call_organizer(ids):
-        return _or(
-            _ids_q("id", ids.get("call_organizer")),
-            _ids_q("customer_id", ids.get("customer")),
-        )
-
-    @register_pat_filter(proposal_models.Call)
-    def _call(ids):
-        # `get_scope_ancestors` does not walk a Call's manager, so we
-        # don't either — bindings on customer/manager don't reach Call.
-        return _ids_q("id", ids.get("call"))
-
-    @register_pat_filter(proposal_models.Proposal)
-    def _proposal(ids):
-        # Same — no ancestor inheritance for Proposal.
-        return _ids_q("id", ids.get("proposal"))

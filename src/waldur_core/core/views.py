@@ -40,8 +40,6 @@ from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
 from reversion.models import Version
 
-from waldur_auth_social.models import IdentityProvider
-from waldur_auth_social.revocation import RevocationReason, forget_oauth_tokens
 from waldur_core import __version__
 from waldur_core.changelog.models import ChangelogImpactAnalysis
 from waldur_core.changelog.tasks import compute_changelog_impact
@@ -58,6 +56,7 @@ from waldur_core.configuration.secrets import redact_constance_secrets
 from waldur_core.core import (
     WaldurExtension,
     access,
+    auth_hooks,
     features,
     models,
     password_attempts,
@@ -688,7 +687,7 @@ class LogoutView(generics.GenericAPIView):
         # The identity provider tokens kept for the user would otherwise
         # outlive the logout (an offline refresh token does), still usable by
         # a later session of the same user.
-        forget_oauth_tokens(user, RevocationReason.LOGOUT)
+        auth_hooks.run_logout_hooks(user)
         Token.objects.filter(user=user).delete()
         event_logger.emit(
             "User {user_username} with full name {user_full_name} logged out.",
@@ -700,20 +699,7 @@ class LogoutView(generics.GenericAPIView):
         logout_url = None
         authentication_method = get_authentication_method(request)
         if authentication_method in OIDC_AUTHENTICATION_METHODS:
-            try:
-                idp = IdentityProvider.objects.get(provider=authentication_method)
-            except IdentityProvider.DoesNotExist:
-                pass
-            else:
-                if idp.logout_url and idp.enable_post_logout_redirect:
-                    params = {
-                        "post_logout_redirect_uri": format_homeport_link("login/"),
-                        "client_id": idp.client_id,
-                    }
-                    logout_url = f"{idp.logout_url}?{urlencode(params)}"
-                elif config.OIDC_DEFAULT_LOGOUT_URL:
-                    # Fallback to default logout URL if IdentityProvider doesn't support OIDC logout
-                    logout_url = config.OIDC_DEFAULT_LOGOUT_URL
+            logout_url = auth_hooks.get_oidc_logout_url(authentication_method)
         elif (
             authentication_method == AuthenticationMethod.SAML2
             and settings.WALDUR_AUTH_SAML2.get("ENABLE_SINGLE_LOGOUT")
@@ -968,18 +954,9 @@ def get_public_settings(request=None):
         public_settings["WALDUR_CORE"].update(constance_settings)
         provider_name = public_settings["WALDUR_CORE"].get("DEFAULT_IDP")
         if provider_name:
-            try:
-                provider = IdentityProvider.objects.get(
-                    provider=provider_name, is_active=True
-                )
-            except IdentityProvider.DoesNotExist:
-                public_settings["WALDUR_CORE"]["DEFAULT_IDP"] = None
-            else:
-                public_settings["WALDUR_CORE"]["DEFAULT_IDP"] = {
-                    "provider": provider.provider,
-                    "client_id": provider.client_id,
-                    "auth_url": provider.auth_url,
-                }
+            public_settings["WALDUR_CORE"]["DEFAULT_IDP"] = (
+                auth_hooks.get_default_idp_info(provider_name)
+            )
     if "WALDUR_CORE" in public_settings:
         # The effective state, not the raw setting: the web shell also needs
         # DEBUG, and its URL is handed out to staff only, by the ticket endpoint.
