@@ -143,6 +143,21 @@ Derive the prefix with `upload_prefix()` / `image_prefix()` -- never hardcode th
 `upload_to` string. `CoverageTest` fails until every file field has a rule.
 See `docs/guides/media-access.md`.
 
+### Module boundaries (`tach`)
+
+Cross-app imports under `src/` are enforced statically via `tach.toml`
+(`exact = true`, `root_module = "forbid"`, `include_string_imports = true`,
+`ignore_type_checking_imports = false`).
+
+- Run `uv run tach check` after adding/removing cross-app imports or creating a
+  new package under `src/`.
+- Do **not** add new upward dependencies (e.g. `waldur_core.*` importing
+  `waldur_mastermind.*`, or `marketplace` importing supporting apps or provider
+  integrations). Use signals/registries instead.
+- If you remove the last import of a declared dependency, remove it from
+  `tach.toml` (`exact = true` enforces keeping the graph tight).
+- See `docs/guides/modularization.md` for target layers and commands.
+
 ### Serializers
 
 ```python

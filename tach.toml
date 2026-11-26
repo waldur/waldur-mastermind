@@ -1,0 +1,743 @@
+# Tach module boundary configuration for waldur-mastermind.
+# See docs/guides/modularization.md for workflow, architecture layers, and rollout phases.
+#
+# Phase 1 (active): Baseline frozen across all packages under src/.
+#   - Every module is registered and root_module = "forbid" prevents untracked packages.
+#   - exact = true prevents stale dependencies from remaining in tach.toml.
+#   - ignore_type_checking_imports = false and include_string_imports = true catch
+#     TYPE_CHECKING and Django string-import bypasses.
+#   - Upward dependencies (violating the target layer order) are marked with inline
+#     comments and should be burned down before enabling `layers` in Phase 4.
+#
+# Target layers (top to bottom; enabled in Phase 4 once upward cycles are broken):
+# layers = [
+#     "composition",   # waldur_core.server
+#     "integrations",  # auth, cloud/compute providers, marketplace_* bridges
+#     "supporting",    # invoices, billing, proposal, policy, support, chat, ...
+#     "marketplace",   # marketplace, marketplace_metrics
+#     "tenancy",       # structure, quotas, users, onboarding, checklist, changelog
+#     "kernel",        # core, permissions, logging, configuration, media, common
+# ]
+
+source_roots = ["src"]
+root_module = "forbid"
+exact = true
+ignore_type_checking_imports = false
+include_string_imports = true
+exclude = [
+    "**/migrations/",
+    "**/tests/",
+    "docs/",
+    "scripts/",
+    "tests/",
+    "docker/",
+]
+
+[rules]
+unused_ignore_directives = "error"
+require_ignore_directive_reasons = "error"
+
+# =============================================================================
+# Target layer: composition -- Application wiring: Django settings, URLconf, Celery, WSGI
+# =============================================================================
+
+[[modules]]
+path = "waldur_core.server"
+depends_on = [
+    "waldur_core.changelog",
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.onboarding",
+    "waldur_core.passkeys",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_core.user_actions",
+    "waldur_core.users",
+    "waldur_core.web_shell",
+    "waldur_mastermind.chat",
+    "waldur_mastermind.common",
+    "waldur_mastermind.feedback",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_metrics",
+    "waldur_mastermind.marketplace_site_agent",
+    "waldur_mastermind.policy",
+    "waldur_mastermind.proposal",
+    "waldur_mastermind.support",
+    "waldur_openstack",
+    "waldur_rancher",
+    "waldur_sram",
+]
+
+# =============================================================================
+# Target layer: integrations -- Auth providers, cloud/compute backends, and marketplace provider bridges
+# =============================================================================
+
+[[modules]]
+path = "waldur_auth_saml2"
+depends_on = [
+    "waldur_core.logging",
+]
+
+[[modules]]
+path = "waldur_auth_social"
+depends_on = [
+    "waldur_autoprovisioning",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_core.users",
+]
+
+[[modules]]
+path = "waldur_auth_valimo"
+depends_on = [
+    "waldur_core.logging",
+]
+
+[[modules]]
+path = "waldur_autoprovisioning"
+depends_on = [
+    "waldur_auth_social",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_aws"
+depends_on = [
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_digitalocean"
+depends_on = [
+    "waldur_core.logging",
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_firecrest"
+depends_on = [
+    "waldur_auth_social",
+    "waldur_core.configuration",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_freeipa"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_hpc"
+depends_on = [
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_keycloak"
+depends_on = []
+
+[[modules]]
+path = "waldur_kubernetes"
+depends_on = []
+
+[[modules]]
+path = "waldur_lexis"
+depends_on = [
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_openportal"
+depends_on = [
+    "waldur_mastermind.marketplace",
+    "waldur_openportal",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_openportal_remote"
+depends_on = [
+    "waldur_mastermind.marketplace",
+    "waldur_openportal",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_openstack"
+depends_on = [
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_metrics",
+    "waldur_openstack",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_rancher"
+depends_on = [
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_kubernetes",
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_openstack",
+    "waldur_openstack",
+    "waldur_rancher",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_remote"
+depends_on = [
+    "waldur_auth_social",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_reppu"
+depends_on = [
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_script"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_kubernetes",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_site_agent"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.policy",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_core.server",  # -> composition
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_support"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.proposal",
+    "waldur_mastermind.support",
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_vmware"
+depends_on = [
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace",
+    "waldur_vmware",
+]
+
+[[modules]]
+path = "waldur_openportal"
+depends_on = [
+    "waldur_auth_social",
+    "waldur_core.configuration",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_core.users",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.proposal",
+]
+
+[[modules]]
+path = "waldur_openstack"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_openstack",
+]
+
+[[modules]]
+path = "waldur_openstack_replication"
+depends_on = [
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_openstack",
+    "waldur_openstack",
+]
+
+[[modules]]
+path = "waldur_openstack_tenant"
+depends_on = []
+
+[[modules]]
+path = "waldur_pid"
+depends_on = [
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_rancher"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.media",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_kubernetes",
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.marketplace_openstack",
+    "waldur_openstack",
+]
+
+[[modules]]
+path = "waldur_sram"
+depends_on = [
+    "waldur_auth_social",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_core.users",
+]
+
+[[modules]]
+path = "waldur_vmware"
+depends_on = [
+    "waldur_core.structure",
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace",
+]
+
+# =============================================================================
+# Target layer: supporting -- Business domain apps built on tenancy and marketplace
+# =============================================================================
+
+[[modules]]
+path = "waldur_mastermind.analytics"
+depends_on = [
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_mastermind.billing",
+]
+
+[[modules]]
+path = "waldur_mastermind.billing"
+depends_on = [
+    "waldur_core.structure",
+    "waldur_mastermind.common",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.policy",
+]
+
+[[modules]]
+path = "waldur_mastermind.booking"
+depends_on = [
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.proposal",
+]
+
+[[modules]]
+path = "waldur_mastermind.chat"
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.proposal",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_firecrest",  # -> integrations
+    "waldur_openstack",  # -> integrations
+]
+
+[[modules]]
+path = "waldur_mastermind.feedback"
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.logging",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.notifications",
+]
+
+[[modules]]
+path = "waldur_mastermind.google"
+depends_on = []
+
+[[modules]]
+path = "waldur_mastermind.invoices"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_core.user_actions",
+    "waldur_mastermind.billing",
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.matrix_chat"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.chat",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.support",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_core.server",  # -> composition
+]
+
+[[modules]]
+path = "waldur_mastermind.mcp"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_mastermind.chat",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_core.server",  # -> composition
+]
+
+[[modules]]
+path = "waldur_mastermind.notifications"
+depends_on = [
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.policy"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.promotions"
+depends_on = [
+    "waldur_core.logging",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+]
+
+[[modules]]
+path = "waldur_mastermind.proposal"
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_core.user_actions",
+    "waldur_core.users",
+    "waldur_mastermind.common",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.matrix_chat",
+]
+
+[[modules]]
+path = "waldur_mastermind.support"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+    "waldur_mastermind.notifications",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_core.server",  # -> composition
+]
+
+[[modules]]
+path = "waldur_mastermind.waldur_arrow"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.structure",
+    "waldur_mastermind.common",
+    "waldur_mastermind.invoices",
+    "waldur_mastermind.marketplace",
+]
+
+# =============================================================================
+# Target layer: marketplace -- Central service catalog, orders, resources, and metrics
+# =============================================================================
+
+[[modules]]
+path = "waldur_mastermind.marketplace"
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.structure",
+    "waldur_core.user_actions",
+    "waldur_core.users",
+    "waldur_mastermind.common",
+    "waldur_mastermind.marketplace_metrics",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_freeipa",  # -> integrations
+    "waldur_mastermind.analytics",  # -> supporting
+    "waldur_mastermind.billing",  # -> supporting
+    "waldur_mastermind.invoices",  # -> supporting
+    "waldur_mastermind.marketplace_openstack",  # -> integrations
+    "waldur_mastermind.marketplace_rancher",  # -> integrations
+    "waldur_mastermind.marketplace_site_agent",  # -> integrations
+    "waldur_mastermind.matrix_chat",  # -> supporting
+    "waldur_mastermind.notifications",  # -> supporting
+    "waldur_mastermind.policy",  # -> supporting
+    "waldur_mastermind.promotions",  # -> supporting
+    "waldur_mastermind.proposal",  # -> supporting
+    "waldur_mastermind.support",  # -> supporting
+    "waldur_openstack",  # -> integrations
+    "waldur_pid",  # -> integrations
+]
+
+[[modules]]
+path = "waldur_mastermind.marketplace_metrics"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.marketplace",
+]
+
+# =============================================================================
+# Target layer: tenancy -- Multi-tenant domain model: organizations, projects, quotas, invitations, onboarding
+# =============================================================================
+
+[[modules]]
+path = "waldur_core.changelog"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_core.checklist"
+depends_on = [
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    "waldur_mastermind.common",
+]
+
+[[modules]]
+path = "waldur_core.onboarding"
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_core.quotas"
+depends_on = [
+    "waldur_core.structure",
+]
+
+[[modules]]
+path = "waldur_core.structure"
+depends_on = [
+    "waldur_core.checklist",
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.onboarding",
+    "waldur_core.passkeys",
+    "waldur_core.permissions",
+    "waldur_core.quotas",
+    "waldur_core.user_actions",
+    "waldur_core.users",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_auth_social",  # -> integrations
+    "waldur_mastermind.billing",  # -> supporting
+    "waldur_mastermind.invoices",  # -> supporting
+    "waldur_mastermind.marketplace",  # -> marketplace
+    "waldur_mastermind.marketplace_metrics",  # -> marketplace
+    "waldur_mastermind.marketplace_remote",  # -> integrations
+    "waldur_mastermind.proposal",  # -> supporting
+]
+
+[[modules]]
+path = "waldur_core.users"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.permissions",
+    "waldur_core.structure",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_auth_social",  # -> integrations
+    "waldur_core.server",  # -> composition
+    "waldur_freeipa",  # -> integrations
+    "waldur_mastermind.marketplace",  # -> marketplace
+]
+
+# =============================================================================
+# Target layer: kernel -- Foundational infrastructure: core mixins, RBAC, logging, config, media, shared utils
+# =============================================================================
+
+[[modules]]
+path = "waldur_core"
+utility = true
+depends_on = []
+
+[[modules]]
+path = "waldur_core.configuration"
+depends_on = [
+    "waldur_core.media",
+]
+
+[[modules]]
+path = "waldur_core.core"
+utility = true
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    "waldur_core.media",
+    "waldur_core.passkeys",
+    "waldur_core.permissions",
+    "waldur_core.web_shell",
+    "waldur_mastermind.common",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_auth_social",  # -> integrations
+    "waldur_core.changelog",  # -> tenancy
+    "waldur_core.server",  # -> composition
+    "waldur_core.structure",  # -> tenancy
+    "waldur_core.users",  # -> tenancy
+    "waldur_mastermind.marketplace",  # -> marketplace
+    "waldur_mastermind.policy",  # -> supporting
+]
+
+[[modules]]
+path = "waldur_core.landing"
+depends_on = []
+
+[[modules]]
+path = "waldur_core.logging"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.permissions",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_core.server",  # -> composition
+    "waldur_core.structure",  # -> tenancy
+    "waldur_mastermind.marketplace",  # -> marketplace
+]
+
+[[modules]]
+path = "waldur_core.media"
+depends_on = []
+
+[[modules]]
+path = "waldur_core.passkeys"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+]
+
+[[modules]]
+path = "waldur_core.permissions"
+depends_on = [
+    "waldur_core.configuration",
+    "waldur_core.logging",
+    # Upward dependencies (modularization debt; do not add new ones):
+    "waldur_core.structure",  # -> tenancy
+    "waldur_mastermind.marketplace",  # -> marketplace
+    "waldur_mastermind.proposal",  # -> supporting
+]
+
+[[modules]]
+path = "waldur_core.user_actions"
+depends_on = [
+    "waldur_core.configuration",
+]
+
+[[modules]]
+path = "waldur_core.web_shell"
+depends_on = [
+    "waldur_core.configuration",
+]
+
+[[modules]]
+path = "waldur_mastermind"
+depends_on = []
+
+[[modules]]
+path = "waldur_mastermind.common"
+depends_on = [
+    "waldur_core.logging",
+]
+
+# =============================================================================
+# Public module interfaces (Phase 3+)
+# =============================================================================
+# Once a module exposes a stable facade, restrict external callers to it:
+# [[interfaces]]
+# from = ["waldur_mastermind.marketplace"]
+# expose = [
+#     "services.*",
+#     "events.*",
+#     "contracts.*",
+# ]
