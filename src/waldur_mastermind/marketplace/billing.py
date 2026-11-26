@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.billing_utils import (
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OrderTypes,
+    RenewalTerms,
     ResourceStates,
 )
 from waldur_mastermind.promotions import models as promotions_models
@@ -110,11 +111,11 @@ class MarketplaceBillingService:
             for c in resolved.components.values()
             if c.billing_type == BillingTypes.ONE_TIME and c.is_prepaid
         }
-        # A renewal moves the end date in the same save as its limits. Its extension
-        # is billed at the new limits by handle_renewal, and the quote the customer
-        # approved covers nothing else, so no supplementary item is added. A limit
-        # change without a new end date (set_limits, a later update order) is not
-        # that renewal.
+        # A renewal moves the end date in the same save as its limits. handle_renewal
+        # bills it as quoted -- a raise for the rest of the current term and the
+        # extension at the new limits -- so no supplementary item is added here. A
+        # limit change without a new end date (set_limits, a later update order) is
+        # not that renewal.
         is_renewal_save = (
             resource.tracker.has_changed("end_date")
             and last_update_order
@@ -129,9 +130,12 @@ class MarketplaceBillingService:
 
     @classmethod
     def handle_renewal(cls, resource: marketplace_models.Resource, order):
-        """Bills a prepaid renewal as quoted by Resource.get_renewal_cost: each prepaid
-        one-time component at its limit for the extension months, at the unit price
-        recorded on the order when it was quoted."""
+        """Bills a prepaid renewal as quoted. An order records the lines it was
+        quoted with (Resource.get_renewal_quote): the extension at the new limits
+        and, for a raised limit, the rest of the current term; each line becomes
+        one invoice item. Orders placed before the lines were recorded are billed
+        each prepaid one-time component at its limit for the extension months, at
+        the unit price recorded on the order."""
         try:
             months = int(order.attributes.get("extension_months") or 0)
         except (TypeError, ValueError):
@@ -147,6 +151,13 @@ class MarketplaceBillingService:
         invoice, _ = cls.get_or_create_invoice(
             resource.project.customer, core_utils.month_start(now)
         )
+        # Present but empty when nothing prepaid was quoted: bill nothing then,
+        # as quoted, rather than fall back to the legacy path.
+        if "cost_lines" in order.attributes:
+            cls._bill_renewal_lines(resource, order, invoice, months, now)
+            return
+        # Orders placed before the lines were recorded on them are billed as they
+        # were quoted then: each component at its limit for the extension.
         factors = resource.offering.component_factors
         # Orders created before the prices were recorded fall back to the plan price.
         quoted_prices = order.attributes.get("unit_prices") or {}
@@ -190,6 +201,71 @@ class MarketplaceBillingService:
                 details=details,
                 measured_unit=billing_mode.resolve_component(
                     c.component, plan_component.plan
+                ).measured_unit,
+            )
+
+    @classmethod
+    def _bill_renewal_lines(cls, resource, order, invoice, months, now):
+        """One invoice item per line the renewal order was quoted with, so the
+        items add up to its cost: the rest of the current term for a raised
+        limit, and the extension at the new limits."""
+        plan_components = {
+            pc.component.type: pc
+            for pc in resource.plan.components.select_related("component")
+            if pc.component is not None
+        }
+        for line in order.attributes["cost_lines"]:
+            plan_component = plan_components.get(line.get("component_type"))
+            if not plan_component:
+                logger.warning(
+                    "Renewal order %s quoted component %s, which its plan no "
+                    "longer has; the line is not invoiced.",
+                    order.uuid.hex,
+                    line.get("component_type"),
+                )
+                continue
+            try:
+                quantity = Decimal(str(line["quantity"]))
+                unit_price = Decimal(str(line["unit_price"]))
+            except (KeyError, ArithmeticError):
+                logger.warning(
+                    "Skipping a malformed cost line of renewal order %s: %s",
+                    order.uuid.hex,
+                    line,
+                )
+                continue
+            if not quantity:
+                continue
+            is_current_term = line.get("term") == RenewalTerms.CURRENT
+            details = get_component_details(resource, plan_component)
+            details.update(
+                {
+                    "renewal_order_uuid": order.uuid.hex,
+                    "renewal_term": line.get("term"),
+                    "extension_months": months,
+                    "old_end_date": order.attributes.get("old_end_date"),
+                    "new_end_date": order.attributes.get("new_end_date"),
+                    "term_start": line.get("start"),
+                    "term_end": line.get("end"),
+                }
+            )
+            suffix = "rest of current term" if is_current_term else "renewal"
+            invoice_models.InvoiceItem.objects.create(
+                name=f"{get_invoice_item_name(resource)} / {get_component_name(plan_component)} ({suffix})",
+                resource=resource,
+                plan_component=plan_component,
+                project=resource.project,
+                unit_price=unit_price,
+                unit=invoice_models.Units.QUANTITY,
+                quantity=quantity,
+                article_code=plan_component.component.article_code
+                or resource.plan.article_code,
+                invoice=invoice,
+                start=now,
+                end=core_utils.month_end(now),
+                details=details,
+                measured_unit=billing_mode.resolve_component(
+                    plan_component.component, plan_component.plan
                 ).measured_unit,
             )
 

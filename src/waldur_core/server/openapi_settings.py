@@ -33,6 +33,8 @@ from waldur_mastermind.marketplace.enums import (
     OrderFlowChoices,
     OrderStates,
     OrderTypes,
+    RenewalLimitDecreasePolicies,
+    RenewalTerms,
     ResourceApiKeyActions,
     ResourceApiKeyStates,
     ResourceStates,
@@ -272,6 +274,10 @@ SPECTACULAR_SETTINGS = {
         "InjectionSeverityEnum": SeverityLevel.choices(),
         "FeedbackCategoryEnum": FeedbackCategory.choices,
         "GrowthPeriodEnum": ["weekly", "monthly"],
+        # The term a prepaid line of a renewal estimate covers.
+        "RenewalTermEnum": RenewalTerms.CHOICES,
+        # An offering's choice for renewals that only lower prepaid limits.
+        "RenewalLimitDecreasePolicyEnum": RenewalLimitDecreasePolicies.CHOICES,
         # Shared by the spending limit status of resources and of API keys.
         "SpendingLimitPeriodEnum": SpendingLimitPeriods.CHOICES,
         "PolicyPeriodEnum": (

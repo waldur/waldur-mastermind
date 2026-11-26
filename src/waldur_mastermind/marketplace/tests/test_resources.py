@@ -758,8 +758,10 @@ class ResourceRenewTest(test.APITestCase):
             "limits": {"storage": 200},  # Upgrade from 100 to 200 GB
         }
 
-        # Expected cost = price * limit * months = 10 * 200 * 12 = 24000
-        expected_cost = Decimal("24000.0")
+        # The extension at the new limit: 10 * 200 * 12 = 24000, and the 100 more
+        # for the 30 days left of the term: 10 * 100 * 12 * 30 / 365 = 986.30...,
+        # rounded up to the cent.
+        expected_cost = Decimal("24986.31")
         expected_new_end_date = self.resource.end_date + relativedelta(months=12)
 
         # Act
@@ -936,15 +938,19 @@ class ResourceRenewCostWithFactorTest(test.APITestCase):
 
     def test_get_renewal_cost_with_new_limits(self):
         """Renewal cost with upgraded limits should also use display units."""
-        cost = self.resource.get_renewal_cost(
-            extension_months=6,
-            new_limits={"cores": 46, "ram": 6144, "storage": 251904},
-        )
+        with freeze_time(self.resource.end_date - relativedelta(days=30)):
+            cost = self.resource.get_renewal_cost(
+                extension_months=6,
+                new_limits={"cores": 46, "ram": 6144, "storage": 251904},
+            )
+        # The extension:
         # cores: 1 * 46 * 6 = 276
         # ram: 2 * (6144/1024) * 6 = 2 * 6 * 6 = 72
         # storage: 3 * (251904/1024) * 6 = 3 * 246 * 6 = 4428
-        # total = 4776
-        self.assertEqual(cost, Decimal("4776.0"))
+        # The rise for the 30 days left of the term, x 12 x 30 / 365, rounded up:
+        # cores: 1 * 23 -> 22.69; ram: 2 * 3 -> 5.92; storage: 3 * 123 -> 363.95
+        # total = 4776 + 392.56
+        self.assertEqual(cost, Decimal("5168.56"))
 
     def test_get_renewal_estimate_uses_display_units(self):
         """Estimate should show display units in component details."""

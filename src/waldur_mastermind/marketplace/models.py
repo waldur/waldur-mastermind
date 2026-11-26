@@ -2,6 +2,7 @@ import datetime
 import hashlib
 import json
 import logging
+import math
 from collections.abc import Callable
 from datetime import timedelta
 from decimal import Decimal
@@ -73,6 +74,8 @@ from waldur_mastermind.marketplace.enums import (
     OfferingUserStates,
     OrderStates,
     OrderTypes,
+    RenewalLimitDecreasePolicies,
+    RenewalTerms,
     ResourceApiKeyActions,
     ResourceApiKeyStates,
     ResourceStates,
@@ -86,6 +89,7 @@ from waldur_pid import mixins as pid_mixins
 
 from ..common import formula as common_formula
 from ..common import mixins as common_mixins
+from ..common.utils import quantize_price
 from . import billing_mode, managers, plugins, signals
 from .attribute_types import ATTRIBUTE_TYPES
 from .secret_options import SecretOptionsField
@@ -2733,60 +2737,146 @@ class Resource(
 
         return max(0, int(balance))
 
+    def get_renewal_quote(
+        self, extension_months: int, new_limits: dict | None = None
+    ) -> dict:
+        """
+        The terms and priced lines of a prepaid renewal.
+
+        A raised limit applies as soon as the renewal completes, so the rise is
+        charged for what is left of the current term, by the day: the monthly
+        price x 12 x days / 365, from today to the current end date. The extension
+        is charged at the new limits, from the current end date to the new one.
+
+        A renewal that only lowers limits gets no credit for the prepaid current
+        term. If the offering's ``renewal_limit_decrease_policy`` is
+        ``stretch_paid_term``, what is left of it is spread over the lower
+        limits instead, so the paid-up period lasts longer: it ends after ceil(value left / new daily
+        cost) days, and the extension starts there. The value is summed over the
+        prepaid components, because the resource has one end date for all of them.
+
+        Returns ``lines`` (one per prepaid component and term, each with the total
+        its invoice item comes to), ``current_end_date``, ``paid_up_end_date``
+        (where the extension starts) and ``new_end_date``.
+        """
+        # Count from the local date, as the end-date sweeps do: a resource whose
+        # end date has passed has no current term left and is extended from today.
+        today = timezone.localdate()
+        current_end_date = max(self.end_date or today, today)
+        remaining_days = (current_end_date - today).days
+
+        components = []
+        if self.plan:
+            # A component left out of the new limits keeps its limit: read as 0
+            # it would look like a lowered limit and stretch the paid-up period.
+            final_limits = {**(self.limits or {}), **(new_limits or {})}
+            current_limits = self.limits or {}
+            plan_components = {
+                pc.component.type: pc
+                for pc in self.plan.components.all()
+                if pc.component is not None
+            }
+            factors = self.offering.component_factors
+            resolved = billing_mode.resolve_plan(self.plan)
+            for key, component in self.offering.get_limit_components(self.plan).items():
+                effective = resolved.get(key)
+                if not (effective.is_prepaid if effective else component.is_prepaid):
+                    continue
+                plan_component = plan_components.get(key)
+                if plan_component is None:
+                    continue
+                factor = Decimal(str(factors.get(key, 1)))
+                components.append(
+                    {
+                        "component_type": key,
+                        "component_name": component.name,
+                        "current_limit": Decimal(str(current_limits.get(key, 0)))
+                        / factor,
+                        "new_limit": Decimal(str(final_limits.get(key, 0))) / factor,
+                        "unit_price": plan_component.price,
+                        "measured_unit": (
+                            effective.measured_unit
+                            if effective
+                            else component.measured_unit
+                        )
+                        or "",
+                    }
+                )
+
+        raised = any(c["new_limit"] > c["current_limit"] for c in components)
+        stretches = (self.offering.plugin_options or {}).get(
+            "renewal_limit_decrease_policy"
+        ) == RenewalLimitDecreasePolicies.STRETCH_PAID_TERM
+        paid_up_end_date = current_end_date
+        if stretches and not raised and remaining_days > 0:
+            # Both sides per month; the 12 / 365 day rate cancels out.
+            value_left = sum(
+                (c["current_limit"] * c["unit_price"] for c in components),
+                Decimal(0),
+            )
+            new_cost = sum(
+                (c["new_limit"] * c["unit_price"] for c in components), Decimal(0)
+            )
+            if new_cost > 0 and value_left > new_cost:
+                paid_up_days = math.ceil(remaining_days * value_left / new_cost)
+                paid_up_end_date = current_end_date + datetime.timedelta(
+                    days=paid_up_days - remaining_days
+                )
+        new_end_date = paid_up_end_date + relativedelta(months=extension_months)
+
+        lines = []
+        for c in components:
+            increase = c["new_limit"] - c["current_limit"]
+            if increase > 0 and remaining_days > 0:
+                lines.append(
+                    {
+                        **c,
+                        "term": RenewalTerms.CURRENT,
+                        "start": today,
+                        "end": current_end_date,
+                        "quantity": increase * 12 * remaining_days / 365,
+                    }
+                )
+            lines.append(
+                {
+                    **c,
+                    "term": RenewalTerms.EXTENSION,
+                    "start": paid_up_end_date,
+                    "end": new_end_date,
+                    "quantity": c["new_limit"] * extension_months,
+                }
+            )
+
+        # The quantity is stored on the invoice item to PRICE_DECIMAL_PLACES, and
+        # the item's price is rounded up to the cent, so the line is too.
+        precision = Decimal(1).scaleb(-common_mixins.PRICE_DECIMAL_PLACES)
+        for line in lines:
+            line["quantity"] = line["quantity"].quantize(precision)
+            line["total"] = quantize_price(line["unit_price"] * line["quantity"])
+        return {
+            "lines": lines,
+            "current_end_date": current_end_date,
+            "paid_up_end_date": paid_up_end_date,
+            "new_end_date": new_end_date,
+        }
+
+    def get_renewal_lines(
+        self, extension_months: int, new_limits: dict | None = None
+    ) -> list[dict]:
+        """The priced lines of ``get_renewal_quote``."""
+        return self.get_renewal_quote(extension_months, new_limits)["lines"]
+
     def get_renewal_cost(
         self, extension_months: int, new_limits: dict | None = None
     ) -> Decimal:
-        """
-        Calculates the cost for renewing a prepaid resource.
-
-        Uses the same pricing logic as Plan.get_estimate: for each prepaid
-        component, cost = price × limit / factor × months.
-
-        Args:
-            extension_months: Number of months to extend the subscription.
-            new_limits: New limits for the renewal period. Defaults to
-                current resource limits.
-
-        Returns:
-            Decimal: The total calculated cost for the renewal.
-        """
-        if not self.plan:
-            return Decimal("0.0")
-
-        final_limits = new_limits or self.limits
-
-        # Compute prepaid cost for the extension period.
-        # Use a synthetic date range so calculate_duration_months returns
-        # exactly extension_months.
-        start_date = timezone.now().date()
-        end_date = start_date + relativedelta(months=extension_months)
-
-        total = Decimal("0.0")
-        components_map = self.offering.get_limit_components(self.plan)
-        component_prices = {
-            c.component.type: c.price for c in self.plan.components.all()
-        }
-        factors = self.offering.component_factors
-
-        resolved = billing_mode.resolve_plan(self.plan)
-
-        for key, component in components_map.items():
-            effective = resolved.get(key)
-            if not (effective.is_prepaid if effective else component.is_prepaid):
-                continue
-            price = component_prices.get(key, 0)
-            limit = final_limits.get(key, 0)
-            factor = factors.get(key, 1)
-
-            months = core_utils.calculate_duration_months(start_date, end_date)
-            total += (
-                Decimal(str(price))
-                * Decimal(str(limit))
-                / Decimal(str(factor))
-                * months
-            )
-
-        return total
+        """The total of ``get_renewal_lines``: what a prepaid renewal is charged."""
+        return sum(
+            (
+                line["total"]
+                for line in self.get_renewal_lines(extension_months, new_limits)
+            ),
+            Decimal("0.0"),
+        )
 
     def get_renewal_estimate(
         self, extension_months: int, new_limits: dict | None = None
@@ -2798,52 +2888,50 @@ class Resource(
         components = []
         subscription_total = Decimal("0.0")
         limit_change_total = Decimal("0.0")
-        final_limits = new_limits or self.limits
+        final_limits = {**(self.limits or {}), **(new_limits or {})}
 
-        # Count from the local date, as the end-date sweeps do: a resource whose
-        # end date has passed is extended from today.
+        quote = self.get_renewal_quote(extension_months, new_limits)
         today = timezone.localdate()
-        current_end_date = max(self.end_date or today, today)
-        new_end_date = current_end_date + relativedelta(months=extension_months)
+        new_end_date = quote["new_end_date"]
         remaining_days = (new_end_date - today).days
 
         if self.plan:
-            component_factors = self.offering.component_factors
             # The plan's billing mode can make a builtin component prepaid or
             # limit-based regardless of what is stored on the component, so the
             # two loops below select on the resolved values rather than filtering
             # in SQL.
             resolved = billing_mode.resolve_plan(self.plan)
 
-            # 1. Subscription items (prepaid components)
-            for plan_component in self.plan.components.all():
-                component = plan_component.component
-                if not component:
-                    continue
-                effective = resolved.get(component.type)
-                if not (effective.is_prepaid if effective else component.is_prepaid):
-                    continue
-                limit_amount = Decimal(str(final_limits.get(component.type, 0)))
-                factor = Decimal(str(component_factors.get(component.type, 1)))
-                display_amount = limit_amount / factor
-                current_limit = Decimal(str(self.limits.get(component.type, 0)))
-                current_display = current_limit / factor
-                total = plan_component.price * display_amount * extension_months
+            # 1. Subscription items (prepaid components), priced exactly as the
+            # renewal order is: the rest of the current term for a raised limit,
+            # then the extension.
+            for line in quote["lines"]:
+                if line["term"] == RenewalTerms.CURRENT:
+                    period_description = (
+                        f"{(line['end'] - line['start']).days} days "
+                        f"to {line['end'].isoformat()}"
+                    )
+                else:
+                    period_description = f"{extension_months} months"
                 components.append(
                     {
-                        "component_type": component.type,
-                        "component_name": component.name,
+                        "component_type": line["component_type"],
+                        "component_name": line["component_name"],
                         "billing_type": "prepaid",
                         "billing_period": None,
-                        "current_limit": current_display,
-                        "new_limit": display_amount,
-                        "unit_price": plan_component.price,
-                        "measured_unit": component.measured_unit or "",
-                        "period_description": f"{extension_months} months",
-                        "total": total,
+                        "term": line["term"],
+                        "current_limit": line["current_limit"],
+                        "new_limit": line["new_limit"],
+                        "unit_price": line["unit_price"],
+                        "measured_unit": line["measured_unit"],
+                        "period_description": period_description,
+                        "period_start": line["start"],
+                        "period_end": line["end"],
+                        "quantity": line["quantity"],
+                        "total": line["total"],
                     }
                 )
-                subscription_total += total
+                subscription_total += line["total"]
 
             # 2. Limit change items (billing_type='limit', where new_limit > current_limit)
             for plan_component in self.plan.components.all():
@@ -2900,11 +2988,15 @@ class Resource(
                         "component_name": component.name,
                         "billing_type": "limit",
                         "billing_period": limit_period,
+                        "term": None,
                         "current_limit": current_limit,
                         "new_limit": new_limit,
                         "unit_price": plan_component.price,
                         "measured_unit": component.measured_unit or "",
                         "period_description": f"{remaining_days}d / {billing_period_days}d ({period_label})",
+                        "period_start": None,
+                        "period_end": None,
+                        "quantity": None,
                         "total": total,
                     }
                 )
@@ -2916,6 +3008,7 @@ class Resource(
             "limit_change_total": limit_change_total,
             "total": subscription_total + limit_change_total,
             "remaining_days": remaining_days,
+            "paid_up_end_date": quote["paid_up_end_date"],
             "new_end_date": new_end_date,
         }
 

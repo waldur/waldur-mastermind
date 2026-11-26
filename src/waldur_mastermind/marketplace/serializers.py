@@ -167,6 +167,8 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     OrderStatesType,
     OrderTypes,
+    RenewalLimitDecreasePolicies,
+    RenewalTerms,
     ResourceAction,
     ResourceApiKeyActions,
     ResourceStates,
@@ -713,6 +715,17 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         "projects: 'none' (accepted as-is, default), 'per_project' (each resource "
         "project limit must be within the parent resource limit), or 'aggregate' "
         "(the sum of all resource project limits must be within the parent limit).",
+    )
+    renewal_limit_decrease_policy = serializers.ChoiceField(
+        choices=RenewalLimitDecreasePolicies.CHOICES,
+        required=False,
+        allow_null=True,
+        help_text="What a renewal that only lowers prepaid limits does with the "
+        "value already paid for the rest of the current term: 'no_credit' (the "
+        "lower limits apply at once and the extension starts at the current end "
+        "date, default) or 'stretch_paid_term' (the value is spread over the "
+        "lower limits, so the paid-up period lasts longer, and the extension "
+        "starts when it runs out). Neither refunds or credits anything.",
     )
     auto_ok_resource_projects = serializers.BooleanField(
         required=False,
@@ -10801,7 +10814,15 @@ class ResourceRenewSerializer(serializers.Serializer):
     limits = serializers.DictField(
         child=LimitValueField(min_value=0),
         required=False,
-        help_text=_("Optional new limits for the resource. Supports upgrades only."),
+        help_text=_(
+            "Optional new limits for the resource; components left out keep "
+            "their current limits. A raised prepaid limit is also charged for "
+            "the rest of the current term. A renewal that only lowers limits "
+            "gets no credit; if the offering's renewal_limit_decrease_policy is "
+            "stretch_paid_term, the value already paid for the rest of the term "
+            "is spread over the lower limits and the extension starts when it "
+            "runs out."
+        ),
     )
     request_comment = serializers.CharField(
         max_length=255,
@@ -10857,11 +10878,29 @@ class RenewalEstimateComponentSerializer(serializers.Serializer):
     component_name = serializers.CharField()
     billing_type = serializers.CharField()
     billing_period = serializers.CharField(allow_null=True)
-    current_limit = serializers.IntegerField()
-    new_limit = serializers.IntegerField()
+    term = serializers.ChoiceField(
+        choices=RenewalTerms.CHOICES,
+        allow_null=True,
+        help_text=_(
+            "For a prepaid line, the term it covers: the rest of the current "
+            "term, charged for a raised limit, or the extension."
+        ),
+    )
+    # Prepaid limits are in display units (limit / factor), which can be
+    # fractional, e.g. 1.5 GB of RAM.
+    current_limit = serializers.FloatField()
+    new_limit = serializers.FloatField()
     unit_price = serializers.DecimalField(max_digits=22, decimal_places=10)
     measured_unit = serializers.CharField(allow_blank=True)
     period_description = serializers.CharField()
+    period_start = serializers.DateField(allow_null=True)
+    period_end = serializers.DateField(allow_null=True)
+    quantity = serializers.DecimalField(
+        max_digits=22,
+        decimal_places=10,
+        allow_null=True,
+        help_text=_("For a prepaid line, the units charged: limit x months."),
+    )
     total = serializers.DecimalField(max_digits=22, decimal_places=10)
 
 
@@ -10871,6 +10910,14 @@ class RenewalEstimateResponseSerializer(serializers.Serializer):
     limit_change_total = serializers.DecimalField(max_digits=22, decimal_places=10)
     total = serializers.DecimalField(max_digits=22, decimal_places=10)
     remaining_days = serializers.IntegerField()
+    paid_up_end_date = serializers.DateField(
+        help_text=_(
+            "Where the extension starts: the current end date, or later when "
+            "the renewal only lowers limits and the offering's "
+            "renewal_limit_decrease_policy spreads the value already paid for "
+            "the rest of the current term over the lower limits."
+        )
+    )
     new_end_date = serializers.DateField()
 
 

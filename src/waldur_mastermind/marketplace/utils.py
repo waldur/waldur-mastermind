@@ -803,10 +803,30 @@ RENEWAL_ORDER_ATTRIBUTES = (
     "action",
     "old_limits",
     "old_end_date",
+    "paid_up_end_date",
     "new_end_date",
     "extension_months",
     "unit_prices",
+    "cost_lines",
 )
+
+
+def serialize_renewal_lines(lines):
+    """``Resource.get_renewal_lines`` as JSON for a renewal order's attributes."""
+    return [
+        {
+            "component_type": line["component_type"],
+            "term": line["term"],
+            "start": line["start"].isoformat(),
+            "end": line["end"].isoformat(),
+            "current_limit": str(line["current_limit"]),
+            "new_limit": str(line["new_limit"]),
+            "quantity": str(line["quantity"]),
+            "unit_price": str(line["unit_price"]),
+            "total": str(line["total"]),
+        }
+        for line in lines
+    ]
 
 
 def keep_renewal_order_attributes(order, attributes):

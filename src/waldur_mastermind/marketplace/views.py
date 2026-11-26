@@ -4,6 +4,7 @@ import datetime
 import logging
 import traceback
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import cast
 
 import httpx
@@ -12035,18 +12036,20 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         request_comment = serializer.validated_data.get("request_comment", "")
         attachment = serializer.validated_data.get("attachment")
 
-        # If new limits are not provided, use the resource's current limits for the new period.
-        final_limits = new_limits or resource.limits
+        # Limits left out of the request keep their current values, as in the quote.
+        final_limits = {**(resource.limits or {}), **(new_limits or {})}
 
-        # Extend from the current end date, or from today if it has passed. Today
-        # is the local date, as for the end-date sweeps and the estimate.
-        today = timezone.localdate()
-        current_end_date = max(resource.end_date or today, today)
+        # Extend from the current end date, or from today if it has passed (the
+        # local date, as for the end-date sweeps and the estimate). A renewal
+        # that only lowers limits extends from where the paid-up value spread
+        # over the lower limits runs out instead.
+        quote = resource.get_renewal_quote(extension_months, new_limits)
+        new_end_date = quote["new_end_date"]
 
-        new_end_date = current_end_date + relativedelta(months=extension_months)
-
-        # Calculate the renewal cost using the new model method.
-        renewal_cost = resource.get_renewal_cost(extension_months, new_limits)
+        # The priced lines are recorded on the order, so that it shows what the
+        # user is charged for each term and the invoice bills exactly that.
+        renewal_lines = quote["lines"]
+        renewal_cost = sum((line["total"] for line in renewal_lines), Decimal("0"))
 
         # Create an 'UPDATE' order to handle the renewal.
         # The order processor will be responsible for updating the resource's
@@ -12058,6 +12061,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             "old_end_date": resource.end_date.isoformat()
             if resource.end_date
             else None,
+            "paid_up_end_date": quote["paid_up_end_date"].isoformat(),
             "new_end_date": new_end_date.isoformat(),
             "extension_months": extension_months,
             # The prices the quote used, so the invoice matches it even if the
@@ -12067,6 +12071,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             }
             if resource.plan
             else {},
+            "cost_lines": utils.serialize_renewal_lines(renewal_lines),
         }
 
         # The renewal cost is passed as 'switch_price' to the order,
