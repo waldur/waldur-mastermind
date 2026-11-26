@@ -754,6 +754,304 @@ order option, which it pairs with:
   directly. Either way, read the current rules from the resource's
   `options`, not from its ordered `attributes`.
 
+### Network in CIDR Form
+
+A `cidr` option asks for a network in CIDR notation, or a list of them. It
+works as an order option and as a resource option of any offering. The
+value is stored as validated: trimmed, written as `ipaddress` writes it
+(IPv6 compressed, in lower case).
+
+```json
+{
+  "type": "cidr",
+  "label": "Cluster network",
+  "required": true,
+  "default_configs": {
+    "ip_version": "ipv4",
+    "prefix_length_min": 16,
+    "prefix_length_max": 28,
+    "allowed_ranges": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+    "excluded_ranges": ["10.96.0.0/12"],
+    "multiple": false,
+    "max_items": 5
+  }
+}
+```
+
+#### Value
+
+- `"10.20.0.0/16"`, or with `multiple` a list such as
+  `["10.20.0.0/16", "fd00:1::/64"]`. With `multiple`, a single string is
+  accepted and stored as a list of one.
+- An empty list is refused for a required option.
+
+#### Offering policy
+
+Every key of `default_configs` is optional; without any, an IPv4 or IPv6
+network of any size is accepted.
+
+- `ip_version`: `ipv4`, `ipv6` or `any` (the default).
+- `prefix_length_min` / `prefix_length_max`: the largest and the smallest
+  network allowed. They apply to IPv4 and IPv6 alike, so with `any` set them
+  only when that makes sense for both.
+- `allowed_ranges`: the value must lie inside one of them. The order form
+  offers a "private only" preset of the RFC 1918 ranges and `fc00::/7`.
+- `excluded_ranges`: the value must not overlap any of them.
+- `multiple` and `max_items`: a list, and its longest length. A list is
+  never longer than 256 entries.
+
+When the offering is saved, the ranges must be networks without host bits
+(of the policy's IP version), the prefix lengths must fit the version (0–32
+or 0–128) with the smallest not above the largest, and `max_items` must be
+at least 1. Keys of other option types are dropped.
+
+#### Refusals
+
+Each is a field error under the option's name:
+
+- a value that is not a network, or a bare address:
+  "Enter a network in CIDR notation, such as 10.0.0.0/16.";
+- host bits set: "10.0.0.5/24 has host bits set. Did you mean 10.0.0.0/24?";
+- the wrong IP version; a prefix length outside the limits;
+- a network outside `allowed_ranges`, or overlapping one of
+  `excluded_ranges` (the message names that range);
+- with `multiple`: entries overlapping each other (the message names both),
+  more than `max_items`, or a bad entry, reported by its position
+  (`{"net": {"1": ["…"]}}`);
+- a list when `multiple` is off.
+
+The Kubernetes egress rules use the same network parser, but keep accepting
+a network with host bits set.
+
+### IPsec VPN Configuration
+
+An `ipsec_vpn_config` option collects a site-to-site IPsec VPN: the
+customer's gateway, the networks behind it and the IKE and ESP proposals.
+It works as an order option and as a resource option of any offering.
+Waldur checks and stores the configuration; building the tunnel is the
+provider's automation's job. It holds no pre-shared key: add a
+[secret option](#secret) next to it for that (see the example there).
+
+#### Value
+
+As stored in order attributes, resource attributes and resource options:
+
+```json
+{
+  "peer_gateway_ip": "198.51.100.10",
+  "peer_id": "",
+  "remote_subnets": ["192.168.10.0/24"],
+  "ike_version": "ikev2",
+  "phase1": {"encryption": "aes256", "integrity": "sha256", "dh_group": 14, "lifetime": 28800},
+  "phase2": {"encryption": "aes256", "integrity": "sha256", "pfs_group": 14, "lifetime": 3600},
+  "dpd": {"action": "restart", "interval": 30, "timeout": 120},
+  "provider": {"gateway_ip": "203.0.113.10", "local_subnets": ["10.0.0.0/16"]}
+}
+```
+
+- The customer sends `peer_gateway_ip` and `remote_subnets` (at least one);
+  the rest is optional. Phase settings left out are filled from the policy's
+  defaults, `ike_version` defaults to `ikev2`, and `dpd` is stored as `null`
+  when not given.
+- `peer_id` is an IP address, a domain name or an identity such as
+  `vpn@example.com`.
+- `provider` is the provider's end of the tunnel. A customer's value for it
+  is ignored: the server keeps the resource's stored `provider`, or sets the
+  policy's defaults. The provider changes it per resource with
+  `update_options_direct` on a resource option.
+
+#### Offering policy
+
+Every key of `default_configs` is optional:
+
+```json
+{
+  "ikev1_allowed": false,
+  "allow_private_peer": false,
+  "provider_gateway_ip": "203.0.113.10",
+  "provider_local_subnets": ["10.0.0.0/16"],
+  "remote_subnets": {"ip_version": "ipv4", "prefix_length_min": 8, "max_items": 10},
+  "no_overlap_with": ["cluster_network"],
+  "phase1": {
+    "encryption": ["aes256", "aes128", "aes256gcm16"],
+    "integrity": ["sha256", "sha384", "sha512"],
+    "dh_groups": [14, 19, 20],
+    "lifetime_min": 3600, "lifetime_max": 86400,
+    "defaults": {"encryption": "aes256", "integrity": "sha256", "dh_group": 14, "lifetime": 28800}
+  },
+  "phase2": {
+    "encryption": ["aes256", "aes128", "aes256gcm16"],
+    "integrity": ["sha256", "sha384", "sha512"],
+    "pfs_groups": [14, 19, 20],
+    "lifetime_min": 900, "lifetime_max": 28800,
+    "defaults": {"encryption": "aes256", "integrity": "sha256", "pfs_group": 14, "lifetime": 3600}
+  }
+}
+```
+
+- Vocabularies: encryption `aes128`, `aes192`, `aes256`, `aes128gcm16`,
+  `aes256gcm16`, `chacha20poly1305`; integrity `sha1`, `sha256`, `sha384`,
+  `sha512`; DH and PFS groups 2, 5, 14, 15, 16, 19, 20, 21, 31. They are
+  enums in the API schema (`IpsecEncryptionEnum`, `IpsecIntegrityEnum`,
+  `IpsecDhGroupEnum`).
+- An allowed list left out is the whole vocabulary except `sha1` and groups
+  2 and 5. `pfs_groups` may list `null`, which allows no PFS.
+- Defaults left out are AES-256, SHA-256, group 14, 28800 s (phase 1) and
+  3600 s (phase 2), or the first allowed value when the provider's list
+  excludes the built-in one. Lifetime limits left out are 3600–86400 s
+  (phase 1) and 900–28800 s (phase 2).
+- `remote_subnets` takes the keys of a `cidr` policy except `multiple`.
+- `no_overlap_with` names `cidr` options whose networks the remote subnets
+  must not overlap. Order options name order options; resource options name
+  resource options, or order options, whose value the resource's attributes
+  hold.
+
+When the offering is saved: the defaults must be in the allowed lists and
+inside the lifetime limits, the lifetime limits in order, the provider's
+address and subnets valid, and every `no_overlap_with` name a `cidr` option
+(an order `cidr` option a resource option names cannot be removed).
+
+#### Refusals
+
+Field errors under the option's name, keyed by the value's field
+(`{"vpn": {"phase1": {"encryption": ["…"]}}}`):
+
+- a `peer_gateway_ip` that is not an IP address, or, unless
+  `allow_private_peer`, one in a private (RFC 1918, `fc00::/7`), loopback,
+  link-local, multicast, reserved, unspecified or CGNAT (`100.64.0.0/10`)
+  range. Documentation ranges are accepted;
+- `ikev1` unless `ikev1_allowed`;
+- algorithms or groups outside the allowed lists, lifetimes out of range;
+- remote subnets breaking the `cidr` rules, overlapping each other, or
+  overlapping the value of a `no_overlap_with` option on the same order or
+  resource (on a partial change, the stored value counts);
+- remote subnets overlapping the provider end's `local_subnets`, which
+  would break routing through the tunnel: "192.168.10.0/24 overlaps the
+  provider's subnet 192.168.0.0/16." The provider end is the one the value
+  is stored with: the resource's stored `provider`, otherwise the policy's
+  `provider_local_subnets`. A provider override through
+  `update_options_direct` that overlaps the remote subnets is refused under
+  `provider.local_subnets` instead ("172.16.0.0/16 overlaps the remote
+  subnet 172.16.0.0/24.");
+- a DPD interval or timeout that is not positive, or a timeout shorter than
+  the interval.
+
+### Secret
+
+A `secret` option asks for a value that must not be stored in plain text: a
+VPN pre-shared key, an API token, a kubeconfig, a certificate's private key.
+It works as an order option and as a resource option of any offering.
+
+```json
+{
+  "type": "secret",
+  "label": "VPN pre-shared key",
+  "required": true,
+  "default_configs": {
+    "secret_source": "customer",
+    "customer_can_reveal": false,
+    "min_length": 8,
+    "max_length": 255,
+    "multiline": false
+  }
+}
+```
+
+#### Offering policy
+
+Every key of `default_configs` is optional:
+
+- `secret_source`: `customer` (the default; the customer types it) or
+  `provider` (the provider or its site agent sets it).
+- `customer_can_reveal`: whether users holding `RESOURCE.REVEAL_API_KEY` on
+  the resource's project or organization may read it back. When omitted,
+  no for a customer-sourced secret and yes for a provider-sourced one.
+- `min_length` (1) and `max_length` (4096, at most 65536).
+- `multiline`: allows line breaks and tabs, for a PEM key or a kubeconfig;
+  the order form then shows a text area. Off when omitted.
+
+When the offering is saved, the lengths must be at least 1, the shortest
+not above the longest and the longest within the cap. A secret option
+takes no `default`, which would be stored in plain text in the offering.
+
+#### Value
+
+A string, sent only for `secret_source: customer`: in the order's
+attributes (which a required option needs), with an edit of the pending
+order, in `update_options` or through `set_option_secret`. It is checked
+against the length limits; unless `multiline` is on it must be a single
+line without control characters, and with it, control characters other
+than line breaks and tabs are still refused. An empty string sets nothing.
+For `secret_source: provider`, a customer's value is refused, and
+`update_options_direct` refuses any value (use `set_option_secret`).
+
+The value is never stored with the other values: it is taken out before
+order or resource attributes, resource options or update orders are
+written, so it never reaches events, webhooks, exports, site-agent payloads
+or API output, and error messages never echo it. Each resource keeps the
+values of its secret options in `ResourceOptionSecret`, encrypted in a
+`CiphertextField` (`reencrypt_fields` rotates it). A value given with
+`update_options` takes effect at once, also when the change itself waits
+for an order.
+
+Values that reach Sentry are filtered too: the `value` of a
+`set_option_secret` request body by its path, and every value a secret
+option received during the request by its content, wherever it appears in
+the event (request body, frame locals, messages). Values shorter than 8
+characters are filtered only where they are a whole string.
+
+#### Status and actions
+
+Resources and orders show the state of each secret in `option_secrets`,
+keyed by the names of the offering's secret options:
+
+```json
+{"vpn_key": {"is_set": true, "source": "customer", "modified": "2026-11-25T12:00:00Z"}}
+```
+
+Actions, all `POST`, with a body naming the option
+(`{"option_name": "vpn_key"}`, plus `"value"` to set one). A response
+carrying a value is sent with `Cache-Control: no-store`, and every set and
+reveal writes an event (`marketplace_resource_option_secret_set`,
+`marketplace_resource_option_secret_revealed`) that never holds the value
+and names any impersonator.
+
+| Endpoint | Who | Notes |
+| --- | --- | --- |
+| `marketplace-resources/{uuid}/set_option_secret/` | who may `update_options` the resource | `secret_source: customer` only |
+| `marketplace-resources/{uuid}/reveal_option_secret/` | `RESOURCE.REVEAL_API_KEY` on the project or organization, as for API keys | only with `customer_can_reveal`; 403 otherwise |
+| `marketplace-provider-resources/{uuid}/set_option_secret/` | who may `update_options_direct` | any secret option, whatever its source |
+| `marketplace-provider-resources/{uuid}/reveal_option_secret/` | who may `update_options_direct` | any secret option |
+
+A reveal with no value set, or one the configured encryption keys cannot
+decrypt, answers 409. Values can be set while the resource is creating,
+OK, updating or erred.
+
+#### Example: a VPN with its pre-shared key
+
+```json
+{
+  "order": ["cluster_network", "vpn", "vpn_key"],
+  "options": {
+    "cluster_network": {"type": "cidr", "label": "Cluster network", "required": true,
+                        "default_configs": {"ip_version": "ipv4", "allowed_ranges": ["10.0.0.0/8"]}},
+    "vpn": {"type": "ipsec_vpn_config", "label": "Site-to-site VPN", "required": true,
+            "default_configs": {"provider_gateway_ip": "203.0.113.10",
+                                "no_overlap_with": ["cluster_network"]}},
+    "vpn_key": {"type": "secret", "label": "VPN pre-shared key", "required": true,
+                "default_configs": {"secret_source": "customer", "min_length": 8,
+                                    "max_length": 255}}
+  }
+}
+```
+
+The customer orders with `{"cluster_network": "10.20.0.0/16", "vpn": {...},
+"vpn_key": "..."}`. The order and the resource hold `cluster_network` and
+`vpn`; `vpn_key` is stored encrypted and shows in `option_secrets`. The
+provider's automation reads it with the provider `reveal_option_secret`.
+With `"secret_source": "provider"` instead, the provider sets the key after
+provisioning and the customer reveals it to configure their gateway.
+
 ## Showing a Resource Option as a Usage Limit
 
 A provider's backend may enforce a quota for a component that Waldur only

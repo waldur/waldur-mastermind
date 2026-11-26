@@ -113,6 +113,7 @@ from waldur_core.core.utils import (
 from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.sentry import register_secret_value
 from waldur_core.media import utils as media_utils
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
@@ -242,6 +243,7 @@ from . import (
     log,
     maintenance_reservations,
     models,
+    network_options,
     offering_merge,
     offering_merge_coverage,
     offering_merge_rows,
@@ -11135,7 +11137,16 @@ class BaseResourceViewSet(
         resource = cast(models.Resource, self.get_object())
         serializer = self.get_serializer(data=request.data, instance=resource)
         serializer.is_valid(raise_exception=True)
+        response = self._change_options(request, resource, serializer)
+        # A secret option's value is never part of the options: it is stored
+        # encrypted once the change is accepted. It takes effect now, also when
+        # the change itself waits for an order.
+        network_options.store_submitted_secrets(
+            resource, serializer.option_secrets, request.user
+        )
+        return response
 
+    def _change_options(self, request, resource, serializer):
         # A changed formula input changes the limits calculated from it, and so
         # the price: it is always ordered, with the new limits on the order,
         # which needs order creation rights whatever the offering says.
@@ -11220,6 +11231,116 @@ class BaseResourceViewSet(
     ]
 
 
+# States in which a resource's option secrets may be set: from its creation,
+# while the provider builds it, until it is being terminated.
+OPTION_SECRET_STATES = (
+    ResourceStates.CREATING,
+    ResourceStates.OK,
+    ResourceStates.UPDATING,
+    ResourceStates.ERRED,
+)
+
+OPTION_SECRET_UNREADABLE = (
+    "The stored secret cannot be decrypted with the configured "
+    "encryption keys; check FIELD_ENCRYPTION_KEY and "
+    "FIELD_ENCRYPTION_KEY_FALLBACKS."
+)
+
+
+@access.describes(
+    access.custom(
+        "Who holds RESOURCE.REVEAL_API_KEY through a role on the resource's "
+        "project or its organization, as for a resource's API keys. Staff, "
+        "support and site-wide grants are no exception. A personal access "
+        "token reveals one only when it carries RESOURCE.REVEAL_API_KEY and is "
+        "unbound or bound to the resource, its project or its organization."
+    ),
+    needs_object=True,
+)
+def can_reveal_option_secret(request, view, resource=None):
+    if not resource:
+        return
+    if not check_pat_permission_on_objects(
+        request,
+        PermissionEnum.REVEAL_RESOURCE_API_KEY,
+        [resource, resource.project, resource.project.customer],
+    ):
+        raise PermissionDenied(
+            "A personal access token reveals a secret only when it "
+            "carries RESOURCE.REVEAL_API_KEY and is unbound or bound to the "
+            "resource, its project or its organization."
+        )
+    if not resource_api_keys.holds_reveal_permission(request.user, resource):
+        raise PermissionDenied(
+            "You do not have permission to reveal the secrets of this resource."
+        )
+
+
+def _option_secret_serializer(view, request, resource):
+    serializer = view.get_serializer(
+        data=request.data,
+        context={**view.get_serializer_context(), "resource": resource},
+    )
+    serializer.is_valid(raise_exception=True)
+    return serializer
+
+
+def set_option_secret(view, request, source):
+    """Store the value of one of the resource's secret options."""
+    resource = cast(models.Resource, view.get_object())
+    serializer = _option_secret_serializer(view, request, resource)
+    option_name = serializer.validated_data["option_name"]
+    if (
+        source == models.ResourceOptionSecret.Sources.CUSTOMER
+        and not serializer.policy.customer_sets
+    ):
+        raise ValidationError({"option_name": _("The provider sets this secret.")})
+    network_options.store_secret(
+        resource, option_name, serializer.validated_data["value"], source, request.user
+    )
+    return Response(
+        serializers.ResourceOptionSecretStatusSerializer(
+            network_options.secret_statuses(resource)[option_name]
+        ).data,
+        status=status.HTTP_200_OK,
+    )
+
+
+def reveal_option_secret(view, request, by_customer):
+    """The value of one of the resource's secret options. Audited."""
+    resource = cast(models.Resource, view.get_object())
+    serializer = _option_secret_serializer(view, request, resource)
+    option_name = serializer.validated_data["option_name"]
+    if by_customer and not serializer.policy.customer_can_reveal:
+        # The offering decides; a secret the customer entered is by default
+        # shown to them only as set.
+        raise PermissionDenied(
+            _(
+                "This secret is not shown to the customer. Set a new value to "
+                "replace it."
+            )
+        )
+    secret = network_options.get_secret(resource, option_name)
+    if secret is None:
+        raise IncorrectStateException(
+            _("Secret option %s has no value set.") % option_name
+        )
+    try:
+        value = network_options.reveal_secret(secret)
+    except InvalidToken:
+        raise IncorrectStateException(OPTION_SECRET_UNREADABLE)
+    register_secret_value(value)
+    log.log_resource_option_secret_revealed(resource, option_name, request.user)
+    response = Response(
+        serializers.ResourceOptionSecretValueSerializer(
+            {"option_name": option_name, "value": value}
+        ).data
+    )
+    # The body carries a live secret; no cache may retain it.
+    response["Cache-Control"] = "no-store"
+    return response
+
+
 def check_prepaid_resource(resource):
     if not resource.offering.components.filter(is_prepaid=True).exists():
         raise ValidationError(_("This action is only available for prepaid resources."))
@@ -11280,6 +11401,50 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         "team_members": [TEAM_VIEW_ACCESS],
         "suggest_name": [serializers.SUGGEST_NAME_ACCESS],
     }
+
+    @extend_schema(
+        summary="Set the value of a secret option",
+        description="Stores, or replaces, the value of one of the resource's "
+        "secret options, encrypted. Only for an option the customer sets "
+        "(secret_source customer). The value is checked against the option's "
+        "policy and never returned; the response says whether it is set. Audited.",
+        request=serializers.ResourceOptionSecretSetSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.ResourceOptionSecretStatusSerializer
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def set_option_secret(self, request, uuid=None):
+        return set_option_secret(
+            self, request, models.ResourceOptionSecret.Sources.CUSTOMER
+        )
+
+    # Who may change the resource's options.
+    set_option_secret_permissions = BaseResourceViewSet.update_options_permissions
+    set_option_secret_serializer_class = serializers.ResourceOptionSecretSetSerializer
+    set_option_secret_validators = [
+        core_validators.StateValidator(*OPTION_SECRET_STATES, state_enum=ResourceStates)
+    ]
+
+    @extend_schema(
+        summary="Reveal the value of a secret option",
+        description="Returns the value of one of the resource's secret options, "
+        "when the option's policy lets customers read it (customer_can_reveal). "
+        "The response must not be cached. Audited, naming any impersonator.",
+        request=serializers.ResourceOptionSecretNameSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.ResourceOptionSecretValueSerializer,
+            status.HTTP_409_CONFLICT: None,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def reveal_option_secret(self, request, uuid=None):
+        return reveal_option_secret(self, request, by_customer=True)
+
+    reveal_option_secret_permissions = [can_reveal_option_secret]
+    reveal_option_secret_serializer_class = (
+        serializers.ResourceOptionSecretNameSerializer
+    )
 
     @access.shows(filters.CONSUMER_ACCESS_VISIBILITY)
     def get_queryset(self):
@@ -12269,6 +12434,50 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         )
     ]
     update_options_direct_serializer_class = serializers.ResourceOptionsSerializer
+
+    @extend_schema(
+        summary="Set the value of a secret option",
+        description="Lets the service provider or its site agent store, or "
+        "replace, the value of one of the resource's secret options, encrypted, "
+        "whoever the option's source. The value is never returned; the response "
+        "says whether it is set. Audited.",
+        request=serializers.ResourceOptionSecretSetSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.ResourceOptionSecretStatusSerializer
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def set_option_secret(self, request, uuid=None):
+        return set_option_secret(
+            self, request, models.ResourceOptionSecret.Sources.PROVIDER
+        )
+
+    set_option_secret_permissions = update_options_direct_permissions
+    set_option_secret_serializer_class = serializers.ResourceOptionSecretSetSerializer
+    set_option_secret_validators = [
+        core_validators.StateValidator(*OPTION_SECRET_STATES, state_enum=ResourceStates)
+    ]
+
+    @extend_schema(
+        summary="Reveal the value of a secret option",
+        description="Lets the service provider or its site agent read the value "
+        "of one of the resource's secret options, such as a VPN pre-shared key "
+        "to configure its end of a tunnel. The response must not be cached. "
+        "Audited, naming any impersonator.",
+        request=serializers.ResourceOptionSecretNameSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.ResourceOptionSecretValueSerializer,
+            status.HTTP_409_CONFLICT: None,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def reveal_option_secret(self, request, uuid=None):
+        return reveal_option_secret(self, request, by_customer=False)
+
+    reveal_option_secret_permissions = update_options_direct_permissions
+    reveal_option_secret_serializer_class = (
+        serializers.ResourceOptionSecretNameSerializer
+    )
 
     @extend_schema(
         summary="Submit a report for a resource",

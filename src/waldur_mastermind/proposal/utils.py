@@ -29,6 +29,7 @@ from waldur_mastermind.common.serializers import (
     validate_options,
 )
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import network_options
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import OfferingStates, OrderStates
@@ -1871,7 +1872,9 @@ def normalize_option_values(attributes, offering):
     """
     options = (offering.options or {}).get("options")
     if not options or not attributes:
-        return attributes
+        # Stored as sent, so without the value of a secret option, which a
+        # request never carries over to the resource.
+        return network_options.strip_secrets(offering, attributes)
     try:
         return validate_options(options, attributes, optional=True)
     except serializers.ValidationError as e:

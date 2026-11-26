@@ -198,6 +198,31 @@ def _acting_user(user) -> str:
     return str(user)
 
 
+def log_resource_option_secret_set(resource: models.Resource, option_name, user):
+    """Audit that a secret option's value was set or replaced. Never the value."""
+    by = f" by {event_logger.literal(_acting_user(user))}" if user else ""
+    event_logger.emit(
+        f"The secret option {event_logger.literal(option_name)} of "
+        f"{event_logger.literal(resource.name)} has been set{by}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_OPTION_SECRET_SET,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
+def log_resource_option_secret_revealed(resource: models.Resource, option_name, user):
+    """Audit a reveal. Under impersonation the message names the impersonator
+    too; the event context carries ``user_impersonator_*`` from the request."""
+    event_logger.emit(
+        f"The secret option {event_logger.literal(option_name)} of "
+        f"{event_logger.literal(resource.name)} has been revealed to "
+        f"{event_logger.literal(_acting_user(user))}.",
+        event_type=EventType.MARKETPLACE_RESOURCE_OPTION_SECRET_REVEALED,
+        event_context={"resource": resource},
+        scopes=get_resource_scopes(resource),
+    )
+
+
 def log_resource_s3_object_downloaded(
     api_key: models.ResourceApiKey, user, bucket: str, key: str
 ):
