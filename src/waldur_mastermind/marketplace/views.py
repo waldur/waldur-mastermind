@@ -144,7 +144,6 @@ from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
-from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
@@ -158,7 +157,6 @@ from waldur_core.structure.managers import (
     get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
-from waldur_core.structure.signals import resource_imported
 from waldur_core.structure.utils import get_identity_provider_name
 from waldur_core.structure.utils_data_access import bulk_log_user_data_access
 from waldur_core.users.affiliations import parse_affiliation
@@ -3046,21 +3044,13 @@ class ProviderOfferingViewSet(
     core_views.ActionsViewSet,
 ):
     """
-    This viewset enables uniform implementation of resource import.
+    Resource import is delegated to the offering plugin, which registers:
 
-    Consider the following example:
-
-    importable_resources_backend_method = 'get_tenants_for_import'
-    import_resource_executor = executors.TenantImportExecutor
-
-    It is expected that importable_resources_backend_method returns list of dicts, each of which
-    contains two mandatory fields: name and backend_id, and one optional field called extra.
-    This optional field should be list of dicts, each of which contains two mandatory fields: name and value.
-
-    Note that there are only 3 mandatory parameters:
-    * importable_resources_backend_method
-    * importable_resources_serializer_class
-    * import_resource_serializer_class
+    * get_importable_resources_backend_method -- name of the backend method returning
+      list of dicts, each of which contains two mandatory fields: name and backend_id,
+      and one optional field called extra. This optional field should be list of dicts,
+      each of which contains two mandatory fields: name and value.
+    * resource_importer -- function importing a backend resource, see PluginManager.register.
     """
 
     lookup_field = "uuid"
@@ -3837,57 +3827,15 @@ class ProviderOfferingViewSet(
         )
 
         offering: models.Offering = self.get_object()
-        utils.validate_backend_id(backend_id, offering)
-        backend = offering.scope.get_backend()
-        method = plugins.manager.import_resource_backend_method(offering.type)
-        if not method:
+        if not plugins.manager.can_import_resource(offering.type):
             raise rf_exceptions.ValidationError(
                 "Current offering plugin does not support resource import"
             )
+        utils.validate_backend_id(backend_id, offering)
 
-        resource_model = plugins.manager.get_resource_model(offering.type)
-
-        if isinstance(offering.scope, structure_models.BaseResource):
-            field = "tenant"
-        else:
-            field = "service_settings"
-
-        value = offering.scope
-
-        if resource_model.objects.filter(
-            **{field: value}, backend_id=backend_id
-        ).exists():
-            raise rf_exceptions.ValidationError(
-                _("Resource has been imported already.")
-            )
-
-        try:
-            if isinstance(offering.scope, structure_models.BaseResource):
-                resource = getattr(backend, method)(
-                    offering.scope, backend_id=backend_id, project=project
-                )
-            else:
-                resource = getattr(backend, method)(
-                    backend_id=backend_id, project=project, **additional_details
-                )
-        except ServiceBackendError as e:
-            raise rf_exceptions.ValidationError(str(e))
-        else:
-            resource_imported.send(
-                sender=resource.__class__,
-                instance=resource,
-                plan=plan,
-                offering=offering,
-            )
-
-        import_resource_executor = plugins.manager.get_import_resource_executor(
-            offering.type
+        marketplace_resource = plugins.manager.import_resource(
+            offering, plan, project, backend_id, additional_details
         )
-
-        if import_resource_executor:
-            transaction.on_commit(lambda: import_resource_executor.execute(resource))
-
-        marketplace_resource = models.Resource.objects.get(scope=resource)
         resource_serializer = serializers.ResourceSerializer(
             marketplace_resource, context=self.get_serializer_context()
         )

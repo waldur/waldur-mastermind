@@ -134,6 +134,66 @@ class ClusterImportResourceTest(BaseClusterImportTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_cluster_import_fails_when_offering_has_no_scope(self):
+        self.offering.scope = None
+        self.offering.save()
+
+        payload = {
+            "backend_id": "backend_id",
+            "project": self.fixture.project.uuid.hex,
+        }
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_cluster_import_ignores_unknown_and_colliding_additional_details_keys(self):
+        payload = {
+            "backend_id": "backend_id",
+            "project": self.fixture.project.uuid.hex,
+            "additional_details": {
+                "unexpected": "value",
+                "backend_id": "other",
+                "project": "other",
+            },
+        }
+
+        response = self.client.post(self.url, payload, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_cluster_import_rejects_non_dict_additional_details(self):
+        payload = {
+            "backend_id": "backend_id",
+            "project": self.fixture.project.uuid.hex,
+            "additional_details": ["not", "a", "dict"],
+        }
+
+        response = self.client.post(self.url, payload, format="json")
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_cluster_import_translates_rancher_exception_to_validation_error(self):
+        self.mocked_client.get_cluster.return_value = {
+            **MOCK_CLUSTER,
+            "state": "provisioning",
+        }
+        payload = {
+            "backend_id": "backend_id",
+            "project": self.fixture.project.uuid.hex,
+        }
+
+        response = self.client.post(self.url, payload)
+
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("non-active state", str(response.data))
+
 
 class ManagedClusterImportResourceTest(BaseClusterImportTest):
     def setUp(self):

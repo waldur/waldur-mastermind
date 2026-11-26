@@ -111,8 +111,9 @@ class PluginManager:
         should be sent to a customer.
         :key enable_remote_support: optional boolean indicated whether offering can be imported in remote Waldur.
         :key get_importable_resources_backend_method:
-        :key import_resource_backend_method:
-        :key import_resource_executor:
+        :key resource_importer: optional function which imports a backend resource
+        into the marketplace. It receives offering, plan, project, backend_id and
+        additional_details keyword arguments and returns the marketplace resource.
         :key get_available_resource_actions: function which returns list of strings
         identifying available resource actions
         :key is_interruptible: optional boolean indicated whether order of offering can be interrupted.
@@ -251,13 +252,27 @@ class PluginManager:
             "get_importable_resources_backend_method"
         )
 
-    def import_resource_backend_method(self, offering_type):
-        return self.backends.get(offering_type, {}).get(
-            "import_resource_backend_method"
-        )
+    def can_import_resource(self, offering_type):
+        return bool(self.backends.get(offering_type, {}).get("resource_importer"))
 
-    def get_import_resource_executor(self, offering_type):
-        return self.backends.get(offering_type, {}).get("import_resource_executor")
+    def import_resource(
+        self, offering, plan, project, backend_id, additional_details=None
+    ):
+        """
+        Imports a backend resource of the offering and returns the marketplace resource.
+        """
+        importer = self.backends.get(offering.type, {}).get("resource_importer")
+        if not importer:
+            raise ValueError(
+                f"Offering type {offering.type!r} does not support resource import."
+            )
+        return importer(
+            offering=offering,
+            plan=plan,
+            project=project,
+            backend_id=backend_id,
+            additional_details=additional_details or {},
+        )
 
     def get_pull_resource_executor(self, offering_type):
         return self.backends.get(offering_type, {}).get("pull_resource_executor")
