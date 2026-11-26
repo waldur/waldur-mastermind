@@ -8,11 +8,9 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
-from waldur_auth_social.const import ProviderChoices
-from waldur_auth_social.models import IdentityProvider
-from waldur_core.core import features
+from waldur_core.core import auth_hooks, features
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ProviderChoices
 from waldur_core.core.models import User
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
@@ -26,9 +24,7 @@ logger = logging.getLogger(__name__)
 RESOURCE_MISSING_MESSAGE = "Does not exist at backend."
 
 
-def _get_identity_provider(
-    registration_method, cache: dict | None = None
-) -> IdentityProvider | None:
+def _get_identity_provider(registration_method, cache: dict | None = None) -> Any:
     """The identity provider configured for a registration method, if any.
 
     With a ``cache`` dict, the provider (or its absence) is looked up once per
@@ -37,7 +33,7 @@ def _get_identity_provider(
     """
     if cache is not None and registration_method in cache:
         return cache[registration_method]
-    provider = IdentityProvider.objects.filter(provider=registration_method).first()
+    provider = auth_hooks.get_identity_provider(registration_method)
     if cache is not None:
         cache[registration_method] = provider
     return provider
@@ -119,7 +115,7 @@ def get_identity_provider_fields(registration_method, cache: dict | None = None)
     }.get(registration_method, [])
 
 
-def _provider_supplies_email(provider: IdentityProvider, user: User) -> bool:
+def _provider_supplies_email(provider: Any, user: User) -> bool:
     """Whether the user's current email is one the identity provider gives.
 
     The provider writes the claims it maps at every sign-in, so an address

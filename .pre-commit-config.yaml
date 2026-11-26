@@ -35,6 +35,7 @@ repos:
         pass_filenames: false
         files: '^(src/.*\.py|tach\.toml)$'
         additional_dependencies:
+          # Keep in sync with the `tach` group in pyproject.toml / uv.lock.
           - 'tach==0.35.3'
 
       - id: mermaid-validate

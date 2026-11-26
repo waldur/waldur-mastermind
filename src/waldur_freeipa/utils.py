@@ -1,6 +1,7 @@
 from django.core.cache import cache
 
 from waldur_core.configuration import config
+from waldur_core.core.utils import pwgen
 
 QUOTA_NAME = "freeipa_quota"
 
@@ -32,3 +33,12 @@ def generate_username(username):
     if prefix:
         username = f"{prefix}{username}"
     return username.lower()
+
+
+def generate_safe_username(username):
+    username = generate_username(username)
+    # Maximum length for FreeIPA username is 32 chars
+    if len(username) > 32:
+        prefix_length = len(config.FREEIPA_USERNAME_PREFIX)
+        username = generate_username(pwgen(32 - prefix_length))
+    return username

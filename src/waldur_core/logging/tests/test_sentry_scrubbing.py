@@ -274,15 +274,21 @@ class EventScrubberTest(SimpleTestCase):
                 self.assertIn(key.lower(), denylist, key)
         self.assertNotIn("matrix_homeserver_url", denylist)
 
-    def test_event_scrubber_accepts_explicit_constance_config(self):
+    def test_event_scrubber_accepts_explicit_constance_config_without_mutating_global(
+        self,
+    ):
         custom_config = {
             "CUSTOM_OAUTH_CREDENTIAL": ("", "Custom secret", "secret_field"),
             "CUSTOM_PUBLIC_URL": ("", "Public URL", str),
         }
+        denylist = set(sentry.event_scrubber(custom_config).denylist)
+        self.assertIn("custom_oauth_credential", denylist)
+        self.assertNotIn("custom_public_url", denylist)
+        # Passing an explicit config must not mutate global lookup state.
+        self.assertFalse(sentry.is_secret_setting("CUSTOM_OAUTH_CREDENTIAL"))
+
         try:
-            denylist = set(sentry.event_scrubber(custom_config).denylist)
-            self.assertIn("custom_oauth_credential", denylist)
-            self.assertNotIn("custom_public_url", denylist)
+            sentry.configure_constance_config(custom_config)
             self.assertTrue(sentry.is_secret_setting("CUSTOM_OAUTH_CREDENTIAL"))
             self.assertFalse(sentry.is_secret_setting("CUSTOM_PUBLIC_URL"))
         finally:

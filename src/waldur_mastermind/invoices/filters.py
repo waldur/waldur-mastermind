@@ -4,7 +4,7 @@ from django_filters.widgets import BooleanWidget
 from rest_framework import filters
 
 from waldur_core.core import filters as core_filters
-from waldur_core.permissions.pat_filtering import _ids_q, _or
+from waldur_core.permissions.pat_filtering import combine_or, ids_q
 
 from . import models
 
@@ -122,9 +122,9 @@ def pat_filter_project_credits(ids):
     organizations it is bound to, and those of the projects it is bound to,
     whose roles read their own allocation.
     """
-    return _or(
-        _ids_q("project__customer_id", ids.get("customer")),
-        _ids_q("project_id", ids.get("project")),
+    return combine_or(
+        ids_q("project__customer_id", ids.get("customer")),
+        ids_q("project_id", ids.get("project")),
     )
 
 
@@ -136,10 +136,10 @@ def pat_filter_credit_transactions(ids):
     binding: only staff list it.
     """
     customer_ids = ids.get("customer")
-    return _or(
-        _ids_q("credit__customer_id", customer_ids),
-        _ids_q("project_credit__project__customer_id", customer_ids),
-        _ids_q("project_credit__project_id", ids.get("project")),
+    return combine_or(
+        ids_q("credit__customer_id", customer_ids),
+        ids_q("project_credit__project__customer_id", customer_ids),
+        ids_q("project_credit__project_id", ids.get("project")),
     )
 
 

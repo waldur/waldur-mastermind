@@ -5,7 +5,7 @@ Shared by:
 - the on-demand outbound SCIM pull (reads remote SCIM resources into Waldur)
 
 The mapping deliberately covers the subset of attributes also accepted by
-``waldur_auth_social.utils.update_user_attributes_from_source`` so that writes
+``waldur_core.core.user_attributes.update_user_attributes_from_source`` so that writes
 flow through the existing multi-source attribute-merge policy.
 """
 

@@ -1,7 +1,7 @@
 """SCIM 2.0 ``/Users`` endpoint (RFC 7644 §3.5).
 
 Implements POST, GET (list + read), PUT, PATCH, DELETE. All attribute writes
-route through ``waldur_auth_social.utils.update_user_attributes_from_source``
+route through ``waldur_core.core.user_attributes.update_user_attributes_from_source``
 so the existing multi-source attribute-merge policy applies and provenance is
 recorded in ``User.attribute_sources``.
 
@@ -17,12 +17,12 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from waldur_auth_social.utils import (
+from waldur_core.configuration import config
+from waldur_core.core.models import User
+from waldur_core.core.user_attributes import (
     remove_user_from_isd,
     update_user_attributes_from_source,
 )
-from waldur_core.configuration import config
-from waldur_core.core.models import User
 from waldur_core.users.scim.server import matching
 from waldur_core.users.scim.server.auth import (
     IsScimStaff,

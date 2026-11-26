@@ -10,6 +10,7 @@ class MarketplaceRemoteConfig(AppConfig):
 
     def ready(self):
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.structure import hooks as structure_hooks
         from waldur_core.structure.models import Project
         from waldur_mastermind.marketplace import models, plugins
         from waldur_mastermind.marketplace_remote import (
@@ -92,4 +93,11 @@ class MarketplaceRemoteConfig(AppConfig):
             handlers.update_remote_resource_end_date,
             sender=models.Resource,
             dispatch_uid="marketplace_remote.update_remote_resource_end_date",
+        )
+
+        structure_hooks.register_remote_project_sync_handler(
+            handlers.schedule_sync_remote_project
+        )
+        structure_hooks.register_remote_project_clean_handler(
+            handlers.schedule_clean_remote_projects
         )

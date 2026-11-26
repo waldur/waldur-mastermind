@@ -5,13 +5,11 @@ from datetime import timedelta
 from smtplib import SMTPException
 from urllib.parse import urlparse
 
-import requests
 from celery import shared_task
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.utils import timezone
-from python_freeipa import exceptions as freeipa_exceptions
 
 from waldur_core.core import models as core_models
 from waldur_core.core.utils import (
@@ -390,7 +388,7 @@ def get_or_create_user(invitation_uuid, sender):
     password = pwgen()
     try:
         profile, created = utils.get_or_create_profile(user, username, password)
-    except (freeipa_exceptions.FreeIPAError, requests.RequestException) as e:
+    except utils.get_profile_provider_errors() as e:
         logger.exception(
             "Unable to create FreeIPA profile for user with ID: %s", user.id
         )

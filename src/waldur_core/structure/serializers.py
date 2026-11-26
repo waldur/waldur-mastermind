@@ -10,7 +10,7 @@ from django.core import exceptions as django_exceptions
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection, transaction
 from django.db import models as django_models
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q
 from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
 from django.utils import timezone as django_timezone
@@ -52,6 +52,7 @@ from waldur_core.permissions.serializers import (
     PermissionSerializer,
 )
 from waldur_core.permissions.utils import check_pat_permission, has_permission
+from waldur_core.structure import hooks as structure_hooks
 from waldur_core.structure import managers, models, utils, vies
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.filters import filter_visible_users
@@ -458,11 +459,11 @@ class ProjectListSerializer(serializers.ListSerializer):
         bulk_data = {
             "resources_count": {},
             "marketplace_resource_counts": {},
-            "billing_estimates": {},
-            "project_credits": {},
             "project_metadata": {},
-            "project_has_metrics": set(),
         }
+        registered_fetchers = structure_hooks.get_project_bulk_fetchers()
+        for bulk_fetcher in registered_fetchers:
+            bulk_data[bulk_fetcher.bulk_key] = bulk_fetcher.default_factory()
 
         # 1. Bulk fetch resource counts
         if not requested_fields or "resources_count" in requested_fields:
@@ -474,31 +475,20 @@ class ProjectListSerializer(serializers.ListSerializer):
                 self._bulk_fetch_marketplace_resource_counts(project_ids)
             )
 
-        # 3. Bulk fetch billing estimates
-        if not requested_fields or "billing_price_estimate" in requested_fields:
-            bulk_data["billing_estimates"] = self._bulk_fetch_billing_estimates(
-                request, project_ids
-            )
-
-        # 4. Bulk fetch project credits
-        if not requested_fields or "project_credit" in requested_fields:
-            bulk_data["project_credits"] = self._bulk_fetch_project_credits(project_ids)
-
-        # 5. Bulk fetch project metadata checklist answers
+        # 3. Bulk fetch project metadata checklist answers
         if not requested_fields or "project_metadata" in requested_fields:
             bulk_data["project_metadata"] = self._bulk_fetch_project_metadata(
                 project_ids
             )
 
-        # 6. Bulk fetch which projects use an offering that reports metrics
-        if not requested_fields or "has_metrics" in requested_fields:
-            from waldur_mastermind.marketplace_metrics.handlers import (
-                projects_with_metrics,
-            )
+        # 4. Bulk fetch extension-provided fields (billing, credits, metrics, ...)
+        for bulk_fetcher in registered_fetchers:
+            if not requested_fields or bulk_fetcher.field_name in requested_fields:
+                bulk_data[bulk_fetcher.bulk_key] = bulk_fetcher.fetcher(
+                    request, project_ids
+                )
 
-            bulk_data["project_has_metrics"] = projects_with_metrics(project_ids)
-
-        # 7. Bulk fetch the proposal each project was awarded for
+        # 5. Bulk fetch the proposal each project was awarded for
         if not requested_fields or "awarded_proposal" in requested_fields:
             from waldur_mastermind.proposal.project_link import awarded_proposals
 
@@ -560,25 +550,6 @@ class ProjectListSerializer(serializers.ListSerializer):
                 category_counts_map[project_id] = {}
             category_counts_map[project_id][category_uuid] = count
         return category_counts_map
-
-    def _bulk_fetch_billing_estimates(self, request, project_ids):
-        if not request:
-            return {}
-        from waldur_mastermind.billing import serializers as billing_serializers
-
-        year, month = billing_serializers._parse_period_from_request(request)
-        return billing_serializers._bulk_compute_project_estimates(
-            project_ids, year, month
-        )
-
-    def _bulk_fetch_project_credits(self, project_ids):
-        from waldur_mastermind.invoices import models as invoice_models
-
-        return dict(
-            invoice_models.ProjectCredit.objects.filter(
-                project_id__in=project_ids
-            ).values_list("project_id", "value")
-        )
 
     def _get_requested_fields(self, request):
         if not request:
@@ -1320,10 +1291,11 @@ class CustomerListSerializer(serializers.ListSerializer):
         bulk_context = {
             "visibility": self._get_visibility_context(request, customer_ids),
             "users_count": {},
-            "billing_estimates": {},
-            "customer_credits": {},
-            "project_credits_sums": {},
         }
+        registered_fetchers = structure_hooks.get_customer_bulk_fetchers()
+        for bulk_fetcher in registered_fetchers:
+            for key, default_factory in bulk_fetcher.defaults.items():
+                bulk_context[key] = default_factory()
 
         # 3. Bulk fetch complex aggregations only if requested
         if not requested_fields or "users_count" in requested_fields:
@@ -1331,19 +1303,13 @@ class CustomerListSerializer(serializers.ListSerializer):
                 bulk_context["visibility"], customer_ids
             )
 
-        if not requested_fields or "billing_price_estimate" in requested_fields:
-            bulk_context["billing_estimates"] = self._bulk_fetch_billing_estimates(
-                bulk_context["visibility"], customer_ids
-            )
-
-        if (
-            not requested_fields
-            or "customer_credit" in requested_fields
-            or "customer_unallocated_credit" in requested_fields
-        ):
-            credits_data = self._bulk_fetch_credits(customer_ids)
-            bulk_context["customer_credits"] = credits_data["customer_credits"]
-            bulk_context["project_credits_sums"] = credits_data["project_credits_sums"]
+        for bulk_fetcher in registered_fetchers:
+            if not requested_fields or any(
+                field in requested_fields for field in bulk_fetcher.field_names
+            ):
+                bulk_context.update(
+                    bulk_fetcher.fetcher(bulk_context["visibility"], customer_ids)
+                )
 
         # 4. Inject into the serializer context for child serializers to consume
         self.context["bulk_data"] = bulk_context
@@ -1444,85 +1410,6 @@ class CustomerListSerializer(serializers.ListSerializer):
             counts[customer_id] = unique_user_count
 
         return counts
-
-    def _bulk_fetch_billing_estimates(self, visibility_map, customer_ids):
-        """Bulk query for billing estimates."""
-        # Note: We import billing models here to avoid circular dependencies
-        from waldur_mastermind.billing import models as billing_models
-
-        customer_ct = ContentType.objects.get_for_model(models.Customer)
-        project_ct = ContentType.objects.get_for_model(models.Project)
-
-        full_visibility_cids = [
-            cid for cid, pids in visibility_map.items() if pids is None
-        ]
-        restricted_visibility_map = {
-            cid: pids for cid, pids in visibility_map.items() if pids is not None
-        }
-
-        all_restricted_pids = []
-        for pids in restricted_visibility_map.values():
-            all_restricted_pids.extend(pids)
-
-        estimates_cache = {}
-
-        # 1. Fetch customer-level estimates for full visibility
-        if full_visibility_cids:
-            customer_estimates = billing_models.PriceEstimate.objects.filter(
-                content_type=customer_ct, object_id__in=full_visibility_cids
-            ).select_related("content_type")
-            for est in customer_estimates:
-                estimates_cache[est.object_id] = est
-
-        # 2. Fetch project-level estimates for restricted visibility
-        if all_restricted_pids:
-            project_estimates = billing_models.PriceEstimate.objects.filter(
-                content_type=project_ct, object_id__in=all_restricted_pids
-            ).select_related("content_type")
-
-            # Group project estimates by customer
-            # We need to know which project belongs to which customer
-            project_to_customer = dict(
-                models.Project.available_objects.filter(
-                    id__in=all_restricted_pids
-                ).values_list("id", "customer_id")
-            )
-
-            for est in project_estimates:
-                cid = project_to_customer.get(est.object_id)
-                if cid:
-                    if cid not in estimates_cache:
-                        estimates_cache[cid] = []
-                    if isinstance(estimates_cache[cid], list):
-                        estimates_cache[cid].append(est)
-
-        return estimates_cache
-
-    def _bulk_fetch_credits(self, customer_ids):
-        """Bulk query for customer and project credits."""
-        from waldur_mastermind.invoices import models as invoice_models
-
-        # Fetch customer credits
-        customer_credits = dict(
-            invoice_models.CustomerCredit.objects.filter(
-                customer_id__in=customer_ids
-            ).values_list("customer_id", "value")
-        )
-
-        # Fetch project credits sum per customer (for unallocated credit calculation)
-        project_credits_sums = dict(
-            invoice_models.ProjectCredit.objects.filter(
-                project__customer_id__in=customer_ids
-            )
-            .values("project__customer_id")
-            .annotate(sum=Sum("value"))
-            .values_list("project__customer_id", "sum")
-        )
-
-        return {
-            "customer_credits": customer_credits,
-            "project_credits_sums": project_credits_sums,
-        }
 
 
 class CustomerSerializer(
@@ -1744,18 +1631,7 @@ class CustomerSerializer(
     def _explain_vat(self, customer):
         if not config.VAT_TAXATION_ENABLED:
             return None
-        from waldur_mastermind.invoices import vat
-
-        cache = self.context.setdefault("_vat_explanations", {})
-        if customer.pk not in cache:
-            if "_vat_rates" not in self.context:
-                self.context["_vat_rates"] = vat.get_rates()
-            try:
-                percent, rule = vat.explain_vat(customer, self.context["_vat_rates"])
-                cache[customer.pk] = (percent, str(rule.label))
-            except vat.VATError as e:
-                cache[customer.pk] = (None, str(e))
-        return cache[customer.pk]
+        return structure_hooks.explain_customer_vat(customer, self.context)
 
     @extend_schema_field(
         serializers.DecimalField(max_digits=4, decimal_places=2, allow_null=True)

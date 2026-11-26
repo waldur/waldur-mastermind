@@ -365,6 +365,14 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
                 _("Remote eduTEAMS account synchronization extension is disabled."),
             )
             return
+        if not auth_hooks.has_remote_user_puller(ProviderChoices.EDUTEAMS):
+            messages.error(
+                request,
+                _(
+                    "Remote eduTEAMS account synchronization extension is not available."
+                ),
+            )
+            return
         for remote_user in queryset:
             if (
                 remote_user.registration_method == ProviderChoices.EDUTEAMS

@@ -8,8 +8,14 @@ class BillingConfig(AppConfig):
 
     def ready(self):
         from waldur_core.core import signals as core_signals
+        from waldur_core.structure import hooks as structure_hooks
         from waldur_core.structure import serializers as structure_serializers
-        from waldur_mastermind.billing.serializers import add_price_estimate
+        from waldur_mastermind.billing.serializers import (
+            add_price_estimate,
+            bulk_fetch_customer_billing_estimates,
+            bulk_fetch_project_billing_estimates,
+            get_project_estimated_cost_subquery,
+        )
         from waldur_mastermind.invoices import models as invoices_models
         from waldur_mastermind.policy import serializers as policy_serializers
 
@@ -62,4 +68,20 @@ class BillingConfig(AppConfig):
         core_signals.pre_serializer_fields.connect(
             sender=policy_serializers.CustomerEstimatedCostPolicySerializer,
             receiver=add_price_estimate,
+        )
+
+        structure_hooks.register_project_bulk_fetcher(
+            field_name="billing_price_estimate",
+            bulk_key="billing_estimates",
+            default_factory=dict,
+            fetcher=bulk_fetch_project_billing_estimates,
+        )
+        structure_hooks.register_customer_bulk_fetcher(
+            name="billing_estimates",
+            field_names=("billing_price_estimate",),
+            defaults={"billing_estimates": dict},
+            fetcher=bulk_fetch_customer_billing_estimates,
+        )
+        structure_hooks.register_project_estimated_cost_subquery(
+            get_project_estimated_cost_subquery
         )

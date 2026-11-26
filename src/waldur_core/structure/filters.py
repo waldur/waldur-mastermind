@@ -16,7 +16,6 @@ from django.db.models import (
     IntegerField,
     OuterRef,
     Q,
-    Subquery,
     Value,
     When,
 )
@@ -45,6 +44,7 @@ from waldur_core.permissions.enums import (
     RoleEnum,
 )
 from waldur_core.permissions.models import UserRole
+from waldur_core.structure import hooks as structure_hooks
 from waldur_core.structure import models
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
@@ -60,7 +60,6 @@ from waldur_core.structure.managers import (
     get_visible_users,
 )
 from waldur_core.structure.registry import SupportedServices
-from waldur_mastermind.billing import models as billing_models
 
 
 class NameFilterSet(django_filters.FilterSet):
@@ -1595,11 +1594,9 @@ class ProjectEstimatedCostFilter(BaseFilterBackend):
         if order_by not in ("estimated_cost", "-estimated_cost"):
             return queryset
 
-        ct = ContentType.objects.get_for_model(models.Project)
-        estimates = billing_models.PriceEstimate.objects.filter(
-            content_type=ct, object_id=OuterRef("pk")
-        )
-        estimated_cost = Subquery(estimates.values("total")[:1])
+        estimated_cost = structure_hooks.get_project_estimated_cost_subquery()
+        if estimated_cost is None:
+            return queryset
         # Projects read through a read-only grant hide their cost, so they
         # sort as if they had none rather than revealing how they rank.
         hidden = (

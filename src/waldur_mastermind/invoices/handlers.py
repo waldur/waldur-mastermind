@@ -5,7 +5,7 @@ import logging
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Sum
 from django.utils import timezone
 
 from waldur_core.core import middleware
@@ -864,3 +864,31 @@ def accrue_affiliate_fee(link: models.CustomerAffiliate, invoice: Invoice):
         },
         scopes=[link.affiliate],
     )
+
+
+def bulk_fetch_project_credits(request, project_ids):
+    """Bulk loader for ``ProjectListSerializer`` project credits."""
+    return dict(
+        ProjectCredit.objects.filter(project_id__in=project_ids).values_list(
+            "project_id", "value"
+        )
+    )
+
+
+def bulk_fetch_customer_credits(visibility_map, customer_ids):
+    """Bulk loader for ``CustomerListSerializer`` customer and project credits."""
+    customer_credits = dict(
+        CustomerCredit.objects.filter(customer_id__in=customer_ids).values_list(
+            "customer_id", "value"
+        )
+    )
+    project_credits_sums = dict(
+        ProjectCredit.objects.filter(project__customer_id__in=customer_ids)
+        .values("project__customer_id")
+        .annotate(sum=Sum("value"))
+        .values_list("project__customer_id", "sum")
+    )
+    return {
+        "customer_credits": customer_credits,
+        "project_credits_sums": project_credits_sums,
+    }

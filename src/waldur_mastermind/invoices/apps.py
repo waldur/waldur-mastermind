@@ -150,11 +150,26 @@ class InvoiceConfig(AppConfig):
         )
 
         from waldur_core.permissions.pat_filtering import register_pat_filter
+        from waldur_core.structure import hooks as structure_hooks
 
-        from . import filters
+        from . import filters, vat
 
         register_pat_filter(models.CustomerCredit)(filters.pat_filter_customer_credits)
         register_pat_filter(models.ProjectCredit)(filters.pat_filter_project_credits)
         register_pat_filter(models.CreditTransaction)(
             filters.pat_filter_credit_transactions
         )
+
+        structure_hooks.register_project_bulk_fetcher(
+            field_name="project_credit",
+            bulk_key="project_credits",
+            default_factory=dict,
+            fetcher=handlers.bulk_fetch_project_credits,
+        )
+        structure_hooks.register_customer_bulk_fetcher(
+            name="credits",
+            field_names=("customer_credit", "customer_unallocated_credit"),
+            defaults={"customer_credits": dict, "project_credits_sums": dict},
+            fetcher=handlers.bulk_fetch_customer_credits,
+        )
+        structure_hooks.register_customer_vat_explainer(vat.explain_customer_vat)

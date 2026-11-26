@@ -10,7 +10,7 @@ import requests
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, models, transaction
+from django.db import IntegrityError, transaction
 from django.db.models import DateField, IntegerField, Q
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
@@ -32,8 +32,11 @@ from waldur_core.core.enums import GENDER_CHOICES, LoginFailureCode
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.service_accounts import note_service_account_sign_in
 from waldur_core.core.user_attributes import (
+    _field_locked,
     get_enabled_idp_sync_fields,
     get_federated_identity_sync_allowed_fields,
+    remove_user_from_isd,
+    update_user_attributes_from_source,
 )
 from waldur_core.core.validators import (
     matches_access_email_pattern,
@@ -979,101 +982,6 @@ def migrate_legacy_source(legacy_value: str) -> str:
     return LEGACY_SOURCE_MAP.get(legacy_value, f"isd:{legacy_value}")
 
 
-@transaction.atomic
-def update_user_attributes_from_source(
-    user: User,
-    payload: dict,
-    source: str,
-    *,
-    allowed_fields: set[str] | None = None,
-) -> set[str]:
-    """
-    Update user attributes with source-aware ownership tracking.
-
-    Implements the preserve-other-sources policy:
-    - If a field's new value is empty and the current owner is a different source,
-      the field is preserved (not cleared).
-    - If the new value is non-empty, the field is updated and ownership transfers.
-    - Timestamps are updated even if the value is unchanged (confirms freshness).
-
-    Args:
-        user: User instance (must be fetched with select_for_update for concurrency).
-        payload: Dict of field_name -> new_value.
-        source: Source identifier (e.g., "isd:puhuri").
-        allowed_fields: Optional set of fields to restrict updates to.
-
-    Returns:
-        Set of field names that were actually changed.
-    """
-    # Lock the user row for concurrent safety, and compare and write from the
-    # row as it is now. A copy read before the lock, held across a pull's HTTP
-    # call or a bulk run, would compare the payload with an old email and still
-    # replace its source, dropping the mark of a self-set one
-    # (User.find_by_email) while the address stays.
-    User.objects.select_for_update().filter(pk=user.pk).exists()
-    user.refresh_from_db(
-        fields=[*WRITABLE_USER_FIELDS, "attribute_sources", "active_isds"]
-    )
-
-    now_iso = timezone.now().isoformat()
-    updated_fields = set()
-    attribute_sources = dict(user.attribute_sources or {})
-
-    # Fields locked to an authoritative ISD (e.g. EFP/passport) must not be
-    # overwritten by other sources pushing over the Identity Bridge, mirroring
-    # the guard in create_or_update_oauth_user. See FEDERATED_IDENTITY_*.
-    for field, new_value in payload.items():
-        if allowed_fields and field not in allowed_fields:
-            continue
-        if field not in WRITABLE_USER_FIELDS:
-            continue
-        if _field_locked(user, field, source):
-            # Preserve the authoritative ISD's value; do not update or transfer
-            # ownership for locked fields.
-            continue
-
-        current_value = getattr(user, field, None)
-        current_source_info = attribute_sources.get(field, {})
-        current_owner = (
-            current_source_info.get("source")
-            if isinstance(current_source_info, dict)
-            else current_source_info
-        )
-
-        # Determine if new value is "empty"
-        is_empty = new_value is None or new_value == "" or new_value == []
-
-        if is_empty and current_owner and current_owner != source:
-            # Preserve-other-sources: skip clearing fields owned by another source
-            continue
-
-        if current_value != new_value:
-            setattr(user, field, new_value)
-            updated_fields.add(field)
-
-        # Always update source/timestamp for freshness tracking
-        attribute_sources[field] = {"source": source, "timestamp": now_iso}
-
-    user.attribute_sources = attribute_sources
-
-    # Ensure source is in active_isds
-    active_isds = list(user.active_isds or [])
-    if source not in active_isds:
-        active_isds.append(source)
-        user.active_isds = active_isds
-        updated_fields.add("active_isds")
-
-    # Set _change_source for audit trail
-    user._change_source = source
-
-    if updated_fields or attribute_sources != (user.attribute_sources or {}):
-        save_fields = updated_fields | {"attribute_sources", "active_isds", "last_sync"}
-        user.last_sync = timezone.now()
-        user.save(update_fields=save_fields)
-
-    return updated_fields
-
-
 CIVIL_NUMBER_UNRESOLVED_MESSAGE = (
     "Cannot resolve a unique active account for this civil number."
 )
@@ -1127,22 +1035,6 @@ def find_bridge_user(username: str, attributes: dict) -> tuple[User | None, bool
         )
         raise ParseError(CIVIL_NUMBER_UNRESOLVED_MESSAGE)
     return active[0], True
-
-
-def _field_locked(user: User, field: str, source: str) -> bool:
-    """Whether ``source`` may not write ``field`` of ``user``.
-
-    Fields in FEDERATED_IDENTITY_LOCKED_FIELDS belong to the authoritative
-    ISD once it has asserted the user; other sources cannot change them.
-    """
-    authoritative_isd = config.FEDERATED_IDENTITY_AUTHORITATIVE_ISD
-    locked_fields = config.FEDERATED_IDENTITY_LOCKED_FIELDS or []
-    return bool(
-        authoritative_isd
-        and field in locked_fields
-        and source != authoritative_isd
-        and authoritative_isd in (user.active_isds or [])
-    )
 
 
 def create_or_update_bridge_user(
@@ -1244,91 +1136,6 @@ def create_or_update_bridge_user(
         return cast(User, existing), False, set()
 
     return user, True, set(filtered_attrs.keys())
-
-
-@transaction.atomic
-def remove_user_from_isd(user: User, source: str) -> bool:
-    """
-    Remove a user from an ISD and handle deactivation policy.
-
-    - Removes source from active_isds.
-    - Clears attribute_sources entries owned by this source.
-    - Clears corresponding attribute values.
-    - Deactivates user if active_isds is empty and policy is 'all_isds_removed',
-      or always if policy is 'any_isd_removed'.
-
-    Args:
-        user: User instance.
-        source: ISD source identifier to remove.
-
-    Returns:
-        True if user was deactivated, False otherwise.
-    """
-    User.objects.select_for_update().filter(pk=user.pk).exists()
-
-    active_isds = list(user.active_isds or [])
-    if source in active_isds:
-        active_isds.remove(source)
-        user.active_isds = active_isds
-
-    # Clear attribute_sources and values owned by this source
-    attribute_sources = dict(user.attribute_sources or {})
-    model_fields = {f.name for f in User._meta.concrete_fields}
-    cleared_fields = []
-    for field, source_info in list(attribute_sources.items()):
-        owner = (
-            source_info.get("source") if isinstance(source_info, dict) else source_info
-        )
-        if owner == source:
-            del attribute_sources[field]
-            # Clear the actual field value. civil_number must clear to None:
-            # it has a unique constraint and relies on NULL for absent values,
-            # so "" would collide as soon as two users are cleared.
-            if hasattr(user, field) and field in model_fields:
-                field_obj = User._meta.get_field(field)
-                if isinstance(field_obj, models.JSONField):
-                    default = field_obj.get_default()
-                elif isinstance(getattr(user, field), list):
-                    default = []
-                elif field == "civil_number":
-                    default = None
-                else:
-                    default = ""
-                setattr(user, field, default)
-                cleared_fields.append(field)
-
-    user.attribute_sources = attribute_sources
-
-    policy = config.FEDERATED_IDENTITY_DEACTIVATION_POLICY
-    should_deactivate = False
-
-    if policy == "any_isd_removed":
-        should_deactivate = True
-    elif not active_isds:
-        # all_isds_removed (default): deactivate only when empty
-        should_deactivate = True
-
-    if should_deactivate:
-        user.is_active = False
-        user.deactivation_reason = (
-            f"Identity source '{source}' removed (policy: {policy})"
-        )
-
-    user._change_source = source
-    user.last_sync = timezone.now()
-    user.save(
-        update_fields=[
-            "active_isds",
-            "attribute_sources",
-            "is_active",
-            "deactivation_reason",
-            "last_sync",
-            # Without these the cleared values above never reach the DB.
-            *cleared_fields,
-        ]
-    )
-
-    return should_deactivate
 
 
 def get_identity_bridge_stats(stale_threshold_days: int = 7) -> dict:

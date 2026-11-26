@@ -7,11 +7,17 @@ class FreeIPAConfig(AppConfig):
     verbose_name = "FreeIPA"
 
     def ready(self):
+        from python_freeipa import exceptions as freeipa_exceptions
+
         from waldur_core.core import models as core_models
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.quotas import models as quota_models
         from waldur_core.quotas.fields import QuotaField
         from waldur_core.structure import models as structure_models
+        from waldur_core.users.utils import (
+            ExternalProfileProvider,
+            register_external_profile_provider,
+        )
 
         from . import handlers, models, utils
 
@@ -82,4 +88,12 @@ class FreeIPAConfig(AppConfig):
             handlers.update_user,
             sender=core_models.User,
             dispatch_uid="waldur_freeipa.handlers.update_user",
+        )
+
+        register_external_profile_provider(
+            ExternalProfileProvider(
+                generate_safe_username=utils.generate_safe_username,
+                get_or_create_profile=handlers.get_or_create_profile,
+                handled_errors=(freeipa_exceptions.FreeIPAError,),
+            )
         )

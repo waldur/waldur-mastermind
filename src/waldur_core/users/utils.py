@@ -1,23 +1,23 @@
 import collections
 import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
+import requests
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
 from django.db.models import Q
-from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 
-from waldur_core.configuration import config
 from waldur_core.core import access
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.permissions import has_staff_access
-from waldur_core.core.utils import pwgen
 from waldur_core.media.validators import parse_email_list
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import (
@@ -34,12 +34,35 @@ from waldur_core.permissions.utils import (
 from waldur_core.structure import managers as structure_managers
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationState
-from waldur_freeipa import tasks
-from waldur_freeipa.backend import FreeIPABackend
-from waldur_freeipa.models import Profile
-from waldur_freeipa.utils import generate_username
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class ExternalProfileProvider:
+    """Extension hook for external directory profile creation (e.g. FreeIPA)."""
+
+    generate_safe_username: Callable[[str], str]
+    get_or_create_profile: Callable[[Any, str, str], tuple[Any, bool]]
+    handled_errors: tuple[type[BaseException], ...] = ()
+
+
+_external_profile_provider: ExternalProfileProvider | None = None
+
+
+def register_external_profile_provider(provider: ExternalProfileProvider) -> None:
+    """Register an external profile provider used during invitation provisioning."""
+    global _external_profile_provider
+    _external_profile_provider = provider
+
+
+def get_profile_provider_errors() -> tuple[type[BaseException], ...]:
+    """Return exception classes expected from ``get_or_create_profile``."""
+    base: tuple[type[BaseException], ...] = (requests.RequestException,)
+    if _external_profile_provider is None:
+        return base
+    return (*_external_profile_provider.handled_errors, *base)
+
 
 # Calls and proposals are valid invitation scopes, but the shared
 # users/invitation_created template is phrased for organization and project
@@ -163,12 +186,9 @@ def normalize_username(username):
 
 
 def generate_safe_username(username):
-    username = generate_username(username)
-    # Maximum length for FreeIPA username is 32 chars
-    if len(username) > 32:
-        prefix_length = len(config.FREEIPA_USERNAME_PREFIX)
-        username = generate_username(pwgen(32 - prefix_length))
-    return username
+    if _external_profile_provider is not None:
+        return _external_profile_provider.generate_safe_username(username)
+    return normalize_username(username)[:32]
 
 
 @transaction.atomic
@@ -210,22 +230,14 @@ def get_or_create_user(invitation):
     return user, True
 
 
-@transaction.atomic
 def get_or_create_profile(user, username, password):
-    profile = Profile.objects.filter(user=user).first()
-    if profile:
-        return profile, False
-
-    profile = Profile.objects.create(
-        user=user,
-        username=username,
-    )
-    try:
-        FreeIPABackend().create_profile(profile, password=password)
-        tasks.schedule_sync()
-    except freeipa_exceptions.DuplicateEntry:
-        pass
-    return profile, True
+    if _external_profile_provider is None:
+        logger.warning(
+            "No external profile provider registered; skipping profile creation for user %s.",
+            getattr(user, "id", user),
+        )
+        return None, False
+    return _external_profile_provider.get_or_create_profile(user, username, password)
 
 
 def get_invitation_link(uuid):

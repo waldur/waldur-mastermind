@@ -139,6 +139,7 @@ depends_on = [
     "waldur_core.permissions",
     "waldur_core.quotas",
     "waldur_core.structure",
+    "waldur_core.users",
 ]
 
 [[modules]]
@@ -604,12 +605,7 @@ depends_on = [
     "waldur_core.user_actions",
     "waldur_core.users",
     # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_auth_social",  # -> integrations
-    "waldur_mastermind.billing",  # -> supporting
-    "waldur_mastermind.invoices",  # -> supporting
     "waldur_mastermind.marketplace",  # -> marketplace
-    "waldur_mastermind.marketplace_metrics",  # -> marketplace
-    "waldur_mastermind.marketplace_remote",  # -> integrations
     "waldur_mastermind.proposal",  # -> supporting
 ]
 
@@ -621,10 +617,6 @@ depends_on = [
     "waldur_core.media",
     "waldur_core.permissions",
     "waldur_core.structure",
-    # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_auth_social",  # -> integrations
-    "waldur_freeipa",  # -> integrations
-    "waldur_mastermind.marketplace",  # -> marketplace
 ]
 
 # =============================================================================

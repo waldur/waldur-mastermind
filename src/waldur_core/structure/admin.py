@@ -32,6 +32,7 @@ from waldur_core.core.models import Notification, NotificationTemplate
 from waldur_core.core.utils import get_fake_context
 from waldur_core.core.validators import BackendURLValidator
 from waldur_core.structure import executors, models
+from waldur_core.structure import hooks as structure_hooks
 from waldur_core.structure.registry import SupportedServices, get_service_type
 from waldur_core.structure.serializers import (
     ServiceOptionsSerializer,
@@ -303,13 +304,16 @@ class ProjectAdmin(
     cleanup = Cleanup()
 
     def sync_remote(self, request, queryset):
-        from waldur_mastermind.marketplace_remote.tasks import (
-            sync_remote_project,
-        )  # test-dependency-ignore
-
-        sync_remote_project.delay(
+        scheduled = structure_hooks.schedule_remote_project_sync(
             [core_utils.serialize_instance(project) for project in queryset]
         )
+        if not scheduled:
+            self.message_user(
+                request,
+                _("Remote marketplace integration is not configured."),
+                messages.WARNING,
+            )
+            return
         tasks_scheduled = queryset.count()
         message = ngettext(
             "Remote project synchronization has been scheduled for one project .",
@@ -334,12 +338,17 @@ class ProjectAdmin(
         ]
 
     def clean_remote_projects(self, request):
-        from waldur_mastermind.marketplace_remote import (
-            tasks as marketplace_remote_tasks,  # test-dependency-ignore
-        )
-
-        marketplace_remote_tasks.clean_remote_projects.delay()
-        self.message_user(request, _("Cleaning up remote projects has been scheduled."))
+        scheduled = structure_hooks.schedule_remote_projects_cleanup()
+        if not scheduled:
+            self.message_user(
+                request,
+                _("Remote marketplace integration is not configured."),
+                messages.WARNING,
+            )
+        else:
+            self.message_user(
+                request, _("Cleaning up remote projects has been scheduled.")
+            )
         return redirect(reverse("admin:structure_project_changelist"))
 
     @transaction.atomic
