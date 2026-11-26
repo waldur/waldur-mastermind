@@ -374,7 +374,7 @@ class LiveKitServiceTest(test.APITestCase):
             ("2001:db8::1", "2001:db8::1"),
         ):
             request = factory.post("/", HTTP_X_FORWARDED_FOR=forwarded)
-            self.assertEqual(views._edge_client_address(request), expected)
+            self.assertEqual(views.LiveKitClientThrottle().get_ident(request), expected)
 
     def test_one_user_is_capped_across_addresses(self):
         with mock.patch.dict(

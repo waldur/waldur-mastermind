@@ -92,13 +92,14 @@ class FormatHomeportLinkTest(TestCase):
 
 
 class GetIpAddressTest(TestCase):
-    def test_get_ip_address_from_x_forwarded_for_header(self):
+    def test_get_ip_address_takes_the_entry_the_proxy_added(self):
+        # The proxy appends the address it saw to whatever the client sent.
         request = HttpRequest()
         request.META["HTTP_X_FORWARDED_FOR"] = "192.168.1.100, 10.0.0.1"
 
         result = get_ip_address(request)
 
-        self.assertEqual(result, "192.168.1.100")
+        self.assertEqual(result, "10.0.0.1")
 
     def test_get_ip_address_from_x_forwarded_for_header_single_ip(self):
         request = HttpRequest()
@@ -110,11 +111,11 @@ class GetIpAddressTest(TestCase):
 
     def test_get_ip_address_from_x_forwarded_for_header_with_spaces(self):
         request = HttpRequest()
-        request.META["HTTP_X_FORWARDED_FOR"] = "  192.168.1.100  , 10.0.0.1"
+        request.META["HTTP_X_FORWARDED_FOR"] = "192.168.1.100,   10.0.0.1  "
 
         result = get_ip_address(request)
 
-        self.assertEqual(result, "192.168.1.100")
+        self.assertEqual(result, "10.0.0.1")
 
     def test_get_ip_address_from_remote_addr_when_no_x_forwarded_for(self):
         request = HttpRequest()
@@ -147,7 +148,7 @@ class GetIpAddressTest(TestCase):
 
         result = get_ip_address(request)
 
-        self.assertEqual(result, "")
+        self.assertIsNone(result)
 
 
 class ChunkedQuerysetTest(TestCase):
@@ -238,8 +239,8 @@ class IpInNetworksTest(TestCase):
         self.assertFalse(ip_in_networks("not-an-ip", ["203.0.113.0/24"]))
 
     def test_address_with_port_is_matched(self):
-        # get_ip_address returns the raw header value; a proxy that appends
-        # host:port to X-Forwarded-For must still resolve to a matching address.
+        # A proxy that writes host:port into X-Forwarded-For must still
+        # resolve to a matching address.
         self.assertTrue(ip_in_networks("203.0.113.5:5678", ["203.0.113.0/24"]))
 
     def test_bracketed_ipv6_with_port_is_matched(self):

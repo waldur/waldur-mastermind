@@ -33,6 +33,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
+from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.passkeys import policy, services
@@ -131,7 +132,7 @@ def verify_view(request):
         services.finish_assertion(
             ceremony,
             payload.get("credential"),
-            ip_address=request.META.get("REMOTE_ADDR"),
+            ip_address=core_utils.get_ip_address(request),
         )
     except services.PasskeyError as e:
         event_logger.emit(

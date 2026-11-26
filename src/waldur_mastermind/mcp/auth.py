@@ -109,9 +109,12 @@ async def run_orm_async(func, *args):
 
 
 def get_starlette_client_ip(request) -> str | None:
+    # Starlette's headers.get returns only the first of repeated lines, which
+    # may be the client's own; a proxy such as HAProxy adds a line of its own.
+    # Joined in order, as WSGI servers do, the trusted entries stay rightmost.
+    forwarded_for = ",".join(request.headers.getlist("x-forwarded-for")) or None
     return core_utils.resolve_client_ip(
-        request.headers.get("x-forwarded-for"),
-        request.client.host if request.client else None,
+        forwarded_for, request.client.host if request.client else None
     )
 
 

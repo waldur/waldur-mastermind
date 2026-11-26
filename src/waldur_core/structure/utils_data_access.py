@@ -24,13 +24,7 @@ def get_client_ip(request):
     if request is None:
         return None
 
-    raw = core_utils.get_ip_address(request)
-    address = core_utils.normalize_ip_address(raw)
-    if raw and address is None:
-        # Dropping it silently would hide a misconfigured proxy: the column is
-        # nullable, so an unparseable value is indistinguishable from no header.
-        logger.warning("Invalid IP address in request: %s", raw)
-    return address
+    return core_utils.get_ip_address(request)
 
 
 def determine_accessor_type(accessor, target_user):

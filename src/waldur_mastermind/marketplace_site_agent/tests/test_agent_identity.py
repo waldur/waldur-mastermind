@@ -203,6 +203,26 @@ class AgentIdentityEventSubscriptionTest(test.APITestCase):
         mock_create_rabbitmq_user.assert_called_once()
         mock_assign_rabbitmq_vhost_permissions.assert_called_once()
 
+    def test_register_event_subscription_records_the_proxy_added_address(
+        self,
+        mock_create_rabbitmq_virtual_host,
+        mock_create_rabbitmq_user,
+        mock_assign_rabbitmq_vhost_permissions,
+    ):
+        self.client.force_login(self.fixture.staff)
+        url = self._get_register_event_subscription_url(self._create_agent_identity())
+
+        response = self.client.post(
+            url,
+            {"observable_object_type": logging_enums.ObservableObjectType.ORDER.value},
+            # The client's own entry, then the one the proxy appended.
+            HTTP_X_FORWARDED_FOR="203.0.113.5, 198.51.100.9",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        subscription = logging_models.EventSubscription.objects.get()
+        self.assertEqual(subscription.source_ip, "198.51.100.9")
+
     @data("staff", "offering_owner")
     @mock.patch("waldur_core.logging.backend.RabbitMQManagementBackend.get_user")
     @mock.patch(

@@ -18,6 +18,7 @@ from rest_framework import test
 from rest_framework.throttling import SimpleRateThrottle
 
 from waldur_core.configuration.testing import override_config
+from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories
 from waldur_mastermind.mcp import auth, tasks
 from waldur_mastermind.mcp.apps import configure_django_cors_headers
@@ -794,7 +795,29 @@ class RegistrationThrottleTest(OAuthTestMixin, test.APITestCase):
 
         self.assertEqual(statuses, [201, 201, 201])
 
-    @override_settings(MCP_OAUTH_TRUSTED_PROXY_COUNT=0)
+    def test_header_lines_joined_by_the_wsgi_server_are_counted_by_the_last(self):
+        # The registration endpoints run under the WSGI server, which joins a
+        # client's line and the proxy's own line with a bare comma.
+        statuses = [
+            self.register(
+                HTTP_X_FORWARDED_FOR=f"198.51.100.{i},203.0.113.7"
+            ).status_code
+            for i in range(3)
+        ]
+
+        self.assertEqual(statuses, [201, 201, 429])
+
+    def test_an_unparseable_header_is_counted_under_the_peer(self):
+        statuses = [
+            self.register(
+                HTTP_X_FORWARDED_FOR=f"garbage-{i}", REMOTE_ADDR="10.42.0.7"
+            ).status_code
+            for i in range(3)
+        ]
+
+        self.assertEqual(statuses, [201, 201, 429])
+
+    @override_waldur_core_settings(TRUSTED_PROXY_COUNT=0)
     def test_without_a_proxy_forwarded_for_is_ignored(self):
         statuses = [
             self.register(HTTP_X_FORWARDED_FOR=f"203.0.113.{i}").status_code

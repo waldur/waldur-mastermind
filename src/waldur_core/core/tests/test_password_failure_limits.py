@@ -18,7 +18,7 @@ from rest_framework.authtoken.models import Token
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.core.tests.helpers import override_waldur_core_settings
-from waldur_core.core.utils import get_proxied_client_ip
+from waldur_core.core.utils import get_ip_address, get_rate_limit_address
 from waldur_core.structure.tests import factories as structure_factories
 
 LOGIN_URL = "/api-auth/password/"
@@ -484,7 +484,7 @@ class ProxiedClientAddressTest(test.APITestCase):
         meta = {"REMOTE_ADDR": remote_addr}
         if forwarded_for is not None:
             meta["HTTP_X_FORWARDED_FOR"] = forwarded_for
-        return get_proxied_client_ip(self.factory.get("/", **meta))
+        return get_rate_limit_address(self.factory.get("/", **meta))
 
     def test_the_entry_the_proxy_added(self):
         self.assertEqual(self.resolve("203.0.113.5"), "203.0.113.5")
@@ -498,6 +498,13 @@ class ProxiedClientAddressTest(test.APITestCase):
                 self.assertEqual(self.resolve(header), INGRESS)
         self.assertEqual(self.resolve(), INGRESS)
 
+    def test_restrictions_get_no_address_when_the_entry_is_not_one(self):
+        # Only the limits fall back to the peer; for access it is a proxy.
+        request = self.factory.get(
+            "/", REMOTE_ADDR=INGRESS, HTTP_X_FORWARDED_FOR="unknown"
+        )
+        self.assertIsNone(get_ip_address(request))
+
     def test_an_ipv6_zone_is_not_part_of_the_address(self):
         self.assertEqual(self.resolve("fe80::1%eth0"), "fe80::1")
         self.assertEqual(self.resolve(remote_addr="fe80::1%eth0"), "fe80::1")
@@ -507,7 +514,7 @@ class ProxiedClientAddressTest(test.APITestCase):
         self.assertEqual(
             self.resolve("198.51.100.1, 203.0.113.5, 10.0.0.2"), "203.0.113.5"
         )
-        # Fewer entries than proxies: the peer.
+        # Fewer entries than proxies: the peer, for counting.
         self.assertEqual(self.resolve("203.0.113.5"), INGRESS)
 
     @override_waldur_core_settings(TRUSTED_PROXY_COUNT="2")
