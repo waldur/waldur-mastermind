@@ -77,6 +77,18 @@ OFFERING_COMPONENT_FIELDS = frozenset(
 # The site agent plugin the legacy settings below are for.
 SLURM_BACKEND = "slurm"
 
+# SLURM settings the agent configuration generator always writes, with these
+# defaults where the offering sets none: an offering never lacks them.
+SLURM_SETTING_DEFAULTS = {
+    "default_account": "root",
+    "customer_prefix": "",
+    "project_prefix": "",
+    "allocation_prefix": "",
+    "qos_downscaled": "limited",
+    "qos_paused": "paused",
+    "qos_default": "normal",
+}
+
 # Settings the agent configuration generator used to read from plugin_options,
 # where no serializer declares them. They belong in backend_settings.
 LEGACY_PLUGIN_OPTIONS_SETTINGS = (

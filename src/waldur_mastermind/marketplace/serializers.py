@@ -6415,16 +6415,27 @@ set_override(
 
 
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
+    # Which offering template the provider started from is the provider's own.
+    template_uuid = None
+    template_name = None
+
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
         # limit_precision_advisory names the provider's own backend and exists
         # for the component editor. A consumer browsing the marketplace has
         # nothing to configure with it and no business knowing the provider
-        # runs SLURM.
+        # runs SLURM. Nor the offering template it was created from.
         fields = tuple(
             f
             for f in ProviderOfferingDetailsSerializer.Meta.fields
-            if f not in ("backend_id_rules", "limit_precision_advisory")
+            if f
+            not in (
+                "backend_id_rules",
+                "limit_precision_advisory",
+                "template_uuid",
+                "template_name",
+                "template_version",
+            )
         ) + (
             "user_has_consent",
             "user_has_offering_user",
@@ -19567,7 +19578,6 @@ class ExportOfferingDataSerializer(serializers.Serializer):
     longitude = serializers.FloatField(allow_null=True)
     access_url = serializers.URLField(allow_blank=True)
     paused_reason = serializers.CharField(allow_blank=True)
-    backend_id = serializers.CharField(allow_blank=True, required=False)
     attributes = serializers.JSONField(required=False)
     options = serializers.JSONField(required=False)
 
@@ -22274,7 +22284,9 @@ class OfferingTemplateCreateOfferingResponseSerializer(serializers.Serializer):
     document = serializers.JSONField(
         help_text=(
             "The template's document with the parameters filled in: what the "
-            "offering is created from, in the import_offering format."
+            "offering is created from, in the import_offering format. Its "
+            "agent_configuration is left out for who may not see the "
+            "organization's integration settings."
         )
     )
     warnings = serializers.ListField(
@@ -22311,12 +22323,20 @@ class OfferingTemplateDiffSerializer(serializers.Serializer):
     template_version = serializers.IntegerField(
         help_text="The version the offering was created from."
     )
-    latest_version = serializers.IntegerField()
+    latest_version = serializers.IntegerField(
+        allow_null=True,
+        help_text="The template's latest version; null for who may not see the "
+        "template, as it is unpublished.",
+    )
     created_version_differences = OfferingTemplateDifferenceSerializer(
         many=True,
         help_text="Differences from the version the offering was created from.",
     )
-    latest_version_differences = OfferingTemplateDifferenceSerializer(many=True)
+    latest_version_differences = OfferingTemplateDifferenceSerializer(
+        many=True,
+        allow_null=True,
+        help_text="Differences from the latest version; null with latest_version.",
+    )
 
 
 class OfferingSaveAsTemplateSerializer(serializers.Serializer):

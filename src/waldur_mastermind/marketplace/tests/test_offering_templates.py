@@ -686,7 +686,9 @@ class SaveOfferingAsTemplateTest(BaseOfferingTemplateTest):
         response = self.client.post(self.url, {}, format="json")
         self.assertEqual(response.status_code, 201, response.data)
         document = models.OfferingTemplate.objects.get().document
-        stored = json.dumps(document)
+        stored = json.dumps(
+            {key: value for key, value in document.items() if key != "parameters"}
+        )
         for value in (
             "alpha_c_",
             "alpha_p_",
@@ -706,11 +708,8 @@ class SaveOfferingAsTemplateTest(BaseOfferingTemplateTest):
                 "agent_configuration.backend_settings.cluster_name",
             ],
         )
+        # What identifies the site has no default...
         for key in (
-            "default_account",
-            "customer_prefix",
-            "project_prefix",
-            "allocation_prefix",
             "cscs_dwdi_api_url",
             "cscs_dwdi_client_id",
             "cscs_dwdi_oidc_token_url",
@@ -720,6 +719,24 @@ class SaveOfferingAsTemplateTest(BaseOfferingTemplateTest):
             self.assertIn(key, parameters)
             self.assertTrue(parameters[key]["required"])
             self.assertIsNone(parameters[key]["default"])
+        # ...while the site's conventions offer the offering's values.
+        self.assertEqual(
+            {
+                key: parameters[key]["default"]
+                for key in (
+                    "default_account",
+                    "customer_prefix",
+                    "project_prefix",
+                    "allocation_prefix",
+                )
+            },
+            {
+                "default_account": "root",
+                "customer_prefix": "alpha_c_",
+                "project_prefix": "alpha_p_",
+                "allocation_prefix": "alpha_a_",
+            },
+        )
         # What is not site-specific is kept.
         self.assertEqual(
             document["agent_configuration"]["backend_settings"]["qos_default"],
@@ -771,4 +788,31 @@ class SaveOfferingAsTemplateTest(BaseOfferingTemplateTest):
         )
         self.assertTrue(
             document["agent_configuration"]["backend_settings"]["verify_ssl"]
+        )
+
+
+class SaveAsTemplateUsernamePolicyTest(test.APITestCase):
+    def test_username_policy_becomes_a_parameter_with_its_value_as_default(self):
+        offering = factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            backend_id="alps",
+            plugin_options={"username_generation_policy": "full_name"},
+        )
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(staff)
+        response = self.client.post(
+            f"/api/marketplace-provider-offerings/{offering.uuid.hex}/save_as_template/",
+            {},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.data)
+        document = models.OfferingTemplate.objects.get().document
+        self.assertNotIn("username_generation_policy", document["plugin_options"])
+        parameter = {p["key"]: p for p in document["parameters"]}[
+            "username_generation_policy"
+        ]
+        self.assertEqual(parameter["default"], "full_name")
+        self.assertIn("anonymized", parameter["choices"])
+        self.assertEqual(
+            parameter["paths"], ["plugin_options.username_generation_policy"]
         )

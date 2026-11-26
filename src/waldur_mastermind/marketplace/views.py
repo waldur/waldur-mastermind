@@ -1,4 +1,5 @@
 import base64
+import contextlib
 import copy
 import datetime
 import logging
@@ -94,6 +95,7 @@ from waldur_core.core.auth_utils import is_pat_auth
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.facets import FacetsMixin
+from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.models import User
 from waldur_core.core.pagination import LinkHeaderPagination
@@ -203,6 +205,14 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
     normalize_offering_type,
+)
+from waldur_mastermind.marketplace.import_fields import (
+    COMPONENT_IMPORT_FIELDS,
+    ENDPOINT_IMPORT_FIELDS,
+    OFFERING_IMPORT_FIELDS,
+    PLAN_COMPONENT_IMPORT_FIELDS,
+    PLAN_IMPORT_FIELDS,
+    TERMS_OF_SERVICE_IMPORT_FIELDS,
 )
 from waldur_mastermind.marketplace.managers import (
     OFFERING_PERMISSIONS_VISIBILITY,
@@ -2851,62 +2861,6 @@ def validate_offering_username_generation_policy(offering):
         )
 
 
-# Model fields that the offering import copies from the imported data.
-OFFERING_IMPORT_FIELDS = (
-    "name",
-    "description",
-    "full_description",
-    "vendor_details",
-    "getting_started",
-    "integration_guide",
-    "type",
-    "shared",
-    "billable",
-    "country",
-    "latitude",
-    "longitude",
-    "access_url",
-    "paused_reason",
-    # Not exported, so an export moved to another portal never carries it; an
-    # offering template fills it from a parameter (the SLURM cluster name).
-    "backend_id",
-)
-COMPONENT_IMPORT_FIELDS = (
-    "name",
-    "description",
-    "billing_type",
-    "measured_unit",
-    "unit_factor",
-    "limit_period",
-    "limit_amount",
-    "limit_increase_only",
-    "article_code",
-    "backend_id",
-    "min_value",
-    "max_value",
-    "max_available_limit",
-    "default_limit",
-)
-PLAN_IMPORT_FIELDS = (
-    "description",
-    "unit_price",
-    "unit",
-    "archived",
-    "max_amount",
-    "article_code",
-    "backend_id",
-)
-PLAN_COMPONENT_IMPORT_FIELDS = ("amount", "price", "future_price")
-TERMS_OF_SERVICE_IMPORT_FIELDS = (
-    "terms_of_service",
-    "terms_of_service_link",
-    "version",
-    "is_active",
-    "requires_reconsent",
-    "grace_period_days",
-)
-
-
 def _import_error(path, message):
     return rf_exceptions.ValidationError({path: [message]})
 
@@ -3028,6 +2982,8 @@ def _import_lookup(model, data, key, path):
 
 # What an offering is compared with its template on: what a template holds.
 TEMPLATE_DIFF_EXPORT = {
+    # A template fills it from a parameter; an export leaves it out.
+    "include_backend_id": True,
     "include_secret_options": False,
     "include_screenshots": False,
     "include_files": False,
@@ -6527,10 +6483,13 @@ class ProviderOfferingViewSet(
                 "longitude": float(offering.longitude) if offering.longitude else None,
                 "access_url": offering.access_url,
                 "paused_reason": offering.paused_reason,
-                # Read back by import_offering for a new offering.
-                "backend_id": offering.backend_id,
             }
         }
+
+        # Not in an export: imported elsewhere, it would name the same backend
+        # as this offering.
+        if params.get("include_backend_id", False):
+            export_data["offering"]["backend_id"] = offering.backend_id
 
         # Conditionally add offering fields based on parameters
         if params.get("include_attributes", True):
@@ -6863,7 +6822,9 @@ class ProviderOfferingViewSet(
             "created from: from the version it was created from, and from the "
             "template's latest version, both filled in with the parameter "
             "values the offering was created with (a parameter added since "
-            "takes its default). Only what the template sets is compared, "
+            "takes its default). The latest version is left out, as null, for "
+            "who may not see the template: it is unpublished. Only what the "
+            "template sets is compared, "
             "and the offering's name is not. The agent configuration is "
             "compared only for who may see the integration settings. Refused "
             "for an offering not created from a template, or whose template "
@@ -6889,18 +6850,24 @@ class ProviderOfferingViewSet(
             )
         actual = self._build_offering_export_data(offering, TEMPLATE_DIFF_EXPORT)
         values = offering.template_parameters or {}
+        # Who may not see the template now sees no comparison with it.
+        latest_visible = template.is_published or has_staff_access(request)
         return response.Response(
             serializers.OfferingTemplateDiffSerializer(
                 {
                     "template_uuid": template.uuid,
                     "template_name": template.name,
                     "template_version": created_version.number,
-                    "latest_version": template.version,
+                    "latest_version": template.version if latest_visible else None,
                     "created_version_differences": offering_templates.document_diff(
                         _filled_with(created_version.document, values), actual
                     ),
-                    "latest_version_differences": offering_templates.document_diff(
-                        _filled_with(template.document, values), actual
+                    "latest_version_differences": (
+                        offering_templates.document_diff(
+                            _filled_with(template.document, values), actual
+                        )
+                        if latest_visible
+                        else None
                     ),
                 }
             ).data
@@ -7151,6 +7118,11 @@ class ProviderOfferingViewSet(
                 )
             offering = existing_offering
         else:
+            # As the offering create API: only a service provider offers.
+            if not models.ServiceProvider.objects.filter(customer=customer).exists():
+                raise rf_exceptions.ValidationError(
+                    {"customer": [_("Customer should be a service provider.")]}
+                )
             offering = models.Offering(customer=customer, category=category)
             created = True
 
@@ -7670,7 +7642,10 @@ class ProviderOfferingViewSet(
                 models.OfferingAccessEndpoint, endpoint_data, "name", path
             )
             values = _import_fields(
-                models.OfferingAccessEndpoint, endpoint_data, ("url",), path
+                models.OfferingAccessEndpoint,
+                endpoint_data,
+                ENDPOINT_IMPORT_FIELDS,
+                path,
             )
             endpoint, created = models.OfferingAccessEndpoint.objects.get_or_create(
                 offering=offering,
@@ -23589,8 +23564,11 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
                 }
             )
         offering_uuid = None
+        # A dry run's rows are rolled back, but not what is sent on as they
+        # are written, such as event log records: it sends nothing.
+        side_effects = skip_side_effects() if dry_run else contextlib.nullcontext()
         try:
-            with transaction.atomic():
+            with side_effects, transaction.atomic():
                 offering, _created, _sections, warnings = (
                     self._importer()._import_document(
                         filled,
@@ -23614,6 +23592,18 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
         except _DryRunRollback:
             offering_uuid = None
 
+        # The agent configuration is shown as an export shows it: to who may
+        # see the organization's integration settings.
+        document = filled
+        if not marketplace_permissions.can_see_secret_options(
+            request, models.Offering(customer=customer)
+        ):
+            document = {
+                key: value
+                for key, value in filled.items()
+                if key != "agent_configuration"
+            }
+
         return response.Response(
             serializers.OfferingTemplateCreateOfferingResponseSerializer(
                 {
@@ -23622,7 +23612,7 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
                     "offering_name": data["name"],
                     "template_version": template.version,
                     "parameters": values,
-                    "document": filled,
+                    "document": document,
                     "warnings": warnings,
                     "findings": findings,
                 }

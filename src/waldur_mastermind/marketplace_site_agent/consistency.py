@@ -34,6 +34,8 @@ WARNING = "warning"
 
 SLURM_BACKEND = site_agent_configuration.SLURM_BACKEND
 DWDI_COMPUTE_BACKEND = "cscs-dwdi-compute"
+# What DWDI filters usage by when the offering has no backend ID.
+DWDI_CLUSTER_SETTING = "cscs_dwdi_cluster"
 
 # Same default as config_builder.DEFAULT_AGENT_BACKEND, which imports models.
 DEFAULT_BACKEND = SLURM_BACKEND
@@ -388,8 +390,10 @@ def _cluster_name(doc: _Document) -> Iterator[dict]:
     The agent scopes sacctmgr by cluster_name, DWDI filters usage by the
     offering's backend ID, and diagnostics match one against the other.
 
-    Error: they differ; the backend ID is empty while DWDI reports usage (its
-    cluster filter matches nothing); cluster_name is empty in REST mode, where
+    Error: they differ; the backend ID and DWDI's cscs_dwdi_cluster are both
+    empty while DWDI reports usage (it filters by the backend ID, falling back
+    to cscs_dwdi_cluster, and with neither reports every cluster's usage);
+    cluster_name is empty in REST mode, where
     the agent refuses to start. Warning: cluster_name is empty otherwise, as
     the agent warns that sacctmgr runs unscoped; one of the two is filled by a
     parameter and the other is fixed, which a template cannot check.
@@ -425,14 +429,17 @@ def _cluster_name(doc: _Document) -> Iterator[dict]:
             "SLURM knows. Set it to the offering's backend ID.",
         )
     if _empty(backend_id):
-        dwdi = doc.runs(DWDI_COMPUTE_BACKEND, site_agent_configuration.REPORTING)
+        dwdi_unscoped = doc.runs(
+            DWDI_COMPUTE_BACKEND, site_agent_configuration.REPORTING
+        ) and _empty(doc.setting(DWDI_CLUSTER_SETTING)[0])
         yield finding(
             RULE_CLUSTER_NAME,
-            ERROR if dwdi else WARNING,
+            ERROR if dwdi_unscoped else WARNING,
             BACKEND_ID_PATH,
-            "DWDI reporting filters usage by the offering's backend ID, so with "
-            "none it reports nothing. Set it to SLURM's cluster_name."
-            if dwdi
+            "DWDI reporting filters usage by the offering's backend ID, or by "
+            f"{DWDI_CLUSTER_SETTING}; with neither it reports the usage of every "
+            "cluster. Set the backend ID to SLURM's cluster_name."
+            if dwdi_unscoped
             else "Set the offering's backend ID to SLURM's cluster_name: "
             "diagnostics and usage reporting match accounts by it.",
         )
@@ -457,6 +464,10 @@ def _required_settings(doc: _Document) -> Iterator[dict]:
     Saving an agent configuration already enforces this; the rule covers
     offerings stored before that check and the legacy plugin_options
     settings. Secrets are left out, as they come from the agent's own file.
+
+    The agent checks that a setting is there, not what it holds: an empty
+    prefix is a prefix. SLURM's settings with a generator default are never
+    missing, as the generated configuration always has them.
     """
     reported: set[str] = set()
     for name in doc.catalogue_backends():
@@ -468,8 +479,13 @@ def _required_settings(doc: _Document) -> Iterator[dict]:
         for setting in _sequence(schema.get("required")):
             if setting in secrets or setting in reported:
                 continue
+            if (
+                name == SLURM_BACKEND
+                and setting in site_agent_configuration.SLURM_SETTING_DEFAULTS
+            ):
+                continue
             value, path = doc.setting(setting)
-            if not _empty(value) or doc.filled_by_parameter(path):
+            if value is not None or doc.filled_by_parameter(path):
                 continue
             reported.add(setting)
             yield finding(

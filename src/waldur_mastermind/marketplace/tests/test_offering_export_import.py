@@ -31,11 +31,18 @@ from waldur_mastermind.marketplace.views import (
 )
 
 
+def make_service_provider(customer):
+    """Imports create offerings for service providers only."""
+    if not models.ServiceProvider.objects.filter(customer=customer).exists():
+        factories.ServiceProviderFactory(customer=customer)
+
+
 @ddt
 class OfferingExportImportTestCase(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
+        make_service_provider(self.customer)
         self.project = self.fixture.project
         self.user = self.fixture.owner
         # Create a category for tests since MarketplaceFixture doesn't provide one
@@ -1011,6 +1018,7 @@ class OfferingImportNullAndInvalidValuesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
+        make_service_provider(self.customer)
         self.user = self.fixture.owner
         self.category = factories.CategoryFactory(title="Null Test Category")
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
@@ -1585,6 +1593,7 @@ class OfferingImportSafetyTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
+        make_service_provider(self.customer)
         self.owner = self.fixture.owner
         self.category = factories.CategoryFactory(title="Safety Test Category")
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)

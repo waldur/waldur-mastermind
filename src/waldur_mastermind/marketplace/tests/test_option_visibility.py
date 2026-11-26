@@ -636,6 +636,11 @@ class OfferingVisibleIfExportImportTest(test.APITestCase):
         offering.resource_options = copy.deepcopy(CHAIN_OPTIONS)
         offering.save()
         fixture.customer.add_user(user, CustomerRole.OWNER)
+        # Imports create offerings for service providers only.
+        if not models.ServiceProvider.objects.filter(
+            customer=fixture.customer
+        ).exists():
+            factories.ServiceProviderFactory(customer=fixture.customer)
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
         offering.add_user(user, OfferingRole.MANAGER)
         self.client.force_authenticate(user)

@@ -110,15 +110,16 @@ class ConsistencyBasicsTest(SimpleTestCase):
         document = slurm_document()
         document["agent_configuration"] = {}
         document["plugin_options"] = {"default_account": "root"}
-        findings = consistency.check_document(document)
-        missing = {
-            item["field"] for item in found(findings, consistency.RULE_REQUIRED_SETTING)
-        }
-        self.assertIn("agent_configuration.backend_settings.customer_prefix", missing)
-        self.assertNotIn("plugin_options.default_account", missing)
-        self.assertNotIn(
-            "agent_configuration.backend_settings.default_account", missing
+        document["components"].append(
+            {"type": "storage", "name": "Storage", "billing_type": "limit"}
         )
+        findings = consistency.check_document(document)
+        self.assertEqual(
+            [item["field"] for item in found(findings, consistency.RULE_SLURM_TRES)],
+            [f"components.{len(document['components']) - 1}.type"],
+        )
+        # The generator writes SLURM's settings with defaults: none is missing.
+        self.assertEqual(found(findings, consistency.RULE_REQUIRED_SETTING), [])
 
     def test_custom_backend_gets_no_rules(self):
         document = slurm_document()
@@ -355,6 +356,18 @@ class ClusterNameRuleTest(SimpleTestCase):
             self.findings(document), [(consistency.WARNING, "offering.backend_id")]
         )
 
+    def test_dwdi_cluster_setting_scopes_dwdi_without_backend_id(self):
+        # DWDI falls back to cscs_dwdi_cluster when the offering has no
+        # backend ID, so its usage is still scoped.
+        document = dwdi_document()
+        document["offering"]["backend_id"] = None
+        document["agent_configuration"]["backend_settings"]["cscs_dwdi_cluster"] = (
+            "alps"
+        )
+        self.assertEqual(
+            self.findings(document), [(consistency.WARNING, "offering.backend_id")]
+        )
+
     def test_one_parameter_filling_both_passes(self):
         document = slurm_document()
         document["offering"].pop("backend_id")
@@ -397,18 +410,26 @@ class RequiredSettingRuleTest(SimpleTestCase):
 
     def test_missing_is_an_error_per_setting(self):
         document = dwdi_document()
-        settings = document["agent_configuration"]["backend_settings"]
-        settings.pop("default_account")
-        settings["cscs_dwdi_api_url"] = " "
+        document["agent_configuration"]["backend_settings"].pop("cscs_dwdi_api_url")
         findings = found(consistency.check_document(document), self.rule)
         self.assertEqual(
-            sorted(item["field"] for item in findings),
-            [
-                "agent_configuration.backend_settings.cscs_dwdi_api_url",
-                "agent_configuration.backend_settings.default_account",
-            ],
+            [item["field"] for item in findings],
+            ["agent_configuration.backend_settings.cscs_dwdi_api_url"],
         )
-        self.assertTrue(all(item["severity"] == consistency.ERROR for item in findings))
+        self.assertEqual(findings[0]["severity"], consistency.ERROR)
+
+    def test_empty_value_is_set(self):
+        # The agent checks that a setting is there; an empty prefix is one.
+        document = dwdi_document()
+        document["agent_configuration"]["backend_settings"]["customer_prefix"] = ""
+        self.assertEqual(found(consistency.check_document(document), self.rule), [])
+
+    def test_slurm_settings_with_generator_defaults_are_never_missing(self):
+        document = dwdi_document()
+        settings = document["agent_configuration"]["backend_settings"]
+        for name in ("default_account", "customer_prefix", "project_prefix"):
+            settings.pop(name, None)
+        self.assertEqual(found(consistency.check_document(document), self.rule), [])
 
     def test_secrets_and_parameter_targets_are_not_required(self):
         # cscs_dwdi_client_secret is required by DWDI but comes from the agent.

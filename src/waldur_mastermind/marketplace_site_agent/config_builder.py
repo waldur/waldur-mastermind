@@ -322,13 +322,8 @@ def slurm_backend_settings(settings, legacy, with_placeholders=True) -> dict[str
     are no placeholders.
     """
     backend_settings = {
-        "default_account": settings.get("default_account", "root"),
-        "customer_prefix": settings.get("customer_prefix", ""),
-        "project_prefix": settings.get("project_prefix", ""),
-        "allocation_prefix": settings.get("allocation_prefix", ""),
-        "qos_downscaled": settings.get("qos_downscaled", "limited"),
-        "qos_paused": settings.get("qos_paused", "paused"),
-        "qos_default": settings.get("qos_default", "normal"),
+        key: settings.get(key, default)
+        for key, default in site_agent_configuration.SLURM_SETTING_DEFAULTS.items()
     }
     if legacy:
         if "hostname" in settings:
