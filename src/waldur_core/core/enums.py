@@ -108,3 +108,30 @@ class LoginFailureCode(models.TextChoices):
     OIDC_UNINVITED = "oidc_uninvited"
     OIDC_EMAIL_MISSING = "oidc_email_missing"
     OIDC_EMAIL_NOT_TRUSTED = "oidc_email_not_trusted"
+
+
+class LogoutFailureCode(models.TextChoices):
+    """Why a SAML2 logout failed, as the logout-failed page is told.
+
+    The backend redirects to the frontend's ``logout_failed/?code=<code>``,
+    and the page shows its own text for each code, for the same reason as
+    ``LoginFailureCode``: a crafted link must not make the portal show text of
+    someone else's choosing. Detail goes to the logs.
+
+    An unknown or missing code must be shown as a generic failure. Codes are
+    only ever added, never renamed.
+
+    - ``saml2_logout_failed``: the logout could not be started, because the
+      session has no SAML2 identity or the browser is still signed in to the
+      portal.
+    - ``saml2_not_logged_in``: the session is not signed in to any identity
+      provider that the logout could be sent to.
+    - ``saml2_logout_wrong_session``: an identity provider asked to log out a
+      session other than this one, so the request was not answered.
+    - ``saml2_logout_invalid``: the logout message could not be processed.
+    """
+
+    SAML2_LOGOUT_FAILED = "saml2_logout_failed"
+    SAML2_NOT_LOGGED_IN = "saml2_not_logged_in"
+    SAML2_LOGOUT_WRONG_SESSION = "saml2_logout_wrong_session"
+    SAML2_LOGOUT_INVALID = "saml2_logout_invalid"

@@ -74,6 +74,7 @@ from waldur_core.core.authentication import (
 )
 from waldur_core.core.enums import (
     LoginFailureCode,
+    LogoutFailureCode,
     ReauthenticationAction,
     ReauthenticationMethod,
 )
@@ -1212,9 +1213,14 @@ def logout_completed():
     return HttpResponseRedirect(format_homeport_link("logout_completed/"))
 
 
-def logout_failed(message):
+def logout_failed(code: LogoutFailureCode):
+    """Send the browser to the frontend's logout-failed page.
+
+    Only the code travels in the URL; the page has its own text for each. Put
+    any detail in the logs, never here.
+    """
     url_template = format_homeport_link("logout_failed/")
-    return redirect_with(url_template, message=message)
+    return redirect_with(url_template, code=LogoutFailureCode(code).value)
 
 
 class CheckExtensionMixin:

@@ -32,7 +32,7 @@ from waldur_core.core.authentication import (
     refresh_token,
     set_authentication_method,
 )
-from waldur_core.core.enums import LoginFailureCode
+from waldur_core.core.enums import LoginFailureCode, LogoutFailureCode
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.views import (
     login_completed,
@@ -412,22 +412,22 @@ class Saml2LogoutView(BaseSaml2View):
         )
         subject_id = _get_subject_id(request.session)
         if subject_id is None:
-            return logout_failed(_("Remote SAML2 logout has failed."))
+            return logout_failed(LogoutFailureCode.SAML2_LOGOUT_FAILED)
 
         # The portal's logout (POST /api-auth/logout/) ends the session before
         # it hands out this URL. A browser still logged in did not come from
         # there: a link on another site must not log it out of the IdP.
         if not auth.get_user(request).is_anonymous:
-            return logout_failed(_("Remote SAML2 logout has failed."))
+            return logout_failed(LogoutFailureCode.SAML2_LOGOUT_FAILED)
 
         try:
             result = client.global_logout(subject_id)
         except KeyError:
-            return logout_failed(_("You are not logged in any IdP/AA."))
+            return logout_failed(LogoutFailureCode.SAML2_NOT_LOGGED_IN)
 
         state.sync()
         if not result:
-            return logout_failed(_("You are not logged in any IdP/AA."))
+            return logout_failed(LogoutFailureCode.SAML2_NOT_LOGGED_IN)
 
         # Logout is supported only from 1 IdP
         binding, http_info = list(result.values())[0]
@@ -542,14 +542,14 @@ class Saml2LogoutCompleteView(BaseSaml2View):
                     # Not answered: handling it would also drop the SAML
                     # identity of this session, which its own logout needs.
                     http_response = logout_failed(
-                        _("SAML2 logout request is not for this session.")
+                        LogoutFailureCode.SAML2_LOGOUT_WRONG_SESSION
                     )
         except Exception as e:
             logger.warning("SAML2 logout message could not be processed: %s", e)
             if confirmed:
                 # The identity provider did ask to log this session out.
                 self.end_session(request, revoke_tokens)
-            return logout_failed(_("SAML2 logout message has errors."))
+            return logout_failed(LogoutFailureCode.SAML2_LOGOUT_INVALID)
 
         state.sync()
         if confirmed:
