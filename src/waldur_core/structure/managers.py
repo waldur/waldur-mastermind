@@ -304,7 +304,9 @@ def filter_customer_by_ip_address(ip_address):
     restrict who can sign in, so it is excluded — that separation is the whole
     reason the scope flag exists.
 
-    A customer with no portal-scoped subnets is unrestricted. ``Exists`` rather
+    A customer with no portal-scoped subnets is unrestricted. An address of
+    None, one that could not be determined, is outside every subnet: only the
+    unrestricted customers are returned. ``Exists`` rather
     than a join: the join form matched "has a row whose inet is null", which
     cannot express "has no portal-scoped rows at all", and duplicated customer
     ids once several subnets matched.
@@ -314,9 +316,13 @@ def filter_customer_by_ip_address(ip_address):
         applies_to_portal=True,
         inet__isnull=False,
     )
+    customers = structure_models.Customer.objects.annotate(
+        has_portal_subnets=models.Exists(portal_subnets)
+    )
+    if not ip_address:
+        return customers.filter(has_portal_subnets=False).values_list("id", flat=True)
     return (
-        structure_models.Customer.objects.annotate(
-            has_portal_subnets=models.Exists(portal_subnets),
+        customers.annotate(
             address_allowed=models.Exists(
                 portal_subnets.filter(inet__net_contains_or_equals=ip_address)
             ),
@@ -328,11 +334,10 @@ def filter_customer_by_ip_address(ip_address):
 
 def filter_queryset_by_user_ip(queryset, request):
     user = request.user
-    # Normalise the raw, client-controlled X-Forwarded-For: an unparseable
-    # value must resolve to None (which the `not user_ip` guard below treats as
-    # "no restriction") rather than reaching the Postgres inet lookup, where it
-    # would raise and 500 the request.
-    user_ip = core_utils.normalize_ip_address(core_utils.get_ip_address(request))
+    # Already normalised, so never an unparseable value that would 500 the
+    # inet lookup. None, an address that could not be determined, keeps the
+    # restriction: such a caller sees what a caller outside every subnet sees.
+    user_ip = core_utils.get_ip_address(request)
 
     if queryset is None:
         return queryset
@@ -340,7 +345,7 @@ def filter_queryset_by_user_ip(queryset, request):
     if user is None or not user.is_authenticated:
         return queryset.none()
 
-    if user.is_staff or user.is_support or not user_ip:
+    if user.is_staff or user.is_support:
         return queryset
 
     try:

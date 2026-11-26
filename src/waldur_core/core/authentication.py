@@ -308,10 +308,8 @@ class PATAuthentication(BaseAuthentication):
         if not raw_token.startswith(models.PAT_PREFIX):
             return None
 
-        # Resolved here from the ingress-provided header — the same resolver
-        # AccessSubnet, marketplace filters and the audit trail use. The ingress
-        # is the trust boundary for X-Forwarded-For, mirroring its
-        # whitelistSourceRange.
+        # The address the trusted proxies report, from the same resolver
+        # AccessSubnet, marketplace filters and the audit trail use.
         result = authenticate_personal_access_token(
             raw_token,
             core_utils.get_ip_address(request),
@@ -559,10 +557,9 @@ def authenticate_personal_access_token(
     except models.PersonalAccessToken.DoesNotExist:
         raise AuthenticationFailed("Invalid token.")
 
-    # Normalise the address: callers pass the raw, client-controlled header,
-    # and the value flows on into event-message .format() templates, cache
-    # keys and last_used_ip (an inet column). Anything unparseable becomes
-    # None and fails closed.
+    # Callers pass the resolved address; normalised again because it flows on
+    # into event-message .format() templates, cache keys and last_used_ip (an
+    # inet column). Anything unparseable becomes None and fails closed.
     client_ip = core_utils.normalize_ip_address(client_ip)
 
     # A known token presented after it should no longer work is a credential

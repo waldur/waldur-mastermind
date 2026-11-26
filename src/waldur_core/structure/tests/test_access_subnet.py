@@ -18,9 +18,8 @@ class AccessSubnetIpFilterTest(test.APITestCase):
 
     def test_non_ip_forwarded_header_does_not_500(self):
         # filter_queryset_by_user_ip feeds the resolved client IP into a
-        # Postgres inet lookup. A non-IP X-Forwarded-For must normalise to None
-        # (which takes the existing "no IP -> no restriction" path) instead of
-        # crashing query construction with a 500.
+        # Postgres inet lookup. A non-IP X-Forwarded-For must never reach it
+        # and crash query construction with a 500.
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get("/api/customers/", HTTP_X_FORWARDED_FOR="not-an-ip")
         self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -15,12 +15,6 @@ class MCPExtension(WaldurExtension):
         OAUTH2_PROVIDER_GRANT_MODEL = "oauth2_provider.Grant"
         OAUTH2_PROVIDER_DEVICE_GRANT_MODEL = "oauth2_provider.DeviceGrant"
 
-        # Proxies in front of the API that add to X-Forwarded-For. The throttle
-        # on new OAuth clients keys on the address the first of them saw, which
-        # a client can't set. Helm and docker-compose run one (the ingress or
-        # Caddy); 0 uses REMOTE_ADDR, for an API served without a proxy.
-        MCP_OAUTH_TRUSTED_PROXY_COUNT = 1
-
         OAUTH2_PROVIDER = {
             "OAUTH2_VALIDATOR_CLASS": "waldur_mastermind.mcp.oauth.MCPOAuth2Validator",
             "SCOPES": {

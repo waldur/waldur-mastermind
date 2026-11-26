@@ -1335,12 +1335,12 @@ class CustomerInetFilterTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(len(response.data), 1)
 
-    def test_filter_breaks_if_ip_address_is_not_defined(self):
+    def test_unknown_address_is_outside_every_subnet(self):
         self.mock.return_value = None
 
         self.client.force_authenticate(self.fixture.owner)
         response = self.client.get(self.url)
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), 0)
 
 
 @freeze_time("2025-06-01")

@@ -26,7 +26,7 @@ from rest_framework.response import Response
 from waldur_core.configuration import config
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.exceptions import ExtensionDisabled
-from waldur_core.core.utils import get_ip_address
+from waldur_core.core.utils import get_ip_address, get_rate_limit_address
 from waldur_core.core.views import ReadOnlyActionsViewSet
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.chat.anonymous import aggregates
@@ -386,14 +386,9 @@ class MarketplaceChatViewSet(viewsets.ViewSet):
         user_input = serializer.validated_data["input"]
         session_id = serializer.validated_data["session_id"]
 
-        # Trust X-Forwarded-For — the standard Waldur deployment runs
-        # gunicorn behind a reverse proxy that strips inbound XFF and
-        # rewrites it with the real client IP (see
-        # ``docker/rootfs/etc/waldur/gunicorn.conf.py``:
-        # ``forwarded_allow_ips = "*"``). If you direct-expose gunicorn,
-        # XFF becomes client-controlled and per-IP rate limits can be
-        # evaded — that's a deployment-level concern, not a code-level one.
-        ip_address = get_ip_address(request) or ""
+        # The address the trusted proxies report (TRUSTED_PROXY_COUNT), so
+        # a client cannot get a fresh budget by varying X-Forwarded-For.
+        ip_address = get_rate_limit_address(request) or ""
         if not ip_address:
             raise rf_exceptions.PermissionDenied(_("Cannot determine client IP."))
 

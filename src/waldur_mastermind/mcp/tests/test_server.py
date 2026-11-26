@@ -202,12 +202,64 @@ class MCPServerTest(CorsAssertionsMixin, test.APITestCase):
         pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
         self.assert_rejected(self.request_with(pat))
 
-    def test_forwarded_address_is_checked_against_network_acl(self):
+    def test_the_proxy_added_address_is_checked_against_network_acl(self):
+        pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
+
+        response = self.request_with(pat, **{"X-Forwarded-For": "192.0.2.1, 10.1.2.3"})
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_a_forged_first_entry_does_not_satisfy_network_acl(self):
+        # The client sends an allowed address; the proxy appends the real one.
         pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
 
         response = self.request_with(pat, **{"X-Forwarded-For": "10.1.2.3, 192.0.2.1"})
 
+        self.assert_rejected(response)
+
+    def request_with_forwarded_lines(self, pat, *lines, client_ip="203.0.113.5"):
+        # Separate header lines, as a client and a proxy that adds its own
+        # line (HAProxy's option forwardfor) send them; a dict cannot repeat.
+        headers = [
+            *MCP_HEADERS.items(),
+            ("Authorization", f"Bearer {pat.plaintext}"),
+            *(("X-Forwarded-For", line) for line in lines),
+        ]
+        return async_to_sync(_request)("POST", "/mcp", INITIALIZE, headers, client_ip)
+
+    def test_a_forged_header_line_does_not_satisfy_network_acl(self):
+        pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
+
+        response = self.request_with_forwarded_lines(pat, "10.1.2.3", "192.0.2.1")
+
+        self.assert_rejected(response)
+
+    def test_the_proxy_added_header_line_is_checked_against_network_acl(self):
+        pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
+
+        response = self.request_with_forwarded_lines(pat, "192.0.2.1", "10.1.2.3")
+
         self.assertEqual(response.status_code, 200)
+
+    def test_an_unparseable_header_from_an_allowed_peer_is_rejected(self):
+        # The peer, a proxy inside the allowed network, does not stand in for
+        # a client address the header fails to give.
+        pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
+
+        response = self.request_with(
+            pat, client_ip="10.42.0.7", **{"X-Forwarded-For": "not-an-ip"}
+        )
+
+        self.assert_rejected(response)
+
+    def test_an_unparseable_forwarded_address_does_not_satisfy_network_acl(self):
+        pat = create_pat(self.user, allowed_networks=["10.0.0.0/8"])
+
+        response = self.request_with(
+            pat, client_ip="not-an-ip", **{"X-Forwarded-For": "not-an-ip"}
+        )
+
+        self.assert_rejected(response)
 
     def test_inactive_user_is_rejected(self):
         pat = create_pat(self.user)

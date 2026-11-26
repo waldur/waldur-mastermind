@@ -772,56 +772,99 @@ def get_system_robot():
 
 
 def get_ip_address(request: HttpRequest) -> str | None:
-    """
-    Correct IP address is expected as first element of HTTP_X_FORWARDED_FOR or REMOTE_ADDR
+    """The client address as the trusted proxies in front of Waldur report it.
+
+    The one resolver for every use of the client address: network
+    restrictions, personal access token ACLs and the audit trail. Per-address
+    limits key on get_rate_limit_address, which adds a fallback for when the
+    address cannot be determined. See resolve_client_ip.
     """
     return resolve_client_ip(
         request.META.get("HTTP_X_FORWARDED_FOR"), request.META.get("REMOTE_ADDR")
     )
 
 
-def get_proxied_client_ip(request: HttpRequest) -> str | None:
-    """The client address as the trusted proxies in front of Waldur report it.
+def get_rate_limit_address(request: HttpRequest) -> str | None:
+    """The address to count a request under in a per-address limit.
+
+    The client address when it can be determined. Otherwise the connection's
+    own address, so the request still lands in a bucket, if a shared one,
+    rather than escaping the limit. Never use it to grant access: that
+    fallback is usually a proxy, and an allowlist may cover it.
+    """
+    return get_ip_address(request) or _peer_address(request.META.get("REMOTE_ADDR"))
+
+
+def trusted_proxy_count() -> int:
+    # An override read from the environment arrives as a string.
+    try:
+        return int(settings.WALDUR_CORE.get("TRUSTED_PROXY_COUNT", 1))
+    except (TypeError, ValueError):
+        return 1
+
+
+_UNRESOLVED_WARNING_INTERVAL = 60
+_last_unresolved_warning = 0.0
+
+
+def _warn_unresolved(forwarded_for: str, count: int) -> None:
+    # Once a minute per process: a client can send this header on every
+    # request, and a misconfigured proxy count would make every request do it.
+    global _last_unresolved_warning
+    now = time.monotonic()
+    if now - _last_unresolved_warning < _UNRESOLVED_WARNING_INTERVAL:
+        return
+    _last_unresolved_warning = now
+    logger.warning(
+        "No client address in X-Forwarded-For %r at %d places from the right "
+        "(TRUSTED_PROXY_COUNT). Network restrictions refuse such requests; "
+        "check the count against the proxies in front of Waldur.",
+        forwarded_for[:200],
+        count,
+    )
+
+
+def _peer_address(remote_addr: str | None) -> str | None:
+    return _without_scope(normalize_ip_address(remote_addr))
+
+
+def resolve_client_ip(forwarded_for: str | None, remote_addr: str | None) -> str | None:
+    """The client address, from X-Forwarded-For and the connection's peer.
 
     X-Forwarded-For lists the address each proxy saw, and a client can put
     anything at its start, which proxies that append to the header keep. The
     entry the outermost trusted proxy added is TRUSTED_PROXY_COUNT places from
-    the right, as for NUM_PROXIES in Django REST framework. Without that many
-    entries, or when the entry is not an address, the connection's own address
-    is used.
+    the right, as for NUM_PROXIES in Django REST framework. Without the header,
+    or with a count of 0, the connection's own address is the client.
+
+    With the header present, a list too short for the count, or an entry there
+    that is not an address, gives None rather than the connection's address:
+    that address is then a proxy, and an allowlist covering the proxies'
+    network must not admit the request.
 
     Always a normalised address, or None: the result is stored in inet
-    columns and used in cache keys.
+    columns, used in cache keys and interpolated into event messages. Callers
+    enforcing a restriction must treat None as outside every allowed network.
+
+    Shared by every entry point (REST, the MCP server) so a request is judged
+    by the same address whichever one it reaches. Repeated header lines must
+    be joined with commas first, in the order received, as WSGI servers do.
     """
-    remote_addr = _without_scope(normalize_ip_address(request.META.get("REMOTE_ADDR")))
-    # An override read from the environment arrives as a string.
-    try:
-        count = int(settings.WALDUR_CORE.get("TRUSTED_PROXY_COUNT", 1))
-    except (TypeError, ValueError):
-        count = 1
-    forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    if count <= 0 or not forwarded_for:
-        return remote_addr
+    count = trusted_proxy_count()
+    if count <= 0 or not forwarded_for or not forwarded_for.strip():
+        return _peer_address(remote_addr)
     hops = forwarded_for.split(",")
-    if len(hops) < count:
-        return remote_addr
-    return _without_scope(normalize_ip_address(hops[-count].strip())) or remote_addr
+    address = None
+    if len(hops) >= count:
+        address = _without_scope(normalize_ip_address(hops[-count].strip()))
+    if address is None:
+        _warn_unresolved(forwarded_for, count)
+    return address
 
 
 def _without_scope(address: str | None) -> str | None:
     # An IPv6 zone ("%eth0") is text the client chose, not part of its address.
     return address.split("%", 1)[0] if address else address
-
-
-def resolve_client_ip(forwarded_for: str | None, remote_addr: str | None) -> str | None:
-    """The first X-Forwarded-For hop when the header is present, else the peer.
-
-    Shared by every entry point (REST, the MCP server) so a network ACL is
-    evaluated the same way whichever one a token is presented to.
-    """
-    if forwarded_for is not None:
-        return forwarded_for.split(",")[0].strip()
-    return remote_addr
 
 
 def _strip_port(value: str) -> str:

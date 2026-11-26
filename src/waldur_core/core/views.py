@@ -140,6 +140,8 @@ from waldur_core.core.utils import (
     can_use_personal_access_tokens,
     format_homeport_link,
     get_constance_setting_type,
+    get_ip_address,
+    get_rate_limit_address,
     network_acl_widens,
 )
 from waldur_core.logging import event_logger
@@ -306,7 +308,7 @@ class ObtainAuthToken(APIView):
                 wait, detail=str(_("Too many failed sign-ins from your address."))
             )
 
-        source_ip = request.META.get("REMOTE_ADDR")
+        source_ip = get_rate_limit_address(request)
         auth_failure_key = login_failures_key(username, source_ip)
         auth_failures = cache.get(auth_failure_key) or 0
         lockout_time_in_mins = LOGIN_LOCKOUT_MINUTES
@@ -345,7 +347,11 @@ class ObtainAuthToken(APIView):
             # threshold. emit_user_blocked_event dedups within the lockout
             # window, so subsequent attempts do not produce duplicate events.
             if auth_failures + 1 >= max_auth_failures:
-                emit_user_blocked_event(username, source_ip, lockout_time_in_mins * 60)
+                # The resolved client address, not the counter's fallback: an
+                # address that cannot be resolved is a proxy's, not the client's.
+                emit_user_blocked_event(
+                    username, get_ip_address(request), lockout_time_in_mins * 60
+                )
 
             return Response(
                 data={"detail": _("Invalid username/password.")},
@@ -468,7 +474,7 @@ class ReauthenticationPasswordView(
                 wait, detail=str(_("Too many failed sign-ins from your address."))
             )
 
-        source_ip = request.META.get("REMOTE_ADDR")
+        source_ip = get_rate_limit_address(request)
         failure_key = login_failures_key(user.username, source_ip)
         failures = cache.get(failure_key) or 0
         if failures >= MAX_LOGIN_FAILURES or AxesProxyHandler.is_locked(
@@ -492,7 +498,9 @@ class ReauthenticationPasswordView(
             reauthentication.emit_failed(user, action, ReauthenticationMethod.PASSWORD)
             if failures + 1 >= MAX_LOGIN_FAILURES:
                 emit_user_blocked_event(
-                    user.username, source_ip, LOGIN_LOCKOUT_MINUTES * 60
+                    user.username,
+                    get_ip_address(request),
+                    LOGIN_LOCKOUT_MINUTES * 60,
                 )
             raise ValidationError({"password": [_("The password is incorrect.")]})
         cache.delete(failure_key)

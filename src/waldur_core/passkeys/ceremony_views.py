@@ -26,6 +26,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from waldur_core.core import access, reauthentication
+from waldur_core.core import utils as core_utils
 from waldur_core.core.authentication import AuthenticationMethod, refresh_token
 from waldur_core.core.enums import ReauthenticationAction, ReauthenticationMethod
 from waldur_core.core.serializers import ReauthenticationGrantSerializer
@@ -50,7 +51,7 @@ User = get_user_model()
 
 
 def _client_ip(request):
-    return request.META.get("REMOTE_ADDR")
+    return core_utils.get_ip_address(request)
 
 
 class BasePasskeyView(APIView):

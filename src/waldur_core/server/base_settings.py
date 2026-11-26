@@ -353,9 +353,10 @@ for ext in WaldurExtension.get_extensions():
 # failed password attempts per address (PASSWORD_FAILURES_PER_ADDRESS_*).
 AXES_LOCKOUT_PARAMETERS = ["username"]
 # The client address as the trusted proxies report it (TRUSTED_PROXY_COUNT
-# entries from the right of X-Forwarded-For), else the peer. Axes alone would
-# take the peer, which behind the ingress is the ingress for every user.
-AXES_CLIENT_IP_CALLABLE = "waldur_core.core.utils.get_proxied_client_ip"
+# entries from the right of X-Forwarded-For), else the peer, so a request is
+# always counted somewhere. Axes alone would take the peer, which behind the
+# ingress is the ingress for every user.
+AXES_CLIENT_IP_CALLABLE = "waldur_core.core.utils.get_rate_limit_address"
 # Axes warns when it does not lock addresses. That is deliberate here: an
 # address is rate-limited instead (waldur_core.core.password_attempts).
 SILENCED_SYSTEM_CHECKS = ["axes.W006"]

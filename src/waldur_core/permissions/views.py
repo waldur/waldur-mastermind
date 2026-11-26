@@ -1186,7 +1186,9 @@ def can_restore_user_role(request, view, obj=None):
         _check_grant_permission(request, obj, get_create_permission)
 
 
-def filter_user_permissions_by_ip_address(qs: QuerySet[models.UserRole], user_ip: str):
+def filter_user_permissions_by_ip_address(
+    qs: QuerySet[models.UserRole], user_ip: str | None
+):
     from waldur_core.structure.managers import filter_customer_by_ip_address
     from waldur_core.structure.models import Customer, Project
 
@@ -1288,7 +1290,8 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
         "Every grant to staff and support, the list only active ones unless "
         "show_inactive=true. Anyone else sees their own active grants, except "
         "those on an organization, or a project of one, that limits portal "
-        "access to networks the caller's address is outside."
+        "access to networks the caller's address is outside, or whose address "
+        "cannot be determined."
     )
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1306,10 +1309,9 @@ class UserPermissionViewSet(ReadOnlyModelViewSet):
             return qs
         # Other users only ever see their own currently active roles.
         qs = qs.filter(user=user, is_active=True).distinct()
-        user_ip = get_ip_address(self.request)
-        if not user_ip:
-            return qs
-        return filter_user_permissions_by_ip_address(qs, user_ip)
+        # None, an address that could not be determined, is outside every
+        # subnet rather than exempt from them.
+        return filter_user_permissions_by_ip_address(qs, get_ip_address(self.request))
 
     @extend_schema(
         summary="Revoke a user role",

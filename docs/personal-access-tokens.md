@@ -491,14 +491,9 @@ Audit volume is additionally capped per token: `PAT_MAX_AUDIT_EVENTS_PER_HOUR` (
 
 ### Deployment requirement
 
-Waldur resolves the client address from the **first** `X-Forwarded-For` entry, falling back to `REMOTE_ADDR`. This is the same resolver used across the platform (audit logging, `AccessSubnet`, marketplace filters) and matches the ingress `whitelistSourceRange`.
+The network ACL is a security boundary only as strong as the proxies that report the client address. Waldur resolves that address the same way everywhere (access subnets, marketplace concealment, the audit trail, brute-force protection): from the `X-Forwarded-For` entry that its own proxies added, `WALDUR_CORE["TRUSTED_PROXY_COUNT"]` places from the right (default `1`), or from `REMOTE_ADDR` when there is no such header. A header without a usable entry at that place leaves the request with no address, and a token with a non-empty ACL is then rejected, even if the proxy's own address is inside the ACL. Entries before that one are whatever the caller sent and are ignored, so sending `X-Forwarded-For: <an-allowed-ip>` through a proxy that appends to the header does not satisfy the ACL.
 
-The network ACL is a **security boundary, and it is only as strong as the trust boundary that populates `X-Forwarded-For`.** Because the resolver takes the first entry, that entry must be written by a proxy you control, not by the caller:
-
-- **Safe (required):** the edge proxy / ingress **overwrites** `X-Forwarded-For` with the real client address on each request. The default `nginx` ingress does exactly this out of the box (`use-forwarded-headers: false`), so the first entry is always the address that actually connected to the load balancer.
-- **Unsafe — defeats the ACL:** any proxy in front that is configured to **trust and append** to an incoming `X-Forwarded-For` (for nginx ingress, `use-forwarded-headers: true`) without restricting that trust to known upstream proxies. In that mode a caller can send `X-Forwarded-For: <an-allowed-ip>` and the spoofed value becomes the first entry, bypassing the ACL entirely (`curl -H "X-Forwarded-For: 203.0.113.5" ...`).
-
-Do **not** enable forwarded-header trust/append mode unless the proxy accepting it is itself reachable only through a trusted, IP-restricted upstream that overwrites the header. The same caveat applies to `AccessSubnet` and marketplace IP filters, which share this resolver. Enforcement fails closed on an unresolvable address (a token with a non-empty ACL is rejected), but it cannot distinguish a spoofed first entry from a genuine one — that distinction is the proxy's job.
+Set the count to the number of proxies in front of Waldur that add an entry: `1` for a single ingress, `2` for a load balancer in front of an ingress when both append, `0` when Waldur is reached directly. A count higher than the real number of proxies lets the caller choose the address again. See [the client address behind proxies](admin/brute-force-protection.md#the-client-address-behind-proxies) for each ingress flavour, including the `proxy-real-ip-cidr` setting that ingress-nginx needs with `use-forwarded-headers`.
 
 ### Audit attribution
 

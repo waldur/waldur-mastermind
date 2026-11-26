@@ -835,7 +835,7 @@ Identifier of translation domain applied to current deployment.
 
 **Type:** int
 
-How many proxies in front of Waldur add an entry to X-Forwarded-For, such as the ingress, and a load balancer in front of it. The client address for the sign-in lockout and the limit on failed passwords per address is the entry this many places from the right, as for NUM_PROXIES in Django REST framework; with fewer entries, the connection's own address. 1 fits an ingress that replaces the header or appends to it; a load balancer in front of the ingress makes it 2. 0 ignores the header.
+How many proxies in front of Waldur add an entry to X-Forwarded-For, such as the ingress, and a load balancer in front of it. The client address is the entry this many places from the right, as for NUM_PROXIES in Django REST framework, and without the header the connection's own address. With fewer entries, or when that entry is not an address, the request has no client address: network restrictions refuse it, the audit trail records none, per-address limits count it under the connection's address, and a warning is logged. It is used everywhere a client address is: organization access subnets, offering subnet concealment, personal access token networks, the sign-in lockout, the limit on failed passwords per address and the addresses recorded in the audit trail. 1 fits an ingress that replaces the header or appends to it; a load balancer in front of the ingress makes it 2. 0 ignores the header. Too high a count lets clients choose their address; too low a count makes every client appear as a proxy.
 
 #### USER_MANAGEMENT_API_TIMEOUT
 

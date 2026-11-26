@@ -126,9 +126,25 @@ class ConcealedInstanceTest(ConcealmentMixin, test.APITestCase):
         for ip in (f"{ALLOWED_IP}:5678", f"::ffff:{ALLOWED_IP}"):
             self.assert_shown("openstack-instance", self.instance, ip=ip)
 
-    def test_shown_without_client_address(self):
+    def test_hidden_without_client_address(self):
+        # An address that cannot be determined is outside every subnet.
         for basename, obj in self.objects():
-            self.assert_shown(basename, obj, ip=None)
+            self.assert_hidden(basename, obj, ip=None)
+
+    def test_hidden_when_an_allowed_ingress_gives_no_client_address(self):
+        url = reverse(
+            "openstack-instance-detail", kwargs={"uuid": self.instance.uuid.hex}
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            url, HTTP_X_FORWARDED_FOR="not-an-ip", REMOTE_ADDR=ALLOWED_IP
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_a_forged_first_entry_does_not_reveal_it(self):
+        # The client sends an allowed address; the proxy appends the real one.
+        for basename, obj in self.objects():
+            self.assert_hidden(basename, obj, ip=f"{ALLOWED_IP}, {DENIED_IP}")
 
     def test_shown_when_concealment_is_off(self):
         self.offering.plugin_options = {FLAG: False}

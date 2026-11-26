@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace.tests import fixtures
 
 ALLOWED_IP = "100.100.100.100"
 DENIED_IP = "203.0.113.7"
+INGRESS = "10.42.0.7"
 
 VALID_PDF = (
     b"%PDF-1.4\n1 0 obj\n<<\n/Type /Catalog\n>>\nendobj\n"
@@ -43,12 +44,13 @@ class OrderResourceVisibilityMixin:
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_ORDERS)
         OfferingRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
 
-    def get(self, url, user, ip):
+    def get(self, url, user, ip, ingress=INGRESS):
         self.client.force_authenticate(user)
         if ip is None:
             # No X-Forwarded-For and no peer: the request has no client address.
             return self.client.get(url, REMOTE_ADDR="")
-        return self.client.get(url, HTTP_X_FORWARDED_FOR=ip)
+        # Behind the ingress, which appends the address it saw.
+        return self.client.get(url, HTTP_X_FORWARDED_FOR=ip, REMOTE_ADDR=ingress)
 
     def get_order_resource(self, user, ip):
         url = reverse(
@@ -125,12 +127,31 @@ class RestrictedOrderResourceTests(OrderResourceVisibilityMixin):
         ):
             self.assert_shown(user, DENIED_IP)
 
-    def test_shown_without_client_address(self):
-        # As the consumer resource view does: no address, no network rule.
-        self.assertEqual(
-            self.get_consumer_resource(self.fixture.owner, None).status_code, 200
-        )
-        self.assert_shown(self.fixture.owner, None)
+    def test_hidden_without_client_address(self):
+        # An address that cannot be determined is outside every network.
+        self.assert_hidden(self.fixture.owner, None)
+        self.assert_hidden(self.fixture.owner, "not-an-ip")
+
+    def test_hidden_when_an_allowed_ingress_gives_no_client_address(self):
+        # The ingress itself is inside the allowed network; it does not stand
+        # in for a client the header fails to name.
+        for url in (
+            reverse("marketplace-order-detail", kwargs={"uuid": self.order.uuid.hex}),
+            reverse(
+                "marketplace-resource-detail",
+                kwargs={"uuid": self.resource.uuid.hex},
+            ),
+        ):
+            response = self.get(url, self.fixture.owner, "not-an-ip", ALLOWED_IP)
+            self.assertEqual(response.status_code, 404)
+
+    def test_staff_keep_their_bypass_without_client_address(self):
+        self.assert_shown(self.fixture.staff, None)
+
+    def test_a_forged_first_entry_does_not_satisfy_the_rule(self):
+        # The client sends an allowed address; the proxy appends the real one.
+        self.assert_hidden(self.fixture.owner, f"{ALLOWED_IP}, {DENIED_IP}")
+        self.assert_shown(self.fixture.owner, f"{DENIED_IP}, {ALLOWED_IP}")
 
     def test_address_is_matched_in_canonical_form(self):
         # A host:port hop (Azure Application Gateway) or an IPv4-mapped IPv6
@@ -194,7 +215,7 @@ class RestrictedOrderResourceTests(OrderResourceVisibilityMixin):
 
         self.assertEqual(self.get(url, self.fixture.owner, DENIED_IP).status_code, 404)
         self.assertEqual(self.get(url, self.fixture.owner, ALLOWED_IP).status_code, 200)
-        self.assertEqual(self.get(url, self.fixture.owner, None).status_code, 200)
+        self.assertEqual(self.get(url, self.fixture.owner, None).status_code, 404)
         for user in (self.fixture.staff, self.fixture.offering_owner):
             self.assertEqual(self.get(url, user, DENIED_IP).status_code, 200)
 

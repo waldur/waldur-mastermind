@@ -68,10 +68,34 @@ only from the entries its own proxies added. A client can put any text at the
 start of that header, and many proxies keep it and append the real address
 after it.
 
+One setting and one resolver decide the client address for everything that
+uses it, not only for brute-force protection:
+
+- organization access subnets, and the resources, orders and role grants they
+  hide;
+- offering subnet concealment;
+- personal access token network ACLs, on the REST API and the MCP server
+  (which joins repeated `X-Forwarded-For` header lines, as the WSGI server
+  does);
+- the limit on failed passwords per address, the per-username lockout and the
+  axes records, and the per-address limits of the MCP OAuth registration,
+  the Matrix call token API and the anonymous chat;
+- the addresses recorded in events, the user data access log, event
+  subscriptions, passkey use and `/api/users/me/`.
+
+A network restriction fails closed: a request whose address cannot be
+determined is treated as outside every allowed network, even when the proxy's
+own address is inside it. Staff and
+support are not restricted by access subnets or concealment.
+
 `WALDUR_CORE["TRUSTED_PROXY_COUNT"]` says how many proxies in front of Waldur
 add an entry. The client is the entry that many places from the right, as for
-`NUM_PROXIES` in Django REST framework. With fewer entries, or an entry that is
-not an address, Waldur uses the connection's own address. The default is `1`.
+`NUM_PROXIES` in Django REST framework. Without the header, the connection's
+own address is the client. With fewer entries, or an entry that is not an
+address, the request has no client address: network restrictions refuse it,
+the audit trail records none, and per-address limits count it under the
+connection's address. Waldur logs a warning (at most once a minute) when that
+happens; it usually means the count is wrong. The default is `1`.
 
 | Deployment | `TRUSTED_PROXY_COUNT` |
 |---|---|
@@ -92,9 +116,12 @@ headers only from their trusted proxies (`forwardedHeaders.trustedIPs`,
 `trusted_proxies`).
 
 The proxy closest to the client must set the header to the real client
-address, or append it. If the count is too low, a client can choose the address
-it is counted under. If the count is too high, every user is counted under the
-proxy's address and shares one limit.
+address, or append it. If the count is too high, a client can choose its
+address: it can satisfy an access subnet or a token's network ACL, and write
+any address into the audit trail. If the count is too low, every user is seen
+under a proxy's address: access subnets then admit or refuse everybody alike,
+and everybody shares one failed-password limit. After changing the count, check
+that `/api/users/me/` reports your own address in `ip_address`.
 
 The ingress must see the real client address in the first place. On
 Kubernetes, a `LoadBalancer` or `NodePort` Service with the default
@@ -105,4 +132,7 @@ password re-authentication for everybody for the cool-off. Use
 `externalTrafficPolicy: Local`, or the PROXY protocol between the load balancer
 and the ingress, and check that the ingress logs real client addresses.
 
-Axes records the same address (`AXES_CLIENT_IP_CALLABLE`).
+Axes records the same address (`AXES_CLIENT_IP_CALLABLE`). When the client
+address cannot be resolved, the lockout records (axes access attempts and logs,
+and the `user_blocked` event axes triggers) keep the connection's own address,
+the same one the limits count the request under.

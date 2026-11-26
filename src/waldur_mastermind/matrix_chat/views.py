@@ -40,7 +40,7 @@ from waldur_core.core.auth_utils import (
     get_auth_method,
 )
 from waldur_core.core.models import User
-from waldur_core.core.utils import _strip_port
+from waldur_core.core.utils import get_rate_limit_address
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -2599,29 +2599,19 @@ def _string(data, key):
     return value if isinstance(value, str) else ""
 
 
-def _edge_client_address(request):
-    """The client address as the edge proxy saw it.
+class LiveKitClientThrottle(ScopedRateThrottle):
+    """Per client address, keyed so that a forged X-Forwarded-For does not
+    reset it.
 
     DRF's default identity is the whole X-Forwarded-For header, which a client
     can vary to get a fresh bucket wherever a proxy appends to the header it
-    sent. The proxy in front of Waldur writes the address it saw last, so the
-    rightmost entry is the one a client cannot choose. Without a proxy only a
-    request with no X-Forwarded-For falls back to the socket's address, and the
-    per-user limit is what bounds a client that sends its own header.
+    sent. The trusted proxies' entry is the one a client cannot choose, and
+    its port, the client's ephemeral one, is dropped. A request whose address
+    cannot be determined is counted under the connection's address.
     """
-    forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    hops = [hop.strip() for hop in forwarded.split(",") if hop.strip()]
-    # Azure Application Gateway writes "address:port", the port being the
-    # client's ephemeral one, which would make every connection a new bucket.
-    return _strip_port(hops[-1]) if hops else request.META.get("REMOTE_ADDR", "")
-
-
-class LiveKitClientThrottle(ScopedRateThrottle):
-    """Per client address, keyed so that a forged X-Forwarded-For does not
-    reset it."""
 
     def get_ident(self, request):
-        return _edge_client_address(request)
+        return get_rate_limit_address(request) or ""
 
 
 class LiveKitUserThrottle(SimpleRateThrottle):

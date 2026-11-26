@@ -98,9 +98,9 @@ class PatNetworkAclEnforcementTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_forwarded_header_supplies_the_client_ip(self):
-        # The ingress overwrites X-Forwarded-For with the real client address,
-        # so its first entry is authoritative and the ACL is checked against it
-        # even when REMOTE_ADDR is the proxy's own in-cluster address.
+        # The ingress writes the real client address into X-Forwarded-For, so
+        # the ACL is checked against that entry even when REMOTE_ADDR is the
+        # proxy's own in-cluster address.
         pat = create_pat(self.user, ["203.0.113.0/24"])
         response = self._get(pat, remote_addr="10.0.0.1", xff="203.0.113.5")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -111,11 +111,10 @@ class PatNetworkAclEnforcementTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_braced_forwarded_header_is_rejected_not_500(self):
-        # get_ip_address returns the raw X-Forwarded-For; a value that looks
-        # like a format placeholder must never reach the event-message
-        # .format() template. Normalisation renders it unresolvable, so the ACL
-        # check fails closed with a clean 401 instead of a 500 that would tell
-        # the caller the token is valid.
+        # A value that looks like a format placeholder must never reach the
+        # event-message .format() template. It is not an address, so the
+        # request has none, which the ACL denies with a clean 401 rather than
+        # a 500 that would tell the caller the token is valid.
         pat = create_pat(self.user, ["203.0.113.0/24"])
         response = self._get(pat, remote_addr="10.0.0.1", xff="{oops}")
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

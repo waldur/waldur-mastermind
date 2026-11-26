@@ -136,7 +136,8 @@ class UserPermissionApiTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("ip_address", response.data)
-        self.assertEqual(response.data["ip_address"], "192.168.1.100")
+        # The entry the proxy added, not the one the client sent.
+        self.assertEqual(response.data["ip_address"], "10.0.0.1")
 
     def test_me_endpoint_includes_ip_address_from_remote_addr(self):
         self.client.force_authenticate(self.users["owner"])

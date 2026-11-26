@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 from urllib.parse import urlencode, urlparse
 
-from django.conf import settings
 from oauth2_provider.cimd import SafeMetadataFetcher
 from oauth2_provider.models import (
     AbstractApplication,
@@ -29,6 +28,7 @@ from oauthlib.oauth2.rfc6749 import errors
 from rest_framework.throttling import SimpleRateThrottle
 
 from waldur_core.configuration import config
+from waldur_core.core import utils as core_utils
 
 # The only grants that act for a user who consented. client_credentials would
 # give any registered client a token without anyone's consent.
@@ -140,17 +140,9 @@ class ClientRegistrationThrottle(SimpleRateThrottle):
 
     def get_ident(self, request):
         # DRF's own get_ident uses the whole X-Forwarded-For while NUM_PROXIES is
-        # unset, and the client writes that header. Count from the right instead:
-        # those entries were added by the deployment's proxies.
-        proxies = settings.MCP_OAUTH_TRUSTED_PROXY_COUNT
-        forwarded = [
-            address.strip()
-            for address in request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")
-            if address.strip()
-        ]
-        if proxies and forwarded:
-            return forwarded[-min(proxies, len(forwarded))]
-        return request.META.get("REMOTE_ADDR")
+        # unset, and the client writes that header. The trusted proxies' entry
+        # is the one it cannot choose.
+        return core_utils.get_rate_limit_address(request) or ""
 
     def get_cache_key(self, request, view):
         return self.cache_format % {

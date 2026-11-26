@@ -188,8 +188,8 @@ def emit_failed_login(
     These endpoints take anonymous requests and, unlike username login, have no
     lockout to bound them. An identical failure is logged once a minute, and a
     type is capped at FAILED_LOGIN_EVENTS_PER_MINUTE events a minute. The key
-    leaves out the client IP: it comes from X-Forwarded-For, which the client
-    sets, so varying it or the identity only runs into the cap.
+    leaves out the client IP: a client with many addresses, such as an IPv6
+    /64, could vary it, so varying it or the identity only runs into the cap.
     """
     digest = hashlib.sha256(f"{event_type}:{identity}".encode()).hexdigest()
     if not cache.add(f"FAILED_LOGIN_EVENT_{digest}", True, FAILED_LOGIN_DEDUP_TIMEOUT):

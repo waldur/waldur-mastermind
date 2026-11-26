@@ -48,8 +48,9 @@ access.register_authenticated(access.upload_prefix(OfferingGroup, "icon"))
 def filter_orders_for_download(queryset, principal):
     """OrderViewSet's order visibility, given a request or, failing that, a user.
 
-    Without a request there is no client address, so the network rules hiding
-    an order with its resource do not apply, as on any request without one.
+    Without a request there is no client to judge by network, so the network
+    rules hiding an order with its resource do not apply. A request whose
+    address cannot be determined is judged as outside every network instead.
     """
     user = getattr(principal, "user", principal)
     queryset = filter_orders_for_user(queryset, user)

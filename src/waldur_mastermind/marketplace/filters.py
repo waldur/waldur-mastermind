@@ -40,7 +40,6 @@ from waldur_core.core.utils import (
     get_ip_address,
     is_internal_request,
     is_uuid_like,
-    normalize_ip_address,
 )
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum, RoleEnum
@@ -619,11 +618,12 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
     caller's IP is not covered by the applicable access subnets.
 
     Mirrors the organization-level ``filter_queryset_by_user_ip`` semantics:
-    staff/support and requests without a resolvable IP bypass the check. A
-    resource is hidden only when its offering enabled
-    ``conceal_subnet_restricted_resources`` AND it is restricted (its owning
-    customer has at least one subnet for that offering, or the offering has at
-    least one provider-default subnet) AND the caller's IP is in neither set.
+    staff/support bypass the check, and a request whose address cannot be
+    determined is outside every subnet. A resource is hidden only when its
+    offering enabled ``conceal_subnet_restricted_resources`` AND it is
+    restricted (its owning customer has at least one subnet for that offering,
+    or the offering has at least one provider-default subnet) AND the caller's
+    IP is in neither set.
     The provider defaults widen the allow-list.
 
     Note the fail-open default this preserves: a customer that has defined no
@@ -637,37 +637,35 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
     # together.
     access_visibility_note = (
         "An offering set to conceal subnet-restricted resources hides a "
-        "resource from callers outside its access subnets, except staff, "
-        "support and requests without a client address."
+        "resource from callers outside its access subnets, and from callers "
+        "whose address cannot be determined, except staff and support."
     )
 
     def filter_queryset(self, request, queryset, view):
-        user_ip = self.caller_address(request)
-        if not user_ip:
+        if self.is_exempt(request):
             return queryset
-        return queryset.exclude(self.concealed(user_ip))
+        return queryset.exclude(self.concealed(get_ip_address(request)))
 
     @staticmethod
-    def caller_address(request) -> str | None:
-        """The address to check the caller by, or None when they are exempt."""
+    def is_exempt(request) -> bool:
+        """Whether the caller is not checked against the subnets at all."""
         user = request.user
         if user is None or not user.is_authenticated:
-            return None
+            return True
         if user.is_staff or user.is_support:
-            return None
+            return True
         # A processor replaying a view for the user it acts for (an order's
         # creator, say) has no client of its own: the user's own request was
         # already checked, and the replay carries the loopback address.
-        if is_internal_request(request):
-            return None
-        # Normalised as filter_queryset_by_user_ip does: a host:port or
-        # IPv4-mapped hop is matched by its address, and an unparseable one
-        # counts as no address instead of reaching the inet lookup and 500ing.
-        return normalize_ip_address(get_ip_address(request))
+        return is_internal_request(request)
 
     @classmethod
-    def concealed(cls, user_ip: str) -> Q:
-        """Matches the marketplace resources concealed from ``user_ip``."""
+    def concealed(cls, user_ip: str | None) -> Q:
+        """Matches the marketplace resources concealed from ``user_ip``.
+
+        None, an address that could not be determined, is in no subnet, so
+        every restricted resource is concealed from it.
+        """
         concealing = Q(
             **{
                 "offering__plugin_options__has_key": cls.FLAG,
@@ -696,15 +694,16 @@ class ResourceAccessSubnetConcealmentFilterBackend(BaseFilterBackend):
         offerings_with_defaults = models.OfferingAccessSubnet.objects.filter(
             inet__isnull=False,
         ).values_list("offering_id", flat=True)
-        # Offerings whose provider-default subnets cover the IP.
-        offerings_allowing_ip = models.OfferingAccessSubnet.objects.filter(
-            inet__net_contains_or_equals=user_ip,
-        ).values_list("offering_id", flat=True)
-
         restricted = concealing & (
             Q(customer_list(inet__isnull=False))
             | Q(offering_id__in=offerings_with_defaults)
         )
+        if not user_ip:
+            return restricted
+        # Offerings whose provider-default subnets cover the IP.
+        offerings_allowing_ip = models.OfferingAccessSubnet.objects.filter(
+            inet__net_contains_or_equals=user_ip,
+        ).values_list("offering_id", flat=True)
         allowed = Q(customer_list(inet__net_contains_or_equals=user_ip)) | Q(
             offering_id__in=offerings_allowing_ip
         )
@@ -744,9 +743,9 @@ class PluginResourceConcealmentFilter(BaseFilterBackend):
     with structure's ExternalResourceVisibilityBackend, so it runs in every view
     that filters with GenericRoleFilter.
 
-    Exempt, as on the consumer resource view: staff, support and requests
-    without a client address. A caller who sees the marketplace resource
-    through the provider resource view keeps its objects, as with orders.
+    Exempt, as on the consumer resource view: staff and support. A caller who
+    sees the marketplace resource through the provider resource view keeps its
+    objects, as with orders.
     """
 
     def filter_queryset(self, request, queryset, view):
@@ -757,12 +756,12 @@ class PluginResourceConcealmentFilter(BaseFilterBackend):
         parents = _concealment_parents.get(model, [])
         if not is_scope and not parents:
             return queryset
-        user_ip = ResourceAccessSubnetConcealmentFilterBackend.caller_address(request)
-        if not user_ip:
+        backend = ResourceAccessSubnetConcealmentFilterBackend
+        if backend.is_exempt(request):
             return queryset
 
         concealed = models.Resource.objects.filter(
-            ResourceAccessSubnetConcealmentFilterBackend.concealed(user_ip)
+            backend.concealed(get_ip_address(request))
         )
         # Bounded by the concealed resources, which are few, rather than by
         # every resource the caller provides.
@@ -788,8 +787,8 @@ def filter_resources_by_network(resources, request):
 
     The two rules the consumer resource view applies on top of its permission
     narrowing: the organization's portal network restriction and the offering's
-    subnet concealment. Both exempt staff, support and requests without a
-    client address.
+    subnet concealment. Both exempt staff and support, and treat a request
+    whose address cannot be determined as outside every subnet.
     """
     resources = filter_queryset_by_user_ip(resources, request)
     return ResourceAccessSubnetConcealmentFilterBackend().filter_queryset(
@@ -807,9 +806,6 @@ def filter_orders_by_resource_visibility(orders, request):
     """
     user = request.user
     if user.is_staff or user.is_support:
-        return orders
-    # Both rules are no-ops without a client address; skip the subqueries.
-    if not normalize_ip_address(get_ip_address(request)):
         return orders
     # Only the resources of these orders: both sets end up in an OR, which
     # Postgres runs as subplans collecting their ids, so they are bounded by
@@ -829,9 +825,10 @@ def filter_orders_by_resource_visibility(orders, request):
 # What filter_resources_by_consumer_access shows; the second sentence is
 # filter_queryset_by_user_ip's rule. Change the three together.
 CONSUMER_ACCESS_VISIBILITY = (
-    f"{ResourceQuerySet.CONSUMER_VISIBILITY} Except to staff, support and "
-    "requests without a client address, an organization that limits portal "
-    "access to some networks hides its resources from callers outside them."
+    f"{ResourceQuerySet.CONSUMER_VISIBILITY} Except to staff and support, an "
+    "organization that limits portal access to some networks hides its "
+    "resources from callers outside them, and from callers whose address "
+    "cannot be determined."
 )
 
 
