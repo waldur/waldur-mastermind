@@ -101,14 +101,14 @@ class WebhookDispatchTest(test.APITestCase):
         self.assertEqual(_messages(mock_delay), [])
 
     def test_webhook_delivery_does_not_suppress_legacy_queues(self):
-        # The marketplace path skips a user's legacy subscriptions for the
-        # users in user_ids; a webhook is someone else's system, so its owner
-        # must not be counted as covered.
+        # The marketplace path skips a user's legacy subscriptions on the
+        # consumers in consumer_ids; a webhook is someone else's system, so it
+        # must not be counted as covering its owner.
         result = event_dispatch.build_messages(
             [], lambda: {"x": 1}, ObservableObjectType.USER_ROLE, include_global=True
         )
         self.assertEqual(len(result.messages), 1)
-        self.assertEqual(result.user_ids, set())
+        self.assertEqual(result.consumer_ids, set())
 
     @mock.patch(DELAY)
     def test_project_role_carries_parent_organization(self, mock_delay):

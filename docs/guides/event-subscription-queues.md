@@ -10,9 +10,10 @@
 >
 > Removal is tracked in **WAL-10111** and gated on drain telemetry (zero legacy
 > queues, sustained) rather than a date — see "The legacy path" in
-> `docs/design/pubsub-architecture.md`. A consumer that already owns a unified
-> queue is automatically suppressed from this path, so the two never
-> double-deliver.
+> `docs/design/pubsub-architecture.md`. Once the offering's own site agent is on
+> a unified queue, its user's legacy queue for that offering is skipped. Any
+> other client that moves to the unified path must delete its legacy
+> subscription, or it receives each event on both paths.
 
 This guide explains the `EventSubscriptionQueue` system for managing RabbitMQ queues
 used by event subscriptions, including queue lifecycle management and cleanup mechanisms.

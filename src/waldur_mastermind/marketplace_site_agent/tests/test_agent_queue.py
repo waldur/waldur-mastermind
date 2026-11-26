@@ -19,6 +19,7 @@ from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import enums
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.marketplace_site_agent.tests import factories
 
@@ -584,9 +585,9 @@ class AgentQueueMessageRoutingTest(test.APITestCase):
         ]
         self.assertEqual(len(old_path_messages), 0)
 
-    def test_consumer_queue_suppresses_legacy_for_same_user(self):
-        """A unified consumer queue supersedes the legacy path for the SAME user:
-        no double-delivery. Only the consumer message is emitted."""
+    def test_agent_consumer_queue_suppresses_legacy_for_same_user(self):
+        """This offering's agent consumer supersedes the legacy path for the SAME
+        user: no double-delivery. Only the consumer message is emitted."""
         user = self.fixture.staff
 
         # Old path: subscription + EventSubscriptionQueue
@@ -602,8 +603,9 @@ class AgentQueueMessageRoutingTest(test.APITestCase):
             object_type=logging_enums.ObservableObjectType.ORDER.value,
         )
 
-        # New consumer path, same user
+        # New consumer path, same user, same offering's agent
         consumer = self._setup_consumer(user=user)
+        factories.AgentIdentityFactory(offering=self.offering, event_consumer=consumer)
 
         payload = {"order_uuid": "abc123", "order_state": "pending provider"}
         messages = marketplace_utils.prepare_messages(
@@ -769,6 +771,153 @@ class AgentQueueMessageRoutingTest(test.APITestCase):
             m for m in messages if m["topic"] == f"consumer_{consumer.uuid.hex}"
         ]
         self.assertEqual(len(consumer_messages), 1)
+
+
+@ddt
+class AgentQueueLegacySuppressionTest(test.APITestCase):
+    """Only this offering's site agent consumer suppresses a legacy queue.
+
+    The agent's service user is a plain offering-customer owner, as on a real
+    deployment. Anyone opening the portal as that user registers a realtime-UI
+    consumer for it; that consumer is a different client and must not starve
+    the agent's legacy queue.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = enums.SITE_AGENT_OFFERING
+        self.offering.save()
+        self.user = self.fixture.service_owner
+        self.resource = self.fixture.resource
+        self.subscription = logging_models.EventSubscription.objects.create(
+            user=self.user,
+            observable_objects=[
+                {"object_type": object_type.value}
+                for object_type in (
+                    logging_enums.ObservableObjectType.ORDER,
+                    logging_enums.ObservableObjectType.RESOURCE,
+                )
+            ],
+        )
+
+    def _register_legacy_queue(self, object_type, offering=None):
+        logging_models.EventSubscriptionQueue.objects.create(
+            event_subscription=self.subscription,
+            offering_uuid=(offering or self.offering).uuid,
+            object_type=object_type.value,
+        )
+
+    def _consumer(self, *scopes, user=None):
+        return logging_factories.EventConsumerFactory.with_scopes(
+            *scopes,
+            user=user or self.user,
+            rmq_username="aabb000000000000000000000000ccdd",
+            queue_created=True,
+        )
+
+    def _agent_consumer(self, offering):
+        consumer = self._consumer(offering)
+        factories.AgentIdentityFactory(offering=offering, event_consumer=consumer)
+        return consumer
+
+    def _send(self, object_type):
+        if object_type == logging_enums.ObservableObjectType.ORDER:
+            payload = {"order_uuid": "abc123", "order_state": "pending provider"}
+        else:
+            payload = {"resource_uuid": self.resource.uuid.hex}
+        messages = marketplace_utils.prepare_messages(
+            self.offering, payload, object_type
+        )
+        return [m["topic"] for m in messages]
+
+    def _legacy_topic(self, object_type):
+        return (
+            f"subscription/{self.subscription.uuid.hex}"
+            f"/offering/{self.offering.uuid.hex}/{object_type.value}"
+        )
+
+    @data(
+        logging_enums.ObservableObjectType.ORDER,
+        logging_enums.ObservableObjectType.RESOURCE,
+    )
+    def test_ui_consumer_of_same_user_does_not_suppress_legacy(self, object_type):
+        self._register_legacy_queue(object_type)
+        ui_consumer = self._consumer(self.offering.customer)
+
+        topics = self._send(object_type)
+
+        self.assertCountEqual(
+            topics,
+            [self._legacy_topic(object_type), f"consumer_{ui_consumer.uuid.hex}"],
+        )
+
+    @data(
+        logging_enums.ObservableObjectType.ORDER,
+        logging_enums.ObservableObjectType.RESOURCE,
+    )
+    def test_agent_consumer_of_this_offering_suppresses_legacy(self, object_type):
+        self._register_legacy_queue(object_type)
+        agent_consumer = self._agent_consumer(self.offering)
+
+        topics = self._send(object_type)
+
+        self.assertEqual(topics, [f"consumer_{agent_consumer.uuid.hex}"])
+
+    def test_agent_consumer_filtering_out_event_does_not_suppress_legacy(self):
+        # The agent consumer exists but its object_types drop ORDER, so only
+        # the legacy queue can carry the event; it must not be lost on both.
+        self._register_legacy_queue(logging_enums.ObservableObjectType.ORDER)
+        agent_consumer = self._agent_consumer(self.offering)
+        agent_consumer.object_types = [
+            logging_enums.ObservableObjectType.RESOURCE.value
+        ]
+        agent_consumer.save()
+
+        topics = self._send(logging_enums.ObservableObjectType.ORDER)
+
+        self.assertEqual(
+            topics, [self._legacy_topic(logging_enums.ObservableObjectType.ORDER)]
+        )
+
+    @data(
+        logging_enums.ObservableObjectType.ORDER,
+        logging_enums.ObservableObjectType.RESOURCE,
+    )
+    def test_agent_consumer_of_other_offering_does_not_suppress_legacy(
+        self, object_type
+    ):
+        self._register_legacy_queue(object_type)
+        other_offering = marketplace_factories.OfferingFactory(
+            customer=self.offering.customer, type=enums.SITE_AGENT_OFFERING
+        )
+        # Bound to the shared organization, so it still receives this event.
+        consumer = self._consumer(self.offering.customer)
+        factories.AgentIdentityFactory(offering=other_offering, event_consumer=consumer)
+
+        topics = self._send(object_type)
+
+        self.assertCountEqual(
+            topics,
+            [self._legacy_topic(object_type), f"consumer_{consumer.uuid.hex}"],
+        )
+
+    @data(
+        logging_enums.ObservableObjectType.ORDER,
+        logging_enums.ObservableObjectType.RESOURCE,
+    )
+    def test_global_non_agent_consumer_does_not_suppress_legacy(self, object_type):
+        self.user.is_staff = True
+        self.user.save()
+        self._register_legacy_queue(object_type)
+        global_consumer = self._consumer()
+
+        topics = self._send(object_type)
+
+        self.assertCountEqual(
+            topics,
+            [self._legacy_topic(object_type), f"consumer_{global_consumer.uuid.hex}"],
+        )
 
 
 class AgentQueuePayloadEnrichmentTest(test.APITestCase):

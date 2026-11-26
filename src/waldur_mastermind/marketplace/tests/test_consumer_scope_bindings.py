@@ -192,7 +192,7 @@ class ConsumerScopeBindingTest(test.APITestCase):
             logging_enums.ObservableObjectType.ORDER,
         )
         self.assertEqual(result.messages, [])
-        self.assertNotIn(consumer.user_id, result.user_ids)
+        self.assertNotIn(consumer.id, result.consumer_ids)
 
     # --- Coverage for the remaining object types the site agent subscribes to
     # that flow through this dispatch path (importable resources, periodic
