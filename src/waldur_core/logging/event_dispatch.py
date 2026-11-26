@@ -19,10 +19,9 @@ dispatchers can emit — the core path on the role_granted/revoked signal, the
 marketplace path on a manual project re-sync. To avoid delivering it to a global
 consumer twice, the core path owns USER_ROLE for globals and the marketplace
 path passes ``include_global=False`` for USER_ROLE only. Every other object
-type is emitted by exactly one path, so a global receives it once. Suppression
-of a user's legacy subscription is keyed on messages actually delivered (see
-``DispatchResult``), so a global that genuinely receives a marketplace event
-correctly supersedes its own legacy queue for that event.
+type is emitted by exactly one path, so a global receives it once. Whether a
+delivered consumer supersedes its owner's legacy subscription is decided by the
+marketplace caller (see ``DispatchResult``), not here.
 
 The payload is produced by a builder callable that runs ONLY when at least one
 global consumer exists — so a system with no global consumer pays nothing on
@@ -131,19 +130,24 @@ def _envelope(payload, object_type: ObservableObjectType, event_type) -> dict:
 
 
 class DispatchResult(NamedTuple):
-    """Messages to publish, plus the owners of the consumers actually delivered to.
+    """Messages to publish, plus the queue consumers actually delivered to.
 
-    ``user_ids`` is used by the marketplace caller to suppress the legacy path
-    for users already on the unified path (no double-delivery). It therefore
-    reflects only consumers that were REALLY sent this message — i.e. after the
+    ``consumer_ids`` lets the marketplace caller suppress the legacy path for a
+    client already moved to the unified path (no double-delivery). It holds
+    only consumers that were REALLY sent this message — i.e. after the
     per-consumer ``object_types`` filter. Suppressing on mere entitlement would
-    black-hole the event for a user whose unified consumer filters this type out
-    but whose legacy subscription still wants it: dropped on both paths, with no
-    error and no log.
+    black-hole the event for a client whose unified consumer filters this type
+    out but whose legacy subscription still wants it: dropped on both paths,
+    with no error and no log.
+
+    Webhook consumers are left out: they deliver to some other system, never to
+    the owner's own client. Which of the remaining consumers stand for the same
+    client as a legacy subscription is the caller's call — core cannot tell a
+    site agent's queue from a browser's.
     """
 
     messages: list[dict]
-    user_ids: set[int]
+    consumer_ids: set[int]
 
 
 def build_messages(
@@ -247,17 +251,14 @@ def build_messages(
     payload_str = json.dumps(envelope, cls=DjangoJSONEncoder)
 
     messages = []
-    delivered_user_ids = set()
+    delivered_consumer_ids = set()
     for consumer in consumers.values():
         if not consumer.accepts(object_type.value, envelope):
             continue
-        # Only a queue counts as "this user already has it": the marketplace
-        # caller skips the user's legacy subscription queues on this set, and a
-        # webhook delivers to some other system, not to the user's own client.
         if not consumer.is_webhook:
-            delivered_user_ids.add(consumer.user_id)
+            delivered_consumer_ids.add(consumer.id)
         messages.append(consumer_message(consumer, payload_str))
-    return DispatchResult(messages, delivered_user_ids)
+    return DispatchResult(messages, delivered_consumer_ids)
 
 
 # Scope chains that differ from get_scope_ancestors, keyed by model class. An app

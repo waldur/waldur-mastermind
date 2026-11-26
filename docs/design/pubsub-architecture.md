@@ -40,7 +40,7 @@ flowchart TD
     subgraph legacy["Legacy path — deprecated"]
         legacy_queue["EventSubscription plus EventSubscriptionQueue<br/>one queue per offering and object_type"]
     end
-    disp_match -.->|suppressed for users already on a unified queue| legacy
+    disp_match -.->|suppressed once the site agent of this offering is on a unified queue| legacy
     style legacy stroke-dasharray: 5 5
 ```
 
@@ -195,9 +195,8 @@ signal, the marketplace path on a manual project re-sync. To avoid delivering it
 to a global twice, the core path owns `user_role` for globals and the
 marketplace path passes `include_global=False` for `user_role` only; every other
 object type is emitted by exactly one path, so a global receives it once.
-Suppression of a user's legacy subscription is keyed on messages actually
-delivered, so a global that genuinely receives a marketplace event correctly
-supersedes its own legacy queue for it. Payloads are built lazily — construction
+A global consumer never suppresses its owner's legacy subscription — see "The
+legacy path" below. Payloads are built lazily — construction
 runs only when a consumer actually exists — and every emitter is guarded by
 `get_skip_side_effects()` so imports, migrations and bulk loads stay silent.
 
@@ -334,8 +333,20 @@ That is the key an external system matches its own records on.
 consumers keep working. Its endpoints are marked `deprecated` in the OpenAPI
 schema, and therefore in the generated SDKs.
 
-The two paths never double-deliver: a user who owns a unified queue is
-suppressed from the legacy loop, so every consumer is on exactly one path.
+A user's legacy subscription for an offering is skipped only when that
+offering's own site agent (a consumer linked to an `AgentIdentity` of the same
+offering, i.e. an agent upgraded to `register_queue`) actually received the
+event — the one client known to exist on both paths. Any other consumer of the
+same user — the realtime UI of a browser logged in as the agent's service
+user, an IdM sync, a global staff consumer, an agent of another offering — is a
+different client, so it never suppresses the legacy queue. Suppressing on it
+would leave the legacy queue silently empty. A non-agent client that moved to
+the unified path while keeping its legacy subscription therefore receives the
+event on both paths; delete the legacy subscription after migrating.
+
+Only consumers actually sent the message count: an agent consumer whose
+`object_types` or payload filters drop the event does not suppress the legacy
+queue, so the event is never lost on both paths.
 
 Retirement — the migration command, drain telemetry, and the removal itself — is
 tracked in **WAL-10111**, gated on drain-to-zero rather than a date, because

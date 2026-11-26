@@ -7977,6 +7977,25 @@ def prepare_provider_account_messages(
     return dispatch_result.messages
 
 
+def _agent_covered_user_ids(offering: models.Offering, consumer_ids) -> set[int]:
+    """Owners of delivered consumers that belong to this offering's site agent.
+
+    A legacy subscription is skipped only when the same client already got the
+    event on the unified path, i.e. a site agent of this offering upgraded to
+    ``register_queue``. Any other consumer of the same user — the realtime UI of
+    a browser logged in as the agent's service user, an IdM sync, a global
+    staff consumer, or an agent of another offering — is a different client,
+    and suppressing on it would leave the legacy queue silently empty.
+    """
+    if not consumer_ids:
+        return set()
+    return set(
+        logging_models.EventConsumer.objects.filter(
+            id__in=consumer_ids, agent_identity__offering=offering
+        ).values_list("user_id", flat=True)
+    )
+
+
 def prepare_messages(
     offering: models.Offering,
     message_payload: dict,
@@ -8069,28 +8088,34 @@ def prepare_messages(
         include_global=affected_object != ObservableObjectType.USER_ROLE,
     )
     messages_to_send.extend(dispatch_result.messages)
-    consumer_covered_user_ids = dispatch_result.user_ids
 
     # --- Legacy: per-offering subscription queues (DEPRECATED) ---
     # Superseded by the unified EventConsumer path above; left untouched so
-    # existing consumers keep working. Users already covered by a unified queue
-    # are skipped below (no double-delivery). Delete this whole block, and the
-    # suppression it needs, when the legacy path is retired — WAL-10111.
+    # existing consumers keep working. A user whose site agent for THIS offering
+    # already got the event on its unified queue is skipped below (no
+    # double-delivery). Delete this whole block, and the suppression it needs,
+    # when the legacy path is retired — WAL-10111.
     event_subscriptions = legacy_subscriptions  # queryset built for the short-circuit
+    has_legacy_subscriptions = event_subscriptions.exists()
 
     # Resolve the event's target customer for consumer access checks.
     # Computed once (outside the loop) since it depends only on the payload,
     # not the subscribing user. Skipped when there are no legacy subscriptions.
     event_consumer_customer = (
         _resolve_event_consumer_customer(offering, message_payload, affected_object)
-        if event_subscriptions.exists()
+        if has_legacy_subscriptions
         else None
+    )
+    agent_covered_user_ids = (
+        _agent_covered_user_ids(offering, dispatch_result.consumer_ids)
+        if has_legacy_subscriptions
+        else set()
     )
 
     for event_subscription in event_subscriptions:
         user = event_subscription.user
-        if user.id in consumer_covered_user_ids:
-            # A unified consumer queue supersedes the legacy path for this user.
+        if user.id in agent_covered_user_ids:
+            # This offering's site agent moved to its unified queue.
             continue
         logger.info("Processing subscription for user %s", user)
 
