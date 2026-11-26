@@ -1,3 +1,4 @@
+import hashlib
 from importlib import import_module
 
 from django.apps import apps as django_apps
@@ -16,6 +17,10 @@ migration = import_module(
 
 def _pdf(name="proposal.pdf"):
     return SimpleUploadedFile(name, b"%PDF-1.4\n%%EOF\n")
+
+
+def _pdf_with(content, name="other.pdf"):
+    return SimpleUploadedFile(name, content)
 
 
 class ProposalDocumentUploadTest(test.APITestCase):
@@ -88,6 +93,27 @@ class ProposalDocumentUploadTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(other_proposal.proposaldocumentation_set.count(), 1)
 
+    def test_proposal_lists_the_hash_of_each_document(self):
+        self.client.post(self.url, {"file": _pdf()}, format="multipart")
+        self.client.post(
+            self.url,
+            {"file": _pdf_with(b"%PDF-1.4\n% other\n%%EOF\n")},
+            format="multipart",
+        )
+
+        response = self.client.get(factories.ProposalFactory.get_url(self.proposal))
+
+        self.assertEqual(
+            {
+                document["file_hash"]
+                for document in response.data["supporting_documentation"]
+            },
+            {
+                hashlib.sha256(b"%PDF-1.4\n%%EOF\n").hexdigest(),
+                hashlib.sha256(b"%PDF-1.4\n% other\n%%EOF\n").hexdigest(),
+            },
+        )
+
 
 class ProposalWithEmptyDocumentReadTest(test.APITestCase):
     def setUp(self):
@@ -107,6 +133,7 @@ class ProposalWithEmptyDocumentReadTest(test.APITestCase):
         [document] = response.data["supporting_documentation"]
         self.assertEqual(document["uuid"], self.empty.uuid.hex)
         self.assertIsNone(document["file_size"])
+        self.assertIsNone(document["file_hash"])
 
 
 class DeleteEmptyProposalDocumentsMigrationTest(TestCase):
