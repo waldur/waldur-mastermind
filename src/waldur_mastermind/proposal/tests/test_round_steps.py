@@ -660,6 +660,83 @@ class RoundReportTest(RoundStepTestBase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+class ArchivedCallRoundReportTest(RoundStepTestBase):
+    """An archived call's round reports, notes and ranking stand still: a
+    report submitted no longer completes the step for its proposals."""
+
+    def setUp(self):
+        super().setUp()
+        self.open_all()
+        self.report_a = self.report_of(self.chair_a)
+        self.answer(self.report_a)
+        self.archive(CallStates.ARCHIVED)
+
+    def archive(self, state):
+        models.Call.objects.filter(pk=self.call.pk).update(state=state)
+
+    def assert_archived(self, response):
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+        self.assertEqual(response.data["detail"], "The call is archived.")
+
+    def test_submitting_a_report_completes_nothing(self):
+        self.assert_archived(self.submit(self.report_a))
+        self.report_a.refresh_from_db()
+        self.assertIsNone(self.report_a.submitted_at)
+        for proposal in (self.first, self.second):
+            self.assertEqual(
+                self.instance(proposal).status, WorkflowStepInstanceStatuses.ACTIVE
+            )
+
+    def test_a_report_submitted_before_completes_nothing_now(self):
+        models.RoundMeetingNote.objects.filter(pk=self.report_a.pk).update(
+            submitted_at=timezone.now()
+        )
+        self.report_a.refresh_from_db()
+        self.assertEqual(
+            round_steps.complete_covered(self.report_a, self.chair_a), ([], [])
+        )
+        self.assertEqual(
+            self.instance(self.first).status, WorkflowStepInstanceStatuses.ACTIVE
+        )
+
+    def test_notes_and_ranking_are_read_only(self):
+        self.assert_archived(self.answer(self.report_a))
+        self.client.force_authenticate(self.chair_a)
+        self.assert_archived(
+            self.client.patch(note_url(self.report_a), {"body": "x"}, format="json")
+        )
+        self.client.force_authenticate(self.manager)
+        self.assert_archived(self.client.post(note_url(self.report_a, "reopen")))
+        self.assert_archived(self.client.delete(note_url(self.report_a)))
+        response = self.client.post(
+            NOTES_URL,
+            {"round": self.round.uuid.hex, "title": "Free"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+        response = self.client.post(
+            RANKINGS_URL,
+            {
+                "round": self.round.uuid.hex,
+                "proposal": self.first.uuid.hex,
+                "rank": 1,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+
+    def test_the_report_is_still_read(self):
+        self.client.force_authenticate(self.manager)
+        response = self.client.get(note_url(self.report_a))
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_activating_the_call_lifts_it(self):
+        self.archive(CallStates.ACTIVE)
+        response = self.submit(self.report_a)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(len(response.data["completed"]), 2)
+
+
 class RoundReportReadTest(RoundStepTestBase):
     def setUp(self):
         super().setUp()

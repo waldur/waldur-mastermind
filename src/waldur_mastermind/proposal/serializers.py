@@ -58,6 +58,7 @@ from waldur_mastermind.matrix_chat import matrix_client
 from waldur_mastermind.matrix_chat import models as matrix_models
 from waldur_mastermind.proposal import (
     activity,
+    archive,
     call_templates,
     change_requests,
     coi_declarations,
@@ -792,6 +793,12 @@ class ProposalReviewSerializer(
     round_slug = serializers.ReadOnlyField(source="proposal.round.slug")
     call_uuid = serializers.UUIDField(source="proposal.round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
+    call_state = serializers.ChoiceField(
+        source="proposal.round.call.state",
+        choices=CallStates.CHOICES,
+        read_only=True,
+        help_text="The state of the call: an archived call is read-only.",
+    )
     call_slug = serializers.ReadOnlyField(source="proposal.round.call.slug")
     call_managing_organisation_uuid = serializers.ReadOnlyField(
         source="proposal.round.call.manager.uuid"
@@ -874,6 +881,7 @@ class ProposalReviewSerializer(
             "round_cutoff_time",
             "round_start_time",
             "call_name",
+            "call_state",
             "call_uuid",
             "call_slug",
             "call_managing_organisation_uuid",
@@ -5451,6 +5459,15 @@ class ProposalSerializer(
     round_uuid = serializers.UUIDField(write_only=True, required=True)
     call_uuid = serializers.UUIDField(source="round.call.uuid", read_only=True)
     call_name = serializers.ReadOnlyField(source="round.call.name", read_only=True)
+    call_state = serializers.ChoiceField(
+        source="round.call.state",
+        choices=CallStates.CHOICES,
+        read_only=True,
+        help_text=(
+            "The state of the proposal's call: an archived call's proposals are "
+            "read-only."
+        ),
+    )
     call_managing_organisation_uuid = serializers.ReadOnlyField(
         source="round.call.manager.uuid"
     )
@@ -5705,6 +5722,7 @@ class ProposalSerializer(
             "round_uuid",
             "call_uuid",
             "call_name",
+            "call_state",
             "call_managing_organisation_uuid",
             "call_adoption_required",
             "oecd_fos_2007_code",
@@ -10273,6 +10291,10 @@ class MyAssignmentBatchSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
     call_uuid = serializers.UUIDField()
     call_name = serializers.CharField()
+    call_state = serializers.ChoiceField(
+        choices=CallStates.CHOICES,
+        help_text="The state of the call: an archived call is read-only.",
+    )
     status = serializers.CharField()
     status_display = serializers.CharField()
     sent_at = serializers.DateTimeField()
@@ -10610,6 +10632,12 @@ class ProposalRoleAssignmentSerializer(serializers.ModelSerializer):
         source="proposal.round.call.uuid", read_only=True, format="hex"
     )
     call_name = serializers.ReadOnlyField(source="proposal.round.call.name")
+    call_state = serializers.ChoiceField(
+        source="proposal.round.call.state",
+        choices=CallStates.CHOICES,
+        read_only=True,
+        help_text="The state of the call: an archived call is read-only.",
+    )
     role_uuid = serializers.UUIDField(source="role.uuid", read_only=True, format="hex")
     role_key = serializers.ReadOnlyField(source="role.key")
     role_name = serializers.ReadOnlyField(source="role.name")
@@ -10668,6 +10696,7 @@ class ProposalRoleAssignmentSerializer(serializers.ModelSerializer):
             "proposal_state",
             "call_uuid",
             "call_name",
+            "call_state",
             "role_uuid",
             "role_key",
             "role_name",
@@ -14162,7 +14191,10 @@ class RoundMeetingNoteSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         if not request:
             return False
-        return rankings.can_write_note(request.user, obj)
+        # Nothing of an archived call's rounds is edited.
+        return rankings.can_write_note(request.user, obj) and not archive.is_archived(
+            obj.round.call
+        )
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_author_name(self, obj):

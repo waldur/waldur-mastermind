@@ -201,6 +201,14 @@ class AtCutoffTaskTest(EvaluationStartTestBase):
             )
         self.assertEqual(len(self.step_started_dispatches()), 2)
 
+    def test_an_archived_calls_proposals_stay_held(self):
+        self.call.state = CallStates.ARCHIVED
+        self.call.save(update_fields=["state"])
+        self.assertEqual(self.run_task(), 0)
+        for proposal in (self.proposal, self.other):
+            proposal.refresh_from_db()
+            self.assertEqual(proposal.state, ProposalStates.SUBMITTED)
+
     def test_cutoff_activation_updates_modified(self):
         self.proposal.refresh_from_db()
         before = self.proposal.modified

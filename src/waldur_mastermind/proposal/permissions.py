@@ -1,14 +1,22 @@
 import uuid
+from typing import cast
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
+from django.http import Http404
 from rest_framework import exceptions, permissions
+from rest_framework.generics import GenericAPIView
 
 from waldur_core.core import access
 from waldur_core.core.auth_utils import is_pat_auth
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.models import User
-from waldur_core.core.permissions import has_staff_access, has_support_access
+from waldur_core.core.permissions import (
+    ActionsPermission,
+    has_staff_access,
+    has_support_access,
+)
 from waldur_core.permissions import models as permissions_models
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import (
@@ -24,6 +32,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_connected_customers_by_permission
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import (
+    archive,
     change_requests,
     contributions,
     managers,
@@ -569,6 +578,72 @@ class CanUpdateCallPermission(permissions.BasePermission):
             call,
             CALL_PERMISSION_SOURCES,
         )
+
+
+class ArchivedCallIsReadOnly(permissions.BasePermission):
+    """Nothing in an archived call changes: every write to an object of it
+    is refused with 409, for every caller, staff included. Reads go through.
+    What an archived call freezes is ``archive``'s to say.
+
+    It guards the routes that look an object up and write (any unsafe
+    method). A view narrows that with ``archived_call_write_actions``, the
+    only actions it guards, or ``archived_call_readable_actions``, unsafe
+    actions that write nothing (a dry run). The award stage goes on
+    (``archive.refuses_action``). Re-activating the call lifts it.
+
+    It runs before ``ActionsPermission`` (``ARCHIVED_CALL_READ_ONLY``), so
+    whoever may see the object is told the call is archived rather than why
+    else they could not write, whatever the object's state. An object the
+    caller does not see is left to the route.
+    """
+
+    @classmethod
+    def describe_access(cls, view, method, requires_authentication):
+        # A state guard: it says nothing about who may call the route.
+        return []
+
+    def _guards(self, request, view) -> bool:
+        action = getattr(view, "action", None)
+        if request.method in permissions.SAFE_METHODS or action is None:
+            return False
+        if action in archive.POST_AWARD_ACTIONS:
+            return False
+        write_actions = getattr(view, "archived_call_write_actions", None)
+        if write_actions is not None:
+            return action in write_actions
+        return action not in getattr(view, "archived_call_readable_actions", ())
+
+    def has_permission(self, request, view):
+        if self._guards(request, view) and access.has_lookup(view):
+            # DRF checks object permissions inside get_object(): that runs
+            # has_object_permission below. An object the caller does not see
+            # is left to the route, which may reach it otherwise (a delegate
+            # answering a slot handed to them) and then checks it itself.
+            try:
+                cast(GenericAPIView, view).get_object()
+            except Http404:
+                pass
+        return True
+
+    def has_object_permission(self, request, view, obj):
+        if not self._guards(request, view):
+            return True
+        # The route looks the object up again: checked once is enough.
+        checked = getattr(request, "_archived_call_checked", None)
+        key = (type(obj), obj.pk)
+        if checked != key:
+            if archive.refuses_action(obj, view.action):
+                raise IncorrectStateException(proposal_models.CALL_ARCHIVED_MESSAGE)
+            request._archived_call_checked = key
+        return True
+
+
+# The permission classes of a view whose objects freeze with their call.
+ARCHIVED_CALL_READ_ONLY = (
+    permissions.IsAuthenticated,
+    ArchivedCallIsReadOnly,
+    ActionsPermission,
+)
 
 
 # Map proposal.ResponsibleRoles → permission system role on the call.

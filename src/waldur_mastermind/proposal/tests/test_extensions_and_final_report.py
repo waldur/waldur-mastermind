@@ -34,6 +34,7 @@ from waldur_mastermind.proposal import (
     workflow_service,
 )
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     ChangeRequestParts,
     ContributionOutcomes,
     ContributorSources,
@@ -247,6 +248,48 @@ class PostAwardBase(AwardedResourcesBase):
         )
         run.refresh_from_db()
         return run
+
+
+class ArchivedCallAwardStageTest(PostAwardBase):
+    """Archiving a call closes its evaluation; the award stage goes on."""
+
+    def setUp(self):
+        super().setUp()
+        models.Call.objects.filter(pk=self.call.pk).update(state=CallStates.ARCHIVED)
+
+    def test_an_extension_runs_its_course(self):
+        run = self._extend(granted_limits={self.resource.uuid.hex: {"cpu": 150}})
+        self.assertEqual(run.state, ProposalRunStates.APPROVED)
+
+    def test_the_final_report_opens_and_is_submitted(self):
+        self.project.end_date = TODAY
+        self.project.save()
+        self.assertEqual(
+            [p.pk for p in runs.due_final_report_proposals(today=TODAY)],
+            [self.proposal.pk],
+        )
+        tasks.open_due_final_reports()
+        run = self.proposal.runs.get(phase=WorkflowPhases.CLOSING)
+        report = self._active(run)
+        self.assertEqual(report.call_step, self.report_step)
+        self._complete(self.applicant, report, WorkflowStepOutcomes.SUBMITTED)
+        self.assertEqual(self._active(run).call_step.phase, WorkflowPhases.CLOSING)
+
+    def test_an_overdue_award_stage_step_is_handled_as_any_other(self):
+        run = self._request_extension()
+        instance = self._active(run)
+        instance.deadline = timezone.now() - datetime.timedelta(hours=1)
+        instance.save()
+        self.assertEqual(tasks.mark_expired_workflow_steps(), 1)
+
+    def test_the_evaluation_stays_closed(self):
+        for action in ("set_awarded_duration", "awarded_resources", "attach_document"):
+            with self.subTest(action=action):
+                response = self._post(self.call_manager, action, {})
+                self.assertEqual(
+                    response.status_code, status.HTTP_409_CONFLICT, response.data
+                )
+                self.assertEqual(response.data["detail"], "The call is archived.")
 
 
 class ProviderViewOfPostAwardWorkTest(PostAwardBase):

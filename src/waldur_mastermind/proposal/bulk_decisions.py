@@ -312,6 +312,9 @@ def _refusal_entry(proposal_uuid, error):
         text = " ".join(str(message) for message in error.messages)
     elif isinstance(error, ValueError):
         text = str(error)
+    elif isinstance(error, exceptions.APIException):
+        # A refusal the engine words itself: an archived call, say.
+        text = str(error.detail)
     else:
         text = str(UNEXPECTED)
     return _entry(proposal_uuid, BulkStepDecisionResults.REFUSED, text)
@@ -329,7 +332,15 @@ def _flatten(items):
 
 def _log_unexpected(error, decision, proposal_uuid):
     if not isinstance(
-        error, (Refused, exceptions.ValidationError, DjangoValidationError, ValueError)
+        error,
+        (
+            Refused,
+            exceptions.ValidationError,
+            DjangoValidationError,
+            ValueError,
+            # A refusal the engine words itself: the call archived mid-run.
+            exceptions.APIException,
+        ),
     ):
         logger.exception(
             "Step %s could not be decided for proposal %s",

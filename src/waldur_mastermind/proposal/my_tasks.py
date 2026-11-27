@@ -40,6 +40,7 @@ from waldur_mastermind.marketplace.managers import (
     get_connected_offerings_by_permission,
 )
 from waldur_mastermind.proposal import (
+    archive,
     change_requests,
     coi_declarations,
     contributions,
@@ -1449,6 +1450,14 @@ def tasks_of(user, offering_uuid=None, provider_uuid=None):
         *_invitation_tasks(standing),
         *_coi_confirmation_tasks(standing),
         *_offering_request_tasks(standing),
+    ]
+    # An archived call's evaluation asks nothing more of anyone; its award
+    # stage still does.
+    tasks = [
+        t
+        for t in tasks
+        if not (t.call and t.call.state == CallStates.ARCHIVED)
+        or (t.instance is not None and archive.is_post_award_step(t.instance))
     ]
     if offering_uuid:
         tasks = [

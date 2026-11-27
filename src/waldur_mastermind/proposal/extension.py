@@ -97,6 +97,11 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
+            "resume-work-after-archive": {
+                "task": "waldur_mastermind.proposal.resume_work_after_archive",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
             "lapse-change-requests": {
                 "task": "waldur_mastermind.proposal.lapse_change_requests",
                 "schedule": timedelta(hours=1),

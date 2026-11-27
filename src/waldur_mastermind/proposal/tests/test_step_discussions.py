@@ -47,6 +47,7 @@ from waldur_mastermind.proposal.enums import (
     ResponsibleRoles,
     StepContributionStatuses,
     StepKinds,
+    WorkflowPhases,
     WorkflowStepInstanceStatuses,
 )
 from waldur_mastermind.proposal.tests import factories
@@ -457,6 +458,22 @@ class OpenTest(DiscussionTestBase):
         self.assertIn(self.call.name, room.room_name)
         self.assertIn("Assessment", room.room_name)
         self.assertEqual(matrix_models.MatrixRoom.objects.count(), 1)
+
+    def test_an_archived_call_opens_discussions_of_its_award_stage_only(self):
+        models.Call.objects.filter(pk=self.call.pk).update(state=CallStates.ARCHIVED)
+        response = self.open(self.alice)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT, response.data)
+        # The same step as award-stage work -- a final report's, say -- goes on.
+        models.CallWorkflowStep.objects.filter(pk=self.assessment.pk).update(
+            phase=WorkflowPhases.CLOSING
+        )
+        with mock.patch(CREATE_ROOM):
+            response = self.open(self.alice)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        # A stranger is told nothing of the call.
+        self.assertEqual(
+            self.open(self.outsider).status_code, status.HTTP_403_FORBIDDEN
+        )
 
     def test_the_step_instance_says_who_may_open_it(self):
         self.client.force_authenticate(self.alice)

@@ -86,6 +86,7 @@ from waldur_mastermind.proposal import (
     activity,
     affinity_scoring,
     applicant_capacity,
+    archive,
     assignments,
     budgets,
     bulk_decisions,
@@ -403,7 +404,7 @@ def validate_call_not_archived(nested_obj):
     An archived call is read-only across its whole edit surface.
     """
     if nested_obj.call.state == CallStates.ARCHIVED:
-        raise IncorrectStateException()
+        raise IncorrectStateException(models.CALL_ARCHIVED_MESSAGE)
 
 
 def validate_no_dependents(requested_offering):
@@ -1639,6 +1640,29 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     unsafe_methods_permissions = [
         permission_factory(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES)
     ]
+    # The round actions move the round's proposals on, so an archived call
+    # refuses them like any other write to its proposals. The call's own
+    # configuration is guarded by its validators, and activate must stay open.
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
+    archived_call_write_actions = (
+        "close_round",
+        "start_deciding_round",
+        "publish_results_round",
+        "complete_round",
+        "record_adoption_round",
+        "complete_workflow_step_round",
+        "open_workflow_step_round",
+        "advance_workflow_step_round",
+        "set_workflow_step_due_date_round",
+        "allocate_in_submission_order_round",
+        # Reviewing a proposal's compliance answers writes to the proposal.
+        "review_proposal_compliance",
+        # Reviewer assignments add reviews to the call's proposals.
+        "create_manual_assignment",
+        "generate_assignments",
+        "send_all_assignments",
+        "import_assignments",
+    )
     # POST to the list route has no object to check against; creation is gated
     # by CREATE_CALL on the managing organisation in the serializer.
     create_permissions = []
@@ -1962,11 +1986,20 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 ).data,
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        was_archived = call.state == CallStates.ARCHIVED
         call.state = CallStates.ACTIVE
         call.save()
         workflow_versions.record_on_commit(
             call, request.user, workflow_versions.Reasons.ACTIVATED
         )
+        if was_archived:
+            # What the call left standing while archived is carried on once
+            # the activation is committed; the periodic run of the same task
+            # picks up whatever this one does not.
+            call_uuid = call.uuid.hex
+            transaction.on_commit(
+                lambda: tasks.resume_work_after_archive.delay(call_uuid)
+            )
         return response.Response(
             {"message": "Call has been activated."},
             status=status.HTTP_200_OK,
@@ -1989,6 +2022,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         call: models.Call = self.get_object()
         serializer = serializers.ArchiveCallSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        # Under the call's row lock, so that an archive and an activation, or
+        # two archives, never interleave. A write to a proposal that passed
+        # the archived-call guard just before may still commit after it.
+        call = models.Call.objects.select_for_update().get(pk=call.pk)
         in_progress = models.Proposal.objects.filter(
             round__call=call,
             state__in=(ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW),
@@ -5997,6 +6034,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         call_step = data["call_step"]
+        # An archived call decides nothing of its evaluation, in bulk either;
+        # its award stage goes on (each proposal is checked again).
+        if archive.is_archived(call) and not archive.is_award_stage_call_step(
+            call_step
+        ):
+            raise IncorrectStateException(models.CALL_ARCHIVED_MESSAGE)
         refusal = bulk_decisions.bulk_refusal(call_step)
         if refusal:
             raise exceptions.ValidationError({"call_step_uuid": refusal})
@@ -6389,6 +6432,18 @@ def _call_stats(call):
     }
 
 
+# A step completed in an archived call whose next stage waits for the call's
+# activation (workflow_service._park_while_archived): nothing was decided.
+PARKED_WHILE_ARCHIVED_DETAIL = (
+    "Step completed. The next stage waits for the call to be active again."
+)
+DECIDED_STATES = (
+    ProposalStates.ACCEPTED,
+    ProposalStates.REJECTED,
+    ProposalStates.CANCELED,
+)
+
+
 def _terminal_workflow_detail(proposal_state):
     """Human-readable detail for a workflow that reached its terminal step."""
     return {
@@ -6422,6 +6477,10 @@ class ProposalViewSet(
     model = models.Proposal
     # The PDF reads in a transaction of its own and renders after it ends.
     non_atomic_actions = ("pdf",)
+    # The proposals of an archived call are read-only: every write to one is
+    # refused, whoever makes it. A preview writes nothing.
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
+    archived_call_readable_actions = ("preview_as",)
 
     # Who may call the routes whose checks run in the action body or in the
     # services it calls.
@@ -6600,6 +6659,9 @@ class ProposalViewSet(
         # workflow_service.is_awaiting_manual_advance.
         return (
             filter_queryset_for_user(models.Proposal.objects.all(), self.request.user)
+            # The call: named on every row (call_name, call_state), and read
+            # by the archived-call guard.
+            .select_related("round__call")
             .annotate(
                 _awaiting_manual_step=ExpressionWrapper(
                     Q(current_step__call_step__transition_mode=TransitionModes.MANUAL),
@@ -8188,6 +8250,9 @@ class ProposalViewSet(
                 raise exceptions.PermissionDenied(
                     _("You cannot release this step's report.")
                 )
+            # The step named, not the proposal's: an archived call releases
+            # the reports of its award stage only.
+            archive.refuse_step(proposal, instance)
             try:
                 step_inputs.release(instance, request.user, data["text"])
             except step_inputs.ReleaseError as e:
@@ -9254,6 +9319,17 @@ class ProposalViewSet(
             # Notify with the actual outcome so a rejected/canceled terminal
             # never sends an "accepted" email.
             proposal.refresh_from_db()
+            if proposal.state not in DECIDED_STATES:
+                # Nothing decided: the archive keeps the next stage waiting.
+                return response.Response(
+                    serializers.CompleteWorkflowStepResponseSerializer(
+                        {
+                            "detail": PARKED_WHILE_ARCHIVED_DETAIL,
+                            "proposal_state": proposal.state,
+                        }
+                    ).data,
+                    status=status.HTTP_200_OK,
+                )
             tasks.notify_proposal_decision(
                 proposal.uuid, ProposalStates.IN_REVIEW, proposal.state
             )
@@ -9455,6 +9531,22 @@ class ProposalViewSet(
                 raise exceptions.PermissionDenied(
                     "Only the call manager can advance this workflow step."
                 )
+            if archive.is_archived_object(
+                locked
+            ) and workflow_service.is_parked_while_archived(locked):
+                # Already waiting for the call's activation: nothing to do,
+                # nothing to log again.
+                return response.Response(
+                    serializers.CompleteWorkflowStepResponseSerializer(
+                        {
+                            "detail": PARKED_WHILE_ARCHIVED_DETAIL.replace(
+                                "Step completed", "Advanced"
+                            ),
+                            "proposal_state": locked.state,
+                        }
+                    ).data,
+                    status=status.HTTP_200_OK,
+                )
             in_run = runs.open_run_of(locked) is not None
             try:
                 next_instance = workflow_service.advance_step(
@@ -9466,7 +9558,11 @@ class ProposalViewSet(
                 )
 
             target = (
-                "workflow completion" if next_instance is None else next_instance.step
+                next_instance.step
+                if next_instance is not None
+                else "workflow completion"
+                if locked.state in DECIDED_STATES
+                else "the call's activation"
             )
             # Pass user-controlled strings as named placeholders in
             # event_context rather than f-string interpolation. The emit
@@ -9505,6 +9601,19 @@ class ProposalViewSet(
                 return response.Response(
                     serializers.CompleteWorkflowStepResponseSerializer(
                         {"detail": HELD_DECISION_DETAIL}
+                    ).data,
+                    status=status.HTTP_200_OK,
+                )
+            if proposal.state not in DECIDED_STATES:
+                # Nothing decided: the archive keeps the next stage waiting.
+                return response.Response(
+                    serializers.CompleteWorkflowStepResponseSerializer(
+                        {
+                            "detail": PARKED_WHILE_ARCHIVED_DETAIL.replace(
+                                "Step completed", "Advanced"
+                            ),
+                            "proposal_state": proposal.state,
+                        }
                     ).data,
                     status=status.HTTP_200_OK,
                 )
@@ -9636,6 +9745,7 @@ class ProposalViewSet(
                 raise exceptions.PermissionDenied(
                     "You don't act on this workflow step."
                 )
+            archive.refuse_step(proposal, instance)
             try:
                 change_request = workflow_service.request_changes(
                     proposal,
@@ -9682,6 +9792,8 @@ class ProposalViewSet(
                     {"detail": _("No changes have been requested of this proposal.")},
                     status=status.HTTP_409_CONFLICT,
                 )
+            for change_request in pending:
+                archive.refuse_step(proposal, change_request.step_instance)
             # What a submission must carry, but the round's cut-off: the
             # proposal was submitted in time. Changes to a post-award run leave the accepted
             # proposal as it was.
@@ -9747,6 +9859,7 @@ class ProposalViewSet(
                     "Only who asked for the changes, or the call's managers, "
                     "call them off."
                 )
+            archive.refuse_step(proposal, change_request.step_instance)
             try:
                 change_request = workflow_service.cancel_change_request(
                     proposal, change_request, user
@@ -9878,6 +9991,7 @@ class ProposalViewSet(
             contribution = models.StepContribution.objects.select_for_update().get(
                 proposal_step=instance, uuid=data["contribution_uuid"]
             )
+            archive.refuse_step(proposal, instance)
             try:
                 change_request = workflow_service.reopen_contribution(
                     proposal, instance, contribution, request.user, data["message"]
@@ -10315,6 +10429,7 @@ class ProposalViewSet(
                 raise exceptions.PermissionDenied(
                     "You cannot answer this contribution, or it is no longer open."
                 )
+            archive.refuse_step(obj, instance)
             completion = contribution.ensure_checklist_completion(call_step.checklist)
 
             submit_serializer = checklist_serializers.AnswerSubmitSerializer(
@@ -10559,6 +10674,7 @@ class ProposalViewSet(
                 raise exceptions.PermissionDenied(
                     "You cannot submit this contribution, or it is no longer open."
                 )
+            archive.refuse_step(proposal, instance)
             try:
                 contributions.submit(
                     contribution,
@@ -10631,6 +10747,7 @@ class ProposalViewSet(
                 access.can_read(contribution) or access.is_delegate(contribution)
             ):
                 raise exceptions.NotFound()
+            archive.refuse_step(proposal, contribution.proposal_step)
             handed_back_by = (
                 request.user if contribution.delegate_id == request.user.pk else None
             )
@@ -10698,6 +10815,7 @@ class ProposalViewSet(
                 request.user
             ).is_delegate(contribution):
                 raise
+            # Its step is checked against an archived call by the action.
             return contribution.proposal_step.proposal
 
     def _locked_delegation_target(self, proposal, contribution_uuid):
@@ -10753,6 +10871,7 @@ class ProposalViewSet(
                 raise exceptions.PermissionDenied(
                     "You cannot hand this contribution on, or it is no longer open."
                 )
+            archive.refuse_step(proposal, contribution.proposal_step)
             delegate_user = None
             if user_uuid is not None:
                 # One answer for an unknown user and an ineligible one.
@@ -10816,6 +10935,7 @@ class ProposalViewSet(
             access = contributions.Access(request.user)
             if contribution is None or not access.is_delegate(contribution):
                 raise exceptions.NotFound()
+            archive.refuse_step(proposal, contribution.proposal_step)
             try:
                 contributions.accept_delegation(
                     contribution, request.user, data["confirm_no_conflict"]
@@ -10891,6 +11011,8 @@ class ReviewViewSet(FacetsMixin, ActionsViewSet):
     filterset_class = filters.ReviewFilter
     facet_fields = filters.REVIEW_FACETS
     queryset = models.Review.objects.all()
+    # The reviews of an archived call's proposals are read-only too.
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
 
     update_validators = partial_update_validators = [
         core_validators.StateValidator(models.Review.States.IN_REVIEW)
@@ -10967,6 +11089,8 @@ class ReviewViewSet(FacetsMixin, ActionsViewSet):
             CALL_PERMISSION_SOURCES,
         ):
             raise exceptions.PermissionDenied()
+        # No new reviewer for a proposal of an archived call either.
+        archive.refuse(proposal)
 
     def check_destroy_permissions(request, view, obj=None):
         """Check permissions for destroying reviews."""
@@ -11151,6 +11275,10 @@ class ProviderRequestedOfferingViewSet(FacetsMixin, ReadOnlyActionsViewSet):
     call stands and what the call's workflow asks of the offering's team."""
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
+    # delegate_slots checks each slot: an award-stage one is still handed on.
+    archived_call_write_actions = ("accept", "cancel", "set_default_delegate")
     queryset = models.RequestedOffering.objects.filter().order_by(
         "offering", "call", "created"
     )
@@ -11342,6 +11470,13 @@ class ProviderRequestedOfferingViewSet(FacetsMixin, ReadOnlyActionsViewSet):
                     skipped[contribution_uuid.hex] = (
                         "You cannot hand this slot on, or it is no longer open."
                     )
+                    continue
+                if archive.freezes_step(
+                    requested_offering.call, contribution.proposal_step
+                ):
+                    # An archived call's evaluation slots stay with their
+                    # holders; its award stage's are handed on as before.
+                    skipped[contribution_uuid.hex] = str(models.CALL_ARCHIVED_MESSAGE)
                     continue
                 try:
                     previous = contributions.delegate(
@@ -11892,7 +12027,11 @@ class ProposalRoleAssignmentViewSet(ReadOnlyActionsViewSet):
     serializer_class = serializers.ProposalRoleAssignmentSerializer
     filterset_class = filters.ProposalRoleAssignmentFilter
     filter_backends = (DjangoFilterBackend,)
-    permission_classes = (rf_permissions.IsAuthenticated,)
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = (
+        rf_permissions.IsAuthenticated,
+        proposal_permissions.ArchivedCallIsReadOnly,
+    )
     access_declarations = {
         "confirm_no_conflict": [
             access.owned("The role assignment's holder, checked in the action.")
@@ -12607,6 +12746,8 @@ class ConflictOfInterestViewSet(ActionsViewSet):
     """ViewSet for managing conflicts of interest."""
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     queryset = models.ConflictOfInterest.objects.all().order_by("-detected_at")
     serializer_class = serializers.ConflictOfInterestSerializer
     filterset_class = filters.ConflictOfInterestFilter
@@ -13488,6 +13629,8 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     """ViewSet for managing algorithm-generated reviewer suggestions."""
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     queryset = models.ReviewerSuggestion.objects.all().order_by("-affinity_score")
     serializer_class = serializers.ReviewerSuggestionSerializer
     filterset_class = filters.ReviewerSuggestionFilter
@@ -13814,6 +13957,8 @@ class ReviewerBidViewSet(ActionsViewSet):
     """
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     queryset = models.ReviewerBid.objects.all().order_by("-submitted_at")
     serializer_class = serializers.ReviewerBidSerializer
     filterset_class = filters.ReviewerBidFilter
@@ -13913,7 +14058,6 @@ class ReviewerBidViewSet(ActionsViewSet):
             raise exceptions.ValidationError(
                 _("Could not determine the call for this proposal.")
             )
-
         # Check if reviewer is in the pool for this call
         if (
             not models.CallReviewerPool.objects.eligible()
@@ -13926,6 +14070,9 @@ class ReviewerBidViewSet(ActionsViewSet):
             raise exceptions.ValidationError(
                 _("You are not in the reviewer pool for this call.")
             )
+        # No bids on the proposals of an archived call -- told only to those
+        # who could bid.
+        archive.refuse(call)
 
         # Create or update bid
         bid, created = models.ReviewerBid.objects.update_or_create(
@@ -13984,6 +14131,12 @@ class ReviewerBidViewSet(ActionsViewSet):
                     errors.append(
                         f"Not in the reviewer pool for proposal "
                         f"{bid_data['proposal_uuid']}"
+                    )
+                    continue
+                if archive.is_archived(call):
+                    errors.append(
+                        f"{models.CALL_ARCHIVED_MESSAGE} "
+                        f"(proposal {bid_data['proposal_uuid']})"
                     )
                     continue
 
@@ -14372,6 +14525,8 @@ class AssignmentBatchViewSet(ActionsViewSet):
     """
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     queryset = models.AssignmentBatch.objects.all().order_by("-created")
     serializer_class = serializers.AssignmentBatchSerializer
     filterset_class = filters.AssignmentBatchFilter
@@ -14581,6 +14736,8 @@ class AssignmentItemViewSet(ActionsViewSet):
     """
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     queryset = models.AssignmentItem.objects.all().order_by("-created")
     serializer_class = serializers.AssignmentItemSerializer
     filterset_class = filters.AssignmentItemFilter
@@ -15040,6 +15197,7 @@ class MyAssignmentBatchViewSet(viewsets.ViewSet):
             "uuid": batch.uuid,
             "call_uuid": batch.call.uuid,
             "call_name": batch.call.name,
+            "call_state": batch.call.state,
             "status": batch.effective_status,
             "status_display": batch.get_effective_status_display(),
             "sent_at": batch.sent_at,
@@ -15179,6 +15337,8 @@ class ProposalRankingViewSet(ActionsViewSet):
     """
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     serializer_class = serializers.ProposalRankingSerializer
     filterset_class = filters.ProposalRankingFilter
     filter_backends = (DjangoFilterBackend,)
@@ -15425,6 +15585,8 @@ class RoundMeetingNoteViewSet(UserChecklistMixin, ActionsViewSet):
     """
 
     lookup_field = "uuid"
+    # Read-only while the call is archived (proposal/archive.py).
+    permission_classes = proposal_permissions.ARCHIVED_CALL_READ_ONLY
     serializer_class = serializers.RoundMeetingNoteSerializer
     filterset_class = filters.RoundMeetingNoteFilter
     filter_backends = (DjangoFilterBackend,)

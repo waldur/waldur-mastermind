@@ -1247,9 +1247,14 @@ def start_round_evaluation(call_round: proposal_models.Round) -> bool:
 
 def start_evaluation_of_ended_rounds() -> int:
     """Start the lifecycle of every round whose cut-off has passed."""
-    ended = proposal_models.Round.objects.filter(
-        lifecycle_state__isnull=True, cutoff_time__lte=timezone.now()
-    ).select_related("call__manager__customer")
+    ended = (
+        proposal_models.Round.objects.filter(
+            lifecycle_state__isnull=True, cutoff_time__lte=timezone.now()
+        )
+        # An archived call's rounds stay where they are.
+        .exclude(call__state=CallStates.ARCHIVED)
+        .select_related("call__manager__customer")
+    )
     return sum(start_round_evaluation(call_round) for call_round in ended)
 
 
