@@ -8,7 +8,7 @@ from datetime import datetime
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import Manager, Prefetch, Q
 from django.template.defaultfilters import filesizeformat
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -4863,13 +4863,42 @@ class ProtectedRoundSerializer(
         return attrs
 
 
+def _file_hashes(documents) -> dict[str, str]:
+    """The SHA-256 media storage recorded for each document's file, by name."""
+    names = [document.file.name for document in documents if document.file]
+    if not names:
+        return {}
+    return dict(
+        media_models.File.objects.filter(name__in=names).values_list("name", "hash")
+    )
+
+
+class ProposalDocumentationListSerializer(serializers.ListSerializer):
+    """Looks up the hashes of a proposal's documents in one query."""
+
+    def to_representation(self, data):
+        documents = list(data.all() if isinstance(data, Manager) else data)
+        hashes = _file_hashes(documents)
+        for document in documents:
+            document._file_hash = hashes.get(document.file.name)
+        return super().to_representation(documents)
+
+
 class ProposalDocumentationSerializer(serializers.ModelSerializer):
     file_name = serializers.CharField(source="file.name", read_only=True)
     file_size = FileSizeField()
+    file_hash = serializers.SerializerMethodField(
+        help_text=(
+            "SHA-256 of the file's content, as the duplicate check compares "
+            "it: a client can tell a file is already attached before "
+            "uploading it."
+        )
+    )
 
     class Meta:
         model = models.ProposalDocumentation
-        fields = ["uuid", "file", "file_name", "file_size", "created"]
+        list_serializer_class = ProposalDocumentationListSerializer
+        fields = ["uuid", "file", "file_name", "file_size", "file_hash", "created"]
         read_only_fields = ["uuid"]
         # The model field is nullable, so it would be optional here; a document
         # without a file is meaningless and breaks reading the proposal.
@@ -4880,6 +4909,15 @@ class ProposalDocumentationSerializer(serializers.ModelSerializer):
                 "allow_null": False,
             }
         }
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_file_hash(self, document) -> str | None:
+        if not document.file:
+            return None
+        if not hasattr(document, "_file_hash"):
+            # Serialized alone, as the attach response is.
+            document._file_hash = _file_hashes([document]).get(document.file.name)
+        return document._file_hash
 
     def validate_file(self, upload):
         """Refuse a file the proposal already holds. Storage renames a second
