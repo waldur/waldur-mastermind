@@ -466,6 +466,104 @@ class GracePeriodDisableTest(test.APITestCase):
         )
 
 
+class ProjectEndingOfferingGraceMailTest(test.APITestCase):
+    """The project-ending mail names the project date, and lists any resource
+    that terminates on a different one."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.project.end_date = datetime.date(2020, 1, 1)
+        self.fixture.project.grace_period_days = 30
+        self.fixture.project.save()
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.end_date = None
+        self.fixture.resource.save()
+        self.fixture.manager
+        self.fixture.owner
+        structure_factories.NotificationFactory(
+            key="marketplace.notification_about_project_ending"
+        )
+
+    def _send(self):
+        mail.outbox = []
+        with freeze_time("2020-01-24"):
+            tasks.notification_about_project_ending()
+        self.assertEqual(len(mail.outbox), 2)
+        return mail.outbox[0]
+
+    def test_resources_that_follow_the_project_keep_the_deletion_mail(self):
+        message = self._send()
+        self.assertEqual(message.subject, "Project will be deleted on 31/01/2020.")
+        self.assertIn("termination of all resources in the project", message.body)
+        self.assertNotIn(self.fixture.offering.name, message.body)
+        self.assertIn("\n\nEnd of the project will lead", message.body)
+        self.assertNotIn("\n\n\nEnd of the project", message.body)
+
+    def test_a_longer_offering_grace_is_listed_on_its_own_date(self):
+        offering = factories.OfferingFactory(plugin_options={"grace_period_days": 40})
+        resource = factories.ResourceFactory(
+            project=self.fixture.project, offering=offering
+        )
+        resource.set_state_ok()
+        resource.save()
+
+        message = self._send()
+        self.assertEqual(message.subject, "Project reaches its end date on 31/01/2020.")
+        self.assertIn("1 resource terminates on the project end date", message.body)
+        self.assertIn(
+            f"1 resource of {offering.name} terminates on 10/02/2020.",
+            message.body,
+        )
+        self.assertNotIn("will be deleted", message.subject)
+        self.assertNotIn("termination of all resources", message.body)
+        self.assertIn("no resource is left", message.body)
+
+    def test_every_resource_on_another_date_has_no_project_date_line(self):
+        self.fixture.offering.plugin_options = {"grace_period_days": 0}
+        self.fixture.offering.save()
+
+        message = self._send()
+        self.assertEqual(message.subject, "Project reaches its end date on 31/01/2020.")
+        self.assertNotIn("on the project end date", message.body)
+        self.assertIn(
+            f"1 resource of {self.fixture.offering.name} is being terminated (due 01/01/2020).",
+            message.body,
+        )
+
+    def test_a_child_resource_does_not_change_the_project_mail(self):
+        child = factories.OfferingFactory(
+            parent=self.fixture.offering, plugin_options={"grace_period_days": 0}
+        )
+        resource = factories.ResourceFactory(
+            project=self.fixture.project, offering=child
+        )
+        resource.set_state_ok()
+        resource.save()
+
+        message = self._send()
+        self.assertEqual(message.subject, "Project will be deleted on 31/01/2020.")
+        self.assertNotIn(child.name, message.body)
+
+    def test_offerings_with_the_same_name_stay_on_separate_lines(self):
+        first = factories.OfferingFactory(
+            name="Shared", plugin_options={"grace_period_days": 40}
+        )
+        second = factories.OfferingFactory(
+            name="Shared", plugin_options={"grace_period_days": 50}
+        )
+        for offering in (first, second):
+            resource = factories.ResourceFactory(
+                project=self.fixture.project, offering=offering
+            )
+            resource.set_state_ok()
+            resource.save()
+
+        message = self._send()
+        self.assertEqual(message.body.count("resource of Shared terminates on"), 2)
+        self.assertIn("terminates on 10/02/2020", message.body)
+        self.assertIn("terminates on 20/02/2020", message.body)
+
+
 class ResourceEndingNotificationGraceTest(test.APITestCase):
     """notification_about_resource_ending fires on the resource's effective end
     date, so grace-disabled resources (which terminate on the raw project end
@@ -520,6 +618,40 @@ class ResourceEndingNotificationGraceTest(test.APITestCase):
             tasks.notification_about_resource_ending()
         self.assertTrue(mail.outbox)
         self.assertIn(self.fixture.resource.name, mail.outbox[0].subject)
+
+    def test_offering_grace_reminds_before_the_shifted_own_end_date(self):
+        # Own end date 2020-01-01 plus 10 days: terminates 2020-01-11.
+        self._configure(None, 0, {"grace_period_days": 10})
+        self.fixture.resource.end_date = datetime.date(2020, 1, 1)
+        self.fixture.resource.save()
+        with freeze_time("2020-01-04"):
+            tasks.notification_about_resource_ending()
+        self.assertTrue(mail.outbox)
+        self.assertIn(self.fixture.resource.name, mail.outbox[0].subject)
+
+    def test_offering_grace_does_not_remind_on_the_raw_own_end_date(self):
+        # 7 days before the raw date, but it terminates 10 days later than that.
+        self._configure(None, 0, {"grace_period_days": 10})
+        self.fixture.resource.end_date = datetime.date(2020, 1, 8)
+        self.fixture.resource.save()
+        with freeze_time("2020-01-01"):
+            tasks.notification_about_resource_ending()
+        self.assertFalse(mail.outbox)
+
+    def test_offering_grace_shorter_than_the_project_reminds_on_its_own_date(self):
+        # The project notice announces 2020-01-31; this offering ends 2020-01-11.
+        self._configure(datetime.date(2020, 1, 1), 30, {"grace_period_days": 10})
+        with freeze_time("2020-01-04"):
+            tasks.notification_about_resource_ending()
+        self.assertTrue(mail.outbox)
+        self.assertIn(self.fixture.resource.name, mail.outbox[0].subject)
+
+    def test_offering_grace_equal_to_the_project_is_not_double_notified(self):
+        # Both end on 2020-01-31, which the project-ending notice announces.
+        self._configure(datetime.date(2020, 1, 1), 30, {"grace_period_days": 30})
+        with freeze_time("2020-01-24"):
+            tasks.notification_about_resource_ending()
+        self.assertFalse(mail.outbox)
 
 
 @ddt

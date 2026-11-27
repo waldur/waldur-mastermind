@@ -318,6 +318,17 @@ CONTRACTS = [
                 "paused", "boolean", description="Whether the resource is paused"
             ),
             MessageField(
+                "is_in_grace_period",
+                "boolean",
+                description="Whether the resource is inside the grace period its offering resolves",
+            ),
+            MessageField(
+                "grace_period_end_date",
+                "string",
+                nullable=True,
+                description="Last day of that grace period (YYYY-MM-DD), or null when there is none",
+            ),
+            MessageField(
                 "sequence_number",
                 "integer",
                 description="Incremental message sequence number",

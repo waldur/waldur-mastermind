@@ -1,18 +1,27 @@
+import datetime
 import json
 
 import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
+    Case,
     Count,
+    DateField,
     DurationField,
     Exists,
     ExpressionWrapper,
     F,
+    IntegerField,
     OuterRef,
     Q,
     QuerySet,
+    Value,
+    When,
 )
+from django.db.models.fields.json import KeyTextTransform
+from django.db.models.functions import Cast, Coalesce, Least
 from django.urls import resolve
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
 from django_filters.constants import EMPTY_VALUES
@@ -1837,6 +1846,10 @@ class ResourceFilter(
         field_name="restrict_member_access", label="Restrict member access"
     )
     paused = django_filters.BooleanFilter(field_name="paused", label="Paused")
+    is_in_grace_period = django_filters.BooleanFilter(
+        method="filter_is_in_grace_period",
+        label="In the offering-resolved grace period",
+    )
     order_state = core_filters.MappedMultipleChoiceFilter(
         choices=OrderStates.CHOICES,
         field_name="order__state",
@@ -1909,6 +1922,85 @@ class ResourceFilter(
 
     def filter_has_termination_date(self, queryset: ResourceQuerySet, name, value):
         return queryset.exclude(end_date__isnull=value)
+
+    def filter_is_in_grace_period(self, queryset, name, value):
+        # Same rules as Resource.is_in_grace_period, evaluated in the database.
+        # An offering length that is absent, JSON null, or not a whole number of
+        # days inherits; disable_grace_period true is 0 only in that case. Only
+        # digits are cast, so a value written outside the serializer cannot fail
+        # the whole list.
+        today = timezone.localdate()
+        offering_days = Case(
+            When(
+                _offering_grace_text__regex=r"^[0-9]{1,9}$",
+                then=Cast(F("_offering_grace_text"), IntegerField()),
+            ),
+            default=None,
+            output_field=IntegerField(),
+        )
+        inherited = Coalesce(
+            "project__grace_period_days",
+            "project__customer__grace_period_days",
+            Value(0),
+            output_field=IntegerField(),
+        )
+        disabled = Q(offering__plugin_options__disable_grace_period=True)
+        annotated = queryset.alias(
+            _offering_grace_text=KeyTextTransform(
+                "grace_period_days", "offering__plugin_options"
+            )
+        ).alias(_offering_grace_days=offering_days)
+        annotated = annotated.alias(
+            _project_grace_days=Case(
+                When(
+                    _offering_grace_days__isnull=False, then=F("_offering_grace_days")
+                ),
+                When(disabled, then=Value(0)),
+                default=inherited,
+                output_field=IntegerField(),
+            ),
+            _resource_grace_days=Case(
+                When(
+                    _offering_grace_days__isnull=False, then=F("_offering_grace_days")
+                ),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+        )
+        one_day = Value(datetime.timedelta(days=1))
+        annotated = annotated.alias(
+            _project_grace_end=Cast(
+                F("project__end_date") + F("_project_grace_days") * one_day,
+                output_field=DateField(),
+            ),
+            _resource_grace_end=Cast(
+                F("end_date") + F("_resource_grace_days") * one_day,
+                output_field=DateField(),
+            ),
+        )
+        annotated = annotated.alias(
+            _grace_effective_end=Least(
+                "_project_grace_end",
+                "_resource_grace_end",
+                output_field=DateField(),
+            )
+        )
+        project_open = Q(
+            project__end_date__lt=today,
+            _project_grace_end__gte=today,
+            _project_grace_days__gt=0,
+        )
+        resource_open = Q(
+            end_date__lt=today,
+            _resource_grace_end__gte=today,
+            _resource_grace_days__gt=0,
+        )
+        matching = annotated.filter(
+            (project_open | resource_open) & Q(_grace_effective_end__gte=today)
+        )
+        if value:
+            return matching
+        return queryset.exclude(pk__in=matching.values("pk"))
 
     def filter_resource_attributes(self, queryset, name, value):
         try:

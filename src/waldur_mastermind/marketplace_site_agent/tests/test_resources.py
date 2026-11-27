@@ -134,6 +134,17 @@ class PushResourceUpdateMessageTest(TestCase):
         utils.push_resource_update_message(self.resource, force=False)
         self.assertEqual(mock_publish.call_count, 1)
 
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    @mock.patch(
+        "waldur_mastermind.marketplace.utils.prepare_messages",
+        return_value=[{"vhost": "v", "topic": "t", "payload": "p"}],
+    )
+    def test_payload_carries_the_grace_period(self, mock_prepare, mock_publish):
+        utils.push_resource_update_message(self.resource, force=True)
+        payload = mock_prepare.call_args.args[1]
+        self.assertIs(payload["is_in_grace_period"], False)
+        self.assertIsNone(payload["grace_period_end_date"])
+
 
 class ProjectMoveResourceMessageTest(test.APITestCase):
     def setUp(self):

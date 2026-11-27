@@ -119,6 +119,8 @@ def push_resource_update_message(
     - Resource UUID
     - Resource backend ID
     - State flags (downscaled, restrict_member_access, paused)
+    - Whether the resource is in its offering-resolved grace period, and the
+      last day of that window when it has one
     - Sequence number for ordering
 
     Uses MessageStateTracker to skip sending if content hasn't changed since
@@ -138,6 +140,8 @@ def push_resource_update_message(
             "downscaled": false,
             "restrict_member_access": true,
             "paused": false,
+            "is_in_grace_period": false,
+            "grace_period_end_date": null,
             "sequence_number": 42
         }
     """
@@ -155,6 +159,9 @@ def push_resource_update_message(
             ]
         }
     )
+    grace_end = resource.grace_period_end_date
+    payload["is_in_grace_period"] = resource.is_in_grace_period
+    payload["grace_period_end_date"] = grace_end.isoformat() if grace_end else None
 
     # Always call should_send_message to keep cache updated.
     # When force=True (user-triggered), ignore the result and send anyway.

@@ -7186,7 +7186,7 @@ class ProviderOfferingViewSet(
                 self.request, existing, plugin_options
             )
             serializers.validate_disable_grace_period_is_staff_only(
-                self.request, existing, plugin_options
+                self.request, existing, plugin_options, replace=True
             )
             serializers.validate_expiration_reminders_is_staff_only(
                 self.request, existing, plugin_options
@@ -7231,6 +7231,7 @@ class ProviderOfferingViewSet(
         "disabled_resource_actions",
         "auto_approve_for_roles",
         "disable_grace_period",
+        "grace_period_days",
         "resource_expiration_reminders",
     )
 

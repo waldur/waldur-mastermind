@@ -1108,6 +1108,33 @@ class Offering(
     def is_private(self) -> bool:
         return not self.billable and not self.shared
 
+    def configured_grace_period_days(self) -> int | None:
+        """The offering's own grace length, or None when it does not set one.
+
+        None keeps today's split: the project clock inherits, the resource clock
+        is a hard stop. ``disable_grace_period`` true is 0 when the new key is
+        absent, so rows written before the key existed keep their meaning.
+        """
+        return self.grace_period_days_from(self.plugin_options)
+
+    @staticmethod
+    def grace_period_days_from(plugin_options) -> int | None:
+        """``configured_grace_period_days`` for options not saved on an offering.
+
+        A length that is not a whole number of days, written outside the
+        serializer, is read as unset, the same as ``ResourceFilter`` does.
+        """
+        options = plugin_options or {}
+        days = options.get("grace_period_days")
+        if isinstance(days, str) and days.isascii() and days.isdigit():
+            days = int(days)
+        # The filter casts at most nine digits; anything longer is not a length.
+        if isinstance(days, int) and not isinstance(days, bool) and 0 <= days < 10**9:
+            return days
+        if options.get("disable_grace_period"):
+            return 0
+        return None
+
     def get_datacite_title(self) -> str:
         return self.name
 
@@ -2595,27 +2622,121 @@ class Resource(
             return False
         return self.end_date <= timezone.localdate()
 
+    def project_grace_days(self) -> int:
+        """Days added to the project end date for this resource's offering."""
+        configured = self.offering.configured_grace_period_days()
+        if configured is None:
+            project = self.project
+            return project.get_grace_period_days() if project is not None else 0
+        return configured
+
+    def resource_grace_days(self) -> int:
+        """Days added to this resource's own end date.
+
+        Unset stays 0: a resource end date is a hard stop unless the offering
+        names a length.
+        """
+        configured = self.offering.configured_grace_period_days()
+        return 0 if configured is None else configured
+
+    def project_effective_end(self) -> datetime.date | None:
+        """When the project clock terminates this resource. None without a project end date."""
+        project = self.project
+        if project is None or not project.end_date:
+            return None
+        return project.end_date + datetime.timedelta(days=self.project_grace_days())
+
+    def resource_effective_end(self) -> datetime.date | None:
+        """When this resource's own end date terminates it. None without one."""
+        if not self.end_date:
+            return None
+        return self.end_date + datetime.timedelta(days=self.resource_grace_days())
+
+    @staticmethod
+    def _grace_window_is_open(raw, days: int, today) -> bool:
+        """True on the days after ``raw`` up to and including ``raw + days``."""
+        if not raw or days <= 0:
+            return False
+        return raw < today <= raw + datetime.timedelta(days=days)
+
     @property
     def effective_end_date(self) -> datetime.date | None:
-        """The date this resource is actually scheduled to terminate: the earliest
-        of its own end date and the project-driven termination date. The project
-        date is the raw project end date when the offering disables the grace
-        period, otherwise the effective (with-grace) end date."""
-        project = self.project
-        project_date = None
-        if project and project.end_date:
-            # Reflects this resource's own offering flag. A child resource whose
-            # parent offering (rather than its own) disables the grace period
-            # terminates with its parent on the raw date; that edge case is not
-            # reflected here.
-            if (self.offering.plugin_options or {}).get("disable_grace_period"):
-                project_date = project.end_date
-            else:
-                project_date = project.end_date_with_grace
+        """The date this resource is scheduled to terminate.
+
+        The earliest of its own end date and the project end date, each plus
+        the grace length the offering resolves. Unset offering grace keeps a
+        resource end date as a hard stop and inherits the project grace.
+        ``grace_period_days`` 0, and the legacy ``disable_grace_period``, use
+        the raw project end date.
+
+        A child resource whose parent offering (rather than its own) sets the
+        length terminates with its parent; that edge case is not reflected
+        here.
+        """
         candidates = [
-            date for date in (self.end_date, project_date) if date is not None
+            day
+            for day in (self.resource_effective_end(), self.project_effective_end())
+            if day is not None
         ]
         return min(candidates) if candidates else None
+
+    def is_in_grace_period_on(self, today) -> bool:
+        """Whether this resource is in its grace window on ``today``.
+
+        Past a raw end date, on or before the effective end. A resource end
+        date that terminates sooner closes the window. ``today`` is the date
+        the caller is working from, so a daily task uses one date for the
+        window and for termination.
+        """
+        project = self.project
+        project_open = self._grace_window_is_open(
+            project.end_date if project is not None else None,
+            self.project_grace_days(),
+            today,
+        )
+        resource_open = self._grace_window_is_open(
+            self.end_date, self.resource_grace_days(), today
+        )
+        if not (project_open or resource_open):
+            return False
+        effective = self.effective_end_date
+        return bool(effective and today <= effective)
+
+    @property
+    def is_in_grace_period(self) -> bool:
+        """True while this resource is past a raw end date and still inside the
+        grace window its offering resolves. Independent of ``paused``.
+
+        Matches ``Project.is_in_grace_period`` when the offering does not set a
+        length. A resource end date that terminates sooner closes the window.
+        """
+        return self.is_in_grace_period_on(timezone.localdate())
+
+    @property
+    def grace_period_end_date(self) -> datetime.date | None:
+        """The last day of this resource's grace window, or None when it has none.
+
+        This is the termination date when a positive length pushes it past a raw
+        end date. A hard stop, including an explicit 0, has no such day.
+        """
+        effective = self.effective_end_date
+        if effective is None:
+            return None
+        project = self.project
+        project_extends = (
+            project is not None
+            and project.end_date
+            and self.project_grace_days() > 0
+            and project.end_date < effective
+        )
+        resource_extends = (
+            self.end_date
+            and self.resource_grace_days() > 0
+            and self.end_date < effective
+        )
+        if project_extends or resource_extends:
+            return effective
+        return None
 
     def __str__(self):
         if self.name:

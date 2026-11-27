@@ -63,6 +63,11 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.update_api_keys_when_offering_models_change",
         )
         signals.post_save.connect(
+            handlers.follow_grace_windows_when_offering_grace_changes,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.follow_grace_windows_when_offering_grace_changes",
+        )
+        signals.post_save.connect(
             handlers.update_api_keys_on_resource_models_change,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.update_api_keys_on_resource_models_change",

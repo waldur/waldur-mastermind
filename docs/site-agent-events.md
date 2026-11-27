@@ -116,6 +116,8 @@ Sent by:
 | `downscaled` | boolean | yes | Whether the resource is downscaled |
 | `restrict_member_access` | boolean | yes | Whether member access is restricted |
 | `paused` | boolean | yes | Whether the resource is paused |
+| `is_in_grace_period` | boolean | yes | Whether the resource is inside the grace period its offering resolves |
+| `grace_period_end_date` | string or null | yes | Last day of that grace period (YYYY-MM-DD), or null when there is none |
 | `sequence_number` | integer | yes | Incremental message sequence number |
 | `resource_name` | string | no | Name of the resource |
 | `resource_state` | string | no | Display name of the resource state |
