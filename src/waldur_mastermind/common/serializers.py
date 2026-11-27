@@ -41,6 +41,14 @@ K8S_TOPOLOGY_DATACENTER_COUNTS = {
 
 
 K8S_CLUSTER_CONFIG_FIELD_TYPE = "k8s_cluster_config"
+
+# Who picks the OpenStack infrastructure of each site of a cluster.
+K8S_INFRASTRUCTURE_CUSTOMER_CHOICE = "customer_choice"
+K8S_INFRASTRUCTURE_PROVIDER_FIXED = "provider_fixed"
+K8S_INFRASTRUCTURE_MODES = (
+    (K8S_INFRASTRUCTURE_CUSTOMER_CHOICE, "The customer picks each site"),
+    (K8S_INFRASTRUCTURE_PROVIDER_FIXED, "The provider fixes the sites"),
+)
 K8S_EGRESS_RULES_FIELD_TYPE = "k8s_egress_rules"
 
 K8S_RULE_PROTOCOLS = ("TCP", "UDP", "ICMP")
@@ -1699,6 +1707,32 @@ def get_hidden_options(options, values):
     return {name for name in options if not is_visible(name, frozenset({name}))}
 
 
+# Checks of an option's value that need data this module cannot reach, such
+# as the database, keyed by option type. The app owning that data registers
+# them (register_option_value_check); validate_options runs them on a value
+# its field has accepted.
+OPTION_VALUE_CHECKS = {}
+
+
+def register_option_value_check(field_type, check):
+    """Run ``check(value, option)`` on every accepted value of ``field_type``.
+
+    The check raises serializers.ValidationError with a message for the
+    value; validate_options reports it under the option's name.
+    """
+    OPTION_VALUE_CHECKS.setdefault(field_type, []).append(check)
+
+
+def run_option_value_checks(options, validated_data):
+    for name, value in validated_data.items():
+        option = options.get(name) or {}
+        for check in OPTION_VALUE_CHECKS.get(option.get("type"), ()):
+            try:
+                check(value, option)
+            except serializers.ValidationError as e:
+                raise serializers.ValidationError({name: e.detail})
+
+
 def validate_options(
     options,
     attributes,
@@ -1847,6 +1881,7 @@ def validate_options(
     serializer = serializer_class(data=data)
     serializer.is_valid(raise_exception=True)
     check_network_overlaps(serializer.fields, serializer.validated_data, stored)
+    run_option_value_checks(options, serializer.validated_data)
 
     values = strip_hidden_options(
         options, strip_non_input_options(options, attributes), hidden

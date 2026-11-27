@@ -163,6 +163,7 @@ from waldur_core.users.affiliations import parse_affiliation
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
 from waldur_core.users.utils import get_invitation_duplicates
+from waldur_mastermind.common.serializers import K8S_CLUSTER_CONFIG_FIELD_TYPE
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.invoices import utils as invoice_utils
@@ -176,6 +177,7 @@ from waldur_mastermind.marketplace import (
     dependents,
     derived_limits,
     display_limits,
+    k8s_sites,
     offering_templates,
     provider_accounts,
 )
@@ -7082,6 +7084,16 @@ class ProviderOfferingViewSet(
         if import_data.get("resource_options") is not None:
             offering.resource_options = import_data["resource_options"]
 
+        # Imported options are stored as given; at least a Kubernetes option's
+        # sites must be the provider's own, as when they are saved directly.
+        for key in ("options", "resource_options"):
+            try:
+                k8s_sites.check_offering_sites(
+                    getattr(offering, key), offering.customer
+                )
+            except ValidationError as e:
+                raise ValidationError({key: e.detail})
+
         # The row is locked since it was read above, so this is what is stored
         # now; the import's own changes are on the instance.
         stored = (
@@ -7707,7 +7719,7 @@ class PublicOfferingViewSet(FacetsMixin, rf_viewsets.ReadOnlyModelViewSet):
 
     # Read actions that look the offering up as retrieve does; they show only
     # the plans the caller may order.
-    access_filtered_actions = ("plans", "plan_detail")
+    access_filtered_actions = ("plans", "plan_detail", "k8s_sites")
 
     @access.shows(OfferingQuerySet.ORDERING_AVAILABILITY)
     def get_queryset(self):
@@ -7738,6 +7750,58 @@ class PublicOfferingViewSet(FacetsMixin, rf_viewsets.ReadOnlyModelViewSet):
             serializers.PublicOfferingDetailsSerializer(
                 context=self.get_serializer_context()
             ).get_filtered_plans(offering),
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="List the sites and common flavors of a Kubernetes option",
+        description="For a k8s_cluster_config order option whose provider "
+        "fixed the OpenStack sites (infrastructure_mode provider_fixed): the "
+        "sites of a topology, in order, and the flavors every site has under "
+        "one name with the same vCPUs and RAM. Each flavor lists every site's "
+        "own flavor UUID. Works for any caller who can see the offering, "
+        "whether or not they can see the OpenStack offerings.",
+        parameters=[serializers.K8sSitesQuerySerializer],
+        responses={200: serializers.K8sSitesSerializer},
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    def k8s_sites(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        query = serializers.K8sSitesQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        name = query.validated_data["option"]
+        topology = query.validated_data["topology"]
+        # An order option, or a resource option of the same type.
+        option = ((offering.options or {}).get("options") or {}).get(name)
+        if not option or option.get("type") != K8S_CLUSTER_CONFIG_FIELD_TYPE:
+            option = ((offering.resource_options or {}).get("options") or {}).get(name)
+        if not option or option.get("type") != K8S_CLUSTER_CONFIG_FIELD_TYPE:
+            raise ValidationError(
+                {"option": _("Not a Kubernetes cluster option of this offering.")}
+            )
+        default_configs = option.get("default_configs") or {}
+        if not k8s_sites.is_provider_fixed(default_configs):
+            raise ValidationError(
+                {"option": _("The customer picks the sites of this option.")}
+            )
+        if topology not in k8s_sites.allowed_topologies(default_configs):
+            raise ValidationError(
+                {"topology": _("This option does not offer this topology.")}
+            )
+        sites = k8s_sites.get_sites(default_configs, topology, offering.customer)
+        if not sites:
+            raise ValidationError(
+                {"topology": _("The provider has not set the sites of this topology.")}
+            )
+        return Response(
+            serializers.K8sSitesSerializer(
+                {
+                    "sites": [
+                        {"uuid": site.uuid.hex, "name": site.name} for site in sites
+                    ],
+                    "flavors": k8s_sites.common_flavors(sites),
+                }
+            ).data,
             status=status.HTTP_200_OK,
         )
 
