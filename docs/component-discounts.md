@@ -67,7 +67,8 @@ the component's billing type — the discount is supported on all of them:
 | Billing type | `usage` is bound to | Line charge the discount reduces |
 |--------------|---------------------|----------------------------------|
 | FIXED / ON_PLAN_SWITCH | the component `amount` | `price × amount × period_fraction` |
-| ONE_TIME (incl. prepaid) | the billed quantity | that one-time charge |
+| ONE_TIME | the billed quantity | that one-time charge |
+| ONE_TIME, prepaid | the allocation (the limit, not limit × months) | that one-time charge |
 | LIMIT | the limit quantity | `price × duration-multiplied quantity` |
 | USAGE | the reported usage for the period | `price × reported usage` |
 
@@ -80,7 +81,7 @@ lines for the whole invoice:
 flowchart TB
     ITEMS["Main lines carrying<br/>details.discount_usage"]
     GROUP["Group by plan component<br/>(per customer or per resource)"]
-    EVAL{"Formula on the group's<br/>summed volume: percent > 0?"}
+    EVAL{"Formula on the group volume<br/>(an allocation counted once): percent > 0?"}
     LINES["One negative line per main line<br/>(percent x its charge)"]
     NONE["No discount lines"]
     ERR["Formula error: log and skip<br/>(billing never blocked)"]
@@ -125,6 +126,43 @@ Key properties:
   component line is always billed.
 - **Overage is not discounted.** Prepaid overage top-ups are premium-priced and
   bypass the discount.
+
+### Prepaid allocations and renewals
+
+A prepaid allocation is charged upfront: once when it is bought, and again each
+time it is renewed. Every one of those charges is one main line carrying
+`discount_usage`:
+
+| Line | `discount_usage` |
+|------|------------------|
+| First charge | the limit |
+| Renewal, extension | the new limit |
+| Renewal, rest of the current term (a raised limit) | 0, so it takes the percent of the extension billed with it |
+
+These lines are also marked `details["discount_usage_is_allocation"]`. When a
+group's volume is summed (`billing_discount.group_volume`), a resource's
+allocation lines count **once, at the largest**, not once per charge. Without
+that, buying and renewing in the same month, or renewing in short pieces, would
+add the same storage up into a higher tier. Two 1-month renewals of 60 TB in a
+month are still a 60 TB allocation.
+
+**The renewal is quoted with its discount.** `Resource.get_renewal_quote` gives
+each line `discount_percent`, `discount_total` and `discount_deferred`, and
+`estimate_renewal` returns them per line and in total:
+
+- **Per resource**: the discount is priced, with the formula on the new limit
+  and rounded as the invoice's discount line is. The estimate's `total` and the
+  renewal order's cost are net of it, so the quote, the order, the support ticket
+  ("Volume discount: …") and the invoice agree.
+- **Per customer**: the percent depends on what else the month's invoice holds,
+  so nothing is priced. The line is flagged `discount_deferred`, the cost stays
+  gross, and the dialog says the discount is applied on the invoice.
+- **Broken formula**: no discount is quoted or billed.
+
+**Orders quoted before renewals were discounted** are billed as quoted. A
+`cost_lines` entry without `discount_total`, or an order with no `cost_lines`,
+gets no `discount_usage`, so the invoice matches the purchase order that was
+approved.
 
 ## Worked example
 

@@ -837,6 +837,9 @@ def serialize_renewal_lines(lines):
             "quantity": str(line["quantity"]),
             "unit_price": str(line["unit_price"]),
             "total": str(line["total"]),
+            "discount_percent": str(line["discount_percent"]),
+            "discount_total": str(line["discount_total"]),
+            "discount_deferred": line["discount_deferred"],
         }
         for line in lines
     ]

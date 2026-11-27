@@ -2170,6 +2170,48 @@ def slug_locked_q():
     )
 
 
+def _renewal_line_discount(plan_component, line) -> dict:
+    """The volume discount a renewal line will get on the invoice.
+
+    The invoice discounts renewal items on the allocation (billing_discount;
+    the extension carries the new limit and the rest of the current term adds
+    nothing), so a discount computed per resource is known here: the percent the
+    plan component's formula gives for the new limit, on the line's price,
+    rounded as the invoice's discount line is. One aggregated over the
+    customer's resources depends on what else the month's invoice holds, so it
+    is only flagged as deferred, as the order form does for a new order.
+    """
+    result = {
+        "discount_percent": Decimal("0"),
+        "discount_total": Decimal("0"),
+        "discount_deferred": False,
+    }
+    formula = (getattr(plan_component, "discount_formula", "") or "").strip()
+    if not formula:
+        return result
+    if plan_component.discount_aggregation != DiscountAggregations.PER_RESOURCE:
+        result["discount_deferred"] = True
+        return result
+    try:
+        percent = plan_component.get_discount_percent(line["new_limit"])
+    except common_formula.FormulaError:
+        # Billing skips a broken formula too, so there is no discount to defer.
+        logger.warning(
+            "Volume discount formula of plan component %s failed to evaluate on "
+            "%s; the renewal is quoted without it.",
+            plan_component.pk,
+            line["new_limit"],
+        )
+        return result
+    if percent <= 0:
+        return result
+    result["discount_percent"] = percent
+    result["discount_total"] = quantize_price(
+        line["unit_price"] * line["quantity"] * percent / 100
+    )
+    return result
+
+
 class Resource(
     PermissionMixin,
     ResourceDetailsMixin,
@@ -2885,6 +2927,7 @@ class Resource(
         remaining_days = (current_end_date - today).days
 
         components = []
+        plan_components = {}
         if self.plan:
             # A component left out of the new limits keeps its limit: read as 0
             # it would look like a lowered limit and stretch the paid-up period.
@@ -2972,8 +3015,16 @@ class Resource(
         for line in lines:
             line["quantity"] = line["quantity"].quantize(precision)
             line["total"] = quantize_price(line["unit_price"] * line["quantity"])
+            line.update(
+                _renewal_line_discount(
+                    plan_components.get(line["component_type"]), line
+                )
+            )
         return {
             "lines": lines,
+            "discount_total": sum(
+                (line["discount_total"] for line in lines), Decimal("0")
+            ),
             "current_end_date": current_end_date,
             "paid_up_end_date": paid_up_end_date,
             "new_end_date": new_end_date,
@@ -2988,10 +3039,11 @@ class Resource(
     def get_renewal_cost(
         self, extension_months: int, new_limits: dict | None = None
     ) -> Decimal:
-        """The total of ``get_renewal_lines``: what a prepaid renewal is charged."""
+        """The total of ``get_renewal_lines`` less their volume discounts: what a
+        prepaid renewal is charged."""
         return sum(
             (
-                line["total"]
+                line["total"] - line["discount_total"]
                 for line in self.get_renewal_lines(extension_months, new_limits)
             ),
             Decimal("0.0"),
@@ -3048,6 +3100,9 @@ class Resource(
                         "period_end": line["end"],
                         "quantity": line["quantity"],
                         "total": line["total"],
+                        "discount_percent": line["discount_percent"],
+                        "discount_total": line["discount_total"],
+                        "discount_deferred": line["discount_deferred"],
                     }
                 )
                 subscription_total += line["total"]
@@ -3117,6 +3172,9 @@ class Resource(
                         "period_end": None,
                         "quantity": None,
                         "total": total,
+                        "discount_percent": Decimal("0"),
+                        "discount_total": Decimal("0"),
+                        "discount_deferred": False,
                     }
                 )
                 limit_change_total += total
@@ -3125,7 +3183,13 @@ class Resource(
             "components": components,
             "subscription_total": subscription_total,
             "limit_change_total": limit_change_total,
-            "total": subscription_total + limit_change_total,
+            "discount_total": quote["discount_total"],
+            # Whether a volume discount may still apply on the invoice that the
+            # estimate cannot price: one aggregated over the customer's resources.
+            "discount_deferred": any(
+                line["discount_deferred"] for line in quote["lines"]
+            ),
+            "total": subscription_total + limit_change_total - quote["discount_total"],
             "remaining_days": remaining_days,
             "paid_up_end_date": quote["paid_up_end_date"],
             "new_end_date": new_end_date,

@@ -10970,14 +10970,52 @@ class RenewalEstimateComponentSerializer(serializers.Serializer):
         allow_null=True,
         help_text=_("For a prepaid line, the units charged: limit x months."),
     )
-    total = serializers.DecimalField(max_digits=22, decimal_places=10)
+    total = serializers.DecimalField(
+        max_digits=22,
+        decimal_places=10,
+        help_text=_("The line's price before any volume discount."),
+    )
+    discount_percent = serializers.DecimalField(
+        max_digits=22,
+        decimal_places=10,
+        help_text=_(
+            "The volume discount the invoice will give this line, in percent. "
+            "0 when there is none, or when it is deferred."
+        ),
+    )
+    discount_total = serializers.DecimalField(
+        max_digits=22,
+        decimal_places=10,
+        help_text=_("The volume discount on this line, as a positive amount."),
+    )
+    discount_deferred = serializers.BooleanField(
+        help_text=_(
+            "A volume discount may apply on the invoice that cannot be priced "
+            "now, because it is aggregated over the organization's resources."
+        )
+    )
 
 
 class RenewalEstimateResponseSerializer(serializers.Serializer):
     components = RenewalEstimateComponentSerializer(many=True)
     subscription_total = serializers.DecimalField(max_digits=22, decimal_places=10)
     limit_change_total = serializers.DecimalField(max_digits=22, decimal_places=10)
-    total = serializers.DecimalField(max_digits=22, decimal_places=10)
+    discount_total = serializers.DecimalField(
+        max_digits=22,
+        decimal_places=10,
+        help_text=_("The volume discounts known now, as a positive amount."),
+    )
+    discount_deferred = serializers.BooleanField(
+        help_text=_(
+            "A volume discount aggregated over the organization's resources may "
+            "still lower the invoice."
+        )
+    )
+    total = serializers.DecimalField(
+        max_digits=22,
+        decimal_places=10,
+        help_text=_("What the renewal is charged: the totals less discount_total."),
+    )
     remaining_days = serializers.IntegerField()
     paid_up_end_date = serializers.DateField(
         help_text=_(

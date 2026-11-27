@@ -27,6 +27,15 @@ from waldur_mastermind.marketplace.enums import (
 logger = logging.getLogger(__name__)
 
 
+def _renewal_line_volume(line, quantity, months) -> float:
+    """The allocation an extension line of a renewal order bills: its new limit,
+    or, on a line recorded without one, its quantity spread over the months."""
+    try:
+        return float(Decimal(str(line["new_limit"])))
+    except (KeyError, ArithmeticError):
+        return float(quantity / months)
+
+
 class MarketplaceBillingService:
     """
     Orchestrates billing for resource lifecycle events (creation, update, termination).
@@ -172,6 +181,7 @@ class MarketplaceBillingService:
                 if c.type in quoted_prices
                 else plan_component.price
             )
+            converted_limit = Decimal(str(limit)) / Decimal(str(factors.get(c.type, 1)))
             details = get_component_details(resource, plan_component)
             details.update(
                 {
@@ -188,9 +198,7 @@ class MarketplaceBillingService:
                 project=resource.project,
                 unit_price=unit_price,
                 unit=invoice_models.Units.QUANTITY,
-                quantity=Decimal(str(limit))
-                / Decimal(str(factors.get(c.type, 1)))
-                * months,
+                quantity=converted_limit * months,
                 article_code=c.component.article_code or resource.plan.article_code,
                 invoice=invoice,
                 start=now,
@@ -246,6 +254,19 @@ class MarketplaceBillingService:
                     "term_end": line.get("end"),
                 }
             )
+            if "discount_total" in line:
+                # Quoted with its volume discount: the invoice gives the same one.
+                # The volume is the allocation, as for the first charge -- the
+                # extension carries the new limit, never the month-multiplied
+                # quantity; the rest of the current term adds none of its own and
+                # takes the percent of the extension billed with it. A line quoted
+                # before discounts were is billed as quoted, without one.
+                details[billing_discount.DISCOUNT_USAGE_KEY] = (
+                    0.0
+                    if is_current_term
+                    else _renewal_line_volume(line, quantity, months)
+                )
+                details[billing_discount.ALLOCATION_KEY] = True
             suffix = "rest of current term" if is_current_term else "renewal"
             invoice_models.InvoiceItem.objects.create(
                 name=f"{get_invoice_item_name(resource)} / {get_component_name(plan_component)} ({suffix})",
@@ -594,6 +615,8 @@ class MarketplaceBillingService:
             elif discount_volume is None:
                 discount_volume = quantity
             details[billing_discount.DISCOUNT_USAGE_KEY] = float(discount_volume)
+            if is_one and effective.is_prepaid:
+                details[billing_discount.ALLOCATION_KEY] = True
 
             invoice_models.InvoiceItem.objects.create(
                 name=name,

@@ -4,7 +4,8 @@ Extension: {{ extension_months }} months
 Old end date: {{ old_end_date }}
 New end date: {{ new_end_date }}
 Renewal cost: {{ cost }}
-{% if request_comment %}Purchase order reference: {{ request_comment }}
+{% if volume_discount %}Volume discount: {{ volume_discount }}
+{% endif %}{% if request_comment %}Purchase order reference: {{ request_comment }}
 {% endif %}Old limits: {{ old_limits }}.
 New limits: {{ new_limits }}.
 {% if resource_slug %}Resource slug: {{ resource_slug }}
