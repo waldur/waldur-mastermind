@@ -322,6 +322,8 @@ components:
           - downscaled
           - restrict_member_access
           - paused
+          - is_in_grace_period
+          - grace_period_end_date
           - sequence_number
           properties:
             resource_uuid:
@@ -339,6 +341,15 @@ components:
             paused:
               type: boolean
               description: Whether the resource is paused
+            is_in_grace_period:
+              type: boolean
+              description: Whether the resource is inside the grace period its offering resolves
+            grace_period_end_date:
+              type:
+              - string
+              - 'null'
+              description: Last day of that grace period (YYYY-MM-DD), or null when there
+                is none
             sequence_number:
               type: integer
               description: Incremental message sequence number

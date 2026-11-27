@@ -56,6 +56,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.core.validators import is_potentially_dangerous_regex
 from waldur_core.logging import event_dispatch, event_logger
@@ -2812,34 +2813,35 @@ def _automatic_flag_holds(resource, flag) -> bool:
     return any(keeper(resource) for keeper in DOWNSCALE_KEEPERS)
 
 
-def is_held_by_project_grace(resource) -> bool:
-    """Whether its project's end date keeps ``resource`` paused.
+def is_held_by_project_grace(resource, today=None) -> bool:
+    """Whether an end date keeps ``resource`` paused.
 
-    On offerings that support pausing, a resource is held paused from the day
-    its project's end date is reached until the resource is terminated:
+    On offerings that support pausing, a resource is held paused from the
+    start of its grace window until it is terminated:
 
-    - inside the grace period, unless the offering opts out of it;
-    - once the project has expired (end date plus grace period);
-    - from the raw end date on offerings that disable the grace period, which
-      are terminated on that date;
-    - from the resource's own end date, on which it is terminated.
+    - inside the grace window its offering resolves;
+    - once that window's effective end has passed, while termination is
+      retried;
+    - from the raw end date when the offering sets no grace (unset on a
+      resource's own end date, or 0 / ``disable_grace_period`` on the project
+      end date).
 
-    The last three cover the time a termination takes, including failed attempts
-    and their retries: without the hold, a resource whose termination failed is
+    The hold covers the time a termination takes, including failed attempts
+    and their retries: without it, a resource whose termination failed is
     back in OK and open to new work, such as SLURM jobs that keep the account
     from ever being removed. Every mechanism that lifts a pause automatically
     must leave such a resource paused, whoever set the flag first.
     """
-    plugin_options = resource.offering.plugin_options or {}
-    if not plugin_options.get("supports_pausing"):
+    if not (resource.offering.plugin_options or {}).get("supports_pausing"):
         return False
-    today = timezone.localdate()
-    if resource.end_date and resource.end_date <= today:
+    today = today or timezone.localdate()
+    if resource.is_in_grace_period_on(today):
         return True
-    project = resource.project
-    if plugin_options.get("disable_grace_period"):
-        return bool(project.end_date and project.end_date <= today)
-    return bool(project.is_in_grace_period or project.is_expired)
+    resource_end = resource.resource_effective_end()
+    if resource_end and resource_end <= today:
+        return True
+    project_end = resource.project_effective_end()
+    return bool(project_end and project_end <= today)
 
 
 def _pause_held_resource(resource, reason) -> bool:
@@ -2880,6 +2882,32 @@ def pause_for_project_grace(resource) -> bool:
     )
 
 
+def pause_for_resource_grace(resource) -> bool:
+    """Pause ``resource`` because its own end date has entered the grace window."""
+    return _pause_held_resource(resource, "it has entered the grace period")
+
+
+def pause_for_grace(resource, today=None) -> bool:
+    """Pause ``resource`` for whichever clock has it in the grace window.
+
+    A resource clock on its own names the resource. A project clock, including
+    when both are open, names the project, which is the message the project
+    path has always used. ``today`` is the caller's date, so a daily task does
+    not read the clock again.
+    """
+    today = today or timezone.localdate()
+    project = resource.project
+    project_open = bool(
+        project
+        and project.end_date
+        and resource.project_grace_days() > 0
+        and project.end_date < today
+    )
+    if not project_open and resource.end_date:
+        return pause_for_resource_grace(resource)
+    return pause_for_project_grace(resource)
+
+
 def pause_for_project_end_date(resource) -> bool:
     """Pause ``resource`` before it is terminated for its project's end date.
 
@@ -2902,13 +2930,156 @@ def pause_for_resource_end_date(resource) -> bool:
     return _pause_held_resource(resource, "it has reached its end date")
 
 
-def pause_for_end_date_hold(resource) -> bool:
+def pause_for_end_date_hold(resource, today=None) -> bool:
     """Pause a resource ``is_held_by_project_grace`` holds, naming the right reason."""
-    if resource.end_date and resource.end_date <= timezone.localdate():
+    today = today or timezone.localdate()
+    resource_end = resource.resource_effective_end()
+    if resource_end and resource_end <= today:
         return pause_for_resource_end_date(resource)
-    if resource.project.is_in_grace_period:
-        return pause_for_project_grace(resource)
+    if resource.is_in_grace_period_on(today):
+        return pause_for_grace(resource, today)
     return pause_for_project_end_date(resource)
+
+
+GRACE_SIGNAL_EVENT_TYPES = (
+    EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_STARTED,
+    EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_ENDED,
+    EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_CANCELLED,
+)
+
+
+def _grace_signal_feed():
+    return logging_models.Feed.objects.filter(
+        content_type=ContentType.objects.get_for_model(models.Resource),
+        event__event_type__in=GRACE_SIGNAL_EVENT_TYPES,
+    )
+
+
+def _latest_grace_signal(resource) -> str | None:
+    return (
+        _grace_signal_feed()
+        .filter(object_id=resource.pk)
+        .order_by("-event__created")
+        .values_list("event__event_type", flat=True)
+        .first()
+    )
+
+
+def resources_with_open_grace_signal() -> set[int]:
+    """Ids of resources whose latest grace signal is "started".
+
+    A daily task reads this once, so a resource outside its window is only
+    looked at again while a provider still holds an open signal for it.
+    """
+    latest = (
+        _grace_signal_feed()
+        .filter(object_id=OuterRef("object_id"))
+        .order_by("-event__created")
+        .values("event__event_type")[:1]
+    )
+    return set(
+        _grace_signal_feed()
+        .filter(event__event_type=EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_STARTED)
+        .annotate(latest=Subquery(latest))
+        .filter(latest=EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_STARTED)
+        .values_list("object_id", flat=True)
+    )
+
+
+def _grace_signal_scopes(resource):
+    """Consumer scopes, plus the offering and its provider so the provider's
+    audit log shows the window opening and closing."""
+    provider = resource.offering.customer
+    scopes = [
+        resource,
+        resource.project,
+        resource.project.customer,
+        resource.offering,
+        provider,
+    ]
+    unique = []
+    seen = set()
+    for scope in scopes:
+        if scope is None:
+            continue
+        key = (scope._meta.label, scope.pk)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(scope)
+    return unique
+
+
+def _emit_grace_signal(resource, event_type) -> None:
+    event_logger.emit(
+        {
+            EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_STARTED: (
+                "Resource {resource_name} has entered its grace period."
+            ),
+            EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_ENDED: (
+                "The grace period of resource {resource_name} has ended."
+            ),
+            EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_CANCELLED: (
+                "The grace period of resource {resource_name} has been cancelled "
+                "because its end date was moved."
+            ),
+        }[event_type],
+        event_type=event_type,
+        event_context={"resource": resource},
+        scopes=_grace_signal_scopes(resource),
+    )
+
+
+def sync_grace_period_signal(resource, today=None) -> bool:
+    """Emit started, ended or cancelled once per window. True when it emitted.
+
+    The API flag is computed, so it is current without this. The event is the
+    edge: started when the resource is in the window and the previous signal is
+    not "started". Leaving the window after "started" is ended when the
+    effective end date has passed, and cancelled when an end date was moved
+    past today or cleared. A repeated daily run does not emit again.
+
+    The caller pushes the site-agent resource message when this returns True.
+    """
+    if get_skip_side_effects() or resource.pk is None:
+        return False
+    # A resource that is not running has nothing for a provider to act on.
+    # Termination closes the window through end_grace_period_signal first.
+    if resource.state not in (ResourceStates.OK, ResourceStates.ERRED):
+        return False
+    today = today or timezone.localdate()
+    in_grace = resource.is_in_grace_period_on(today)
+    latest = _latest_grace_signal(resource)
+    started = EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_STARTED
+    if in_grace and latest != started:
+        event_type = started
+    elif not in_grace and latest == started:
+        effective = resource.effective_end_date
+        if effective and effective < today:
+            event_type = EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_ENDED
+        else:
+            event_type = EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_CANCELLED
+    else:
+        return False
+    _emit_grace_signal(resource, event_type)
+    return True
+
+
+def end_grace_period_signal(resource) -> bool:
+    """Emit ended for a resource about to be terminated with an open window.
+
+    On the last day of the window the resource is still in it and is
+    terminated the same day, after which ``sync_grace_period_signal`` no longer
+    looks at it. True when it emitted.
+    """
+    if get_skip_side_effects() or resource.pk is None:
+        return False
+    if _latest_grace_signal(resource) != (
+        EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_STARTED
+    ):
+        return False
+    _emit_grace_signal(resource, EventType.MARKETPLACE_RESOURCE_GRACE_PERIOD_ENDED)
+    return True
 
 
 # Events after which a pause can no longer be attributed to the grace period: a
@@ -3014,7 +3185,7 @@ def another_reason_keeps_downscaled(resource, exclude_policy=None) -> bool:
     )
 
 
-def release_project_grace_pauses(resources) -> list:
+def release_project_grace_pauses(resources, today=None) -> list:
     """Lift the grace-period pause from resources whose project left the grace period.
 
     Only pauses the grace period set itself (``paused_by_grace_period``) are
@@ -3033,6 +3204,7 @@ def release_project_grace_pauses(resources) -> list:
     if not candidate_ids:
         return []
 
+    today = today or timezone.localdate()
     unpaused = []
     with transaction.atomic():
         for resource in (
@@ -3043,7 +3215,7 @@ def release_project_grace_pauses(resources) -> list:
         ):
             if not resource.paused_by_grace_period:
                 continue
-            if is_held_by_project_grace(resource) or resource.project.is_expired:
+            if is_held_by_project_grace(resource, today) or resource.project.is_expired:
                 continue
             resource.paused_by_grace_period = False
             update_fields = ["paused_by_grace_period"]
@@ -6710,6 +6882,54 @@ def generate_resource_name(
     return core_utils.remove_duplicate_hyphens(result)
 
 
+def _resource_termination_groups(project):
+    """Active parent resources grouped by the date they actually terminate.
+
+    Returns how many terminate on the project's own effective end, and one
+    group per offering and date that resolves somewhere else. Child resources
+    are left out: they are terminated with their parent. An empty group list
+    means every resource follows the project date.
+    """
+    project_end = project.get_effective_end_date()
+    today = timezone.localdate()
+    on_project_date = 0
+    counts = {}
+    resources = (
+        models.Resource.objects.filter(
+            project=project,
+            offering__parent__isnull=True,
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        .select_related("offering", "project", "project__customer")
+    )
+    for resource in resources:
+        end = resource.effective_end_date
+        if end == project_end:
+            on_project_date += 1
+            continue
+        # Identity, not the name: two offerings can share a name.
+        key = (resource.offering_id, end)
+        name, count = counts.get(key, (resource.offering.name, 0))
+        counts[key] = (name, count + 1)
+    groups = [
+        {
+            "offering_name": name,
+            "termination_date": end,
+            "resource_count": count,
+            "past_due": end is not None and end < today,
+        }
+        for (offering_id, end), (name, count) in sorted(
+            counts.items(),
+            key=lambda item: (
+                item[0][1] or datetime.date.min,
+                item[1][0],
+                item[0][0],
+            ),
+        )
+    ]
+    return on_project_date, groups
+
+
 def notification_about_project_ending(end_date):
     projects_by_recipient = defaultdict(list)
 
@@ -6748,6 +6968,10 @@ def notification_about_project_ending(end_date):
         )
         users = set(project_users) | set(owners)
 
+        on_project_date, groups = _resource_termination_groups(project)
+        project.resources_on_project_date = on_project_date
+        project.termination_groups = groups
+
         for user in users:
             projects_by_recipient[user].append(project)
 
@@ -6767,6 +6991,9 @@ def notification_about_project_ending(end_date):
             "end_date": end_date,
             "count_projects": len(projects),
             "delta": (end_date - timezone.localdate()).days,
+            "resources_follow_project_end": all(
+                not project.termination_groups for project in projects
+            ),
         }
         logger.info(
             "Sending notification to user %s about %d projects",

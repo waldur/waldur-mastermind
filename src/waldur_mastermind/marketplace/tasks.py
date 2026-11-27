@@ -87,6 +87,7 @@ from waldur_mastermind.marketplace.utils import (
     get_new_order_notification_recipients,
     get_provider_approvers,
 )
+from waldur_mastermind.marketplace_site_agent import utils as site_agent_utils
 
 logger = logging.getLogger(__name__)
 
@@ -1452,17 +1453,69 @@ def _pause_before_scheduled_termination(resources, pause=None):
         pause(resource)
 
 
+def _follow_grace_window(resource, today, open_grace_ids):
+    """Pause a resource inside its grace window and send the grace signal.
+
+    Only a resource in its window, or one a provider still holds an open
+    signal for, is looked at, so the daily run does not read the event feed
+    for every resource whose end date has passed.
+    """
+    in_grace = resource.is_in_grace_period_on(today)
+    if not (in_grace or resource.pk in open_grace_ids):
+        return
+    if (
+        in_grace
+        and resource.state != ResourceStates.TERMINATING
+        and (resource.offering.plugin_options or {}).get("supports_pausing")
+    ):
+        utils.pause_for_grace(resource, today)
+    if utils.sync_grace_period_signal(resource, today):
+        site_agent_utils.push_resource_update_message(resource)
+
+
+def _end_grace_windows(resources, today, open_grace_ids):
+    """Send "ended" for resources terminated while their window is open."""
+    for resource in resources.select_related("offering", "project__customer"):
+        if resource.pk in open_grace_ids or resource.is_in_grace_period_on(today):
+            if utils.end_grace_period_signal(resource):
+                site_agent_utils.push_resource_update_message(resource)
+
+
+@shared_task(name="waldur_mastermind.marketplace.follow_offering_grace_windows")
+def follow_offering_grace_windows(offering_id):
+    """Apply a changed offering grace length to the offering's resources.
+
+    Lifts the grace pause the new length no longer holds, pauses resources now
+    inside their window, and sends started, ended or cancelled with the
+    site-agent update. Termination is left to the daily tasks.
+    """
+    today = timezone.localdate()
+    resources = (
+        models.Resource.objects.filter(offering_id=offering_id)
+        .filter(Q(end_date__lte=today) | Q(project__end_date__lte=today))
+        .exclude(state=ResourceStates.TERMINATED)
+    )
+    utils.release_project_grace_pauses(resources, today)
+    open_grace_ids = utils.resources_with_open_grace_signal()
+    for resource in resources.select_related(
+        "offering", "offering__customer", "project", "project__customer"
+    ):
+        _follow_grace_window(resource, today, open_grace_ids)
+
+
 @shared_task(
     name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
 def terminate_resources_if_project_end_date_has_been_reached():
-    """Terminate resources when their project has reached its end date (including grace period).
+    """Terminate resources when their offering-resolved project end has passed.
 
-    Also pauses resources for projects currently in the grace period,
-    if the offering has supports_pausing=True in plugin_options, and lifts that
-    pause from resources whose project has left the grace period without
-    expiring (its end date was extended or cleared). Resources are paused before
-    they are scheduled for termination too, and stay paused if it fails.
+    Also pauses resources that are inside the grace window, when the offering
+    supports pausing, and lifts that pause from resources whose end date has
+    left the window (see the project and resource save handlers, and
+    ``release_project_grace_pauses`` below). The length is the offering's
+    ``grace_period_days`` when set, otherwise the project and organization
+    length. 0 and the legacy ``disable_grace_period`` terminate on the raw
+    project end date.
     """
     today = timezone.localdate()
 
@@ -1470,85 +1523,20 @@ def terminate_resources_if_project_end_date_has_been_reached():
     # project left the grace period. A safety net for the release done when a
     # project is saved: also covers end dates changed without a save signal.
     utils.adopt_grace_period_pauses()
-    utils.release_project_grace_pauses(models.Resource.objects.all())
+    utils.release_project_grace_pauses(models.Resource.objects.all(), today)
+    open_grace_ids = utils.resources_with_open_grace_signal()
 
-    # Single pass over projects with an end date: pause resources that are inside
-    # the grace period, and terminate resources whose offering opts out of the
-    # grace period once the raw end date is reached.
-    for project in structure_models.Project.available_objects.exclude(
-        end_date__isnull=True
+    # A future project end date cannot be in grace and cannot be due: the
+    # length is never negative. Resource end dates are the other task.
+    for project in structure_models.Project.available_objects.filter(
+        end_date__lte=today
     ):
-        # Pause resources for projects currently IN grace period.
-        # Offerings that disable the grace period are excluded here — their
-        # resources are terminated on the project end date (see below), not paused.
-        if project.is_in_grace_period:
-            resources_to_pause = (
-                models.Resource.objects.filter(
-                    project=project,
-                    offering__plugin_options__supports_pausing=True,
-                    paused=False,
-                )
-                .exclude(
-                    state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING),
-                )
-                # A plain .exclude(disable_grace_period=True) would also drop rows
-                # where the key is absent: the JSON lookup is SQL NULL and NOT(NULL)
-                # is NULL, so guard the value check with has_key to exclude only
-                # offerings that actually opted in.
-                .exclude(
-                    offering__plugin_options__has_key="disable_grace_period",
-                    offering__plugin_options__disable_grace_period=True,
-                )
-            )
-            for resource in resources_to_pause:
-                utils.pause_for_project_grace(resource)
-
-        # Terminate resources whose offering disables the grace period as soon as
-        # the project end date is reached, ignoring the grace window. Projects
-        # whose effective end date (incl. grace) has fully passed are handled by
-        # the expired-projects loop below (which terminates every resource), so
-        # restrict this to projects still inside their grace window to avoid
-        # scheduling the same resource twice.
-        effective_end_date = project.get_effective_end_date()
-        if (
-            project.end_date <= today
-            and effective_end_date
-            and effective_end_date > today
-        ):
-            grace_disabled_resources = models.Resource.objects.filter(
-                _ready_for_scheduled_termination_filter(),
-                project=project,
-                offering__parent=None,
-                offering__plugin_options__disable_grace_period=True,
-            ).distinct()
-            # schedule_resources_termination is a no-op on an empty queryset, so
-            # no explicit emptiness guard is needed here.
-            termination_comment = (
-                f"Project end date has been reached on {today}; "
-                "grace period disabled for this offering."
-            )
-            _pause_before_scheduled_termination(grace_disabled_resources)
-            utils.schedule_resources_termination(
-                grace_disabled_resources,
-                termination_comment=termination_comment,
-            )
-
-    # Find projects where the effective end date (including grace period) has passed
-    expired_projects = []
-    for project in structure_models.Project.available_objects.exclude(
-        end_date__isnull=True
-    ):
-        if (
-            project.get_effective_end_date()
-            and project.get_effective_end_date() <= today
-        ):
-            expired_projects.append(project)
-
-    for project in expired_projects:
-        project_resources = models.Resource.objects.filter(project=project)
-        active_resources = project_resources.exclude(state=ResourceStates.TERMINATED)
-
-        if not active_resources:
+        resources = models.Resource.objects.filter(project=project).select_related(
+            "offering", "project", "project__customer"
+        )
+        active = resources.exclude(state=ResourceStates.TERMINATED)
+        org_end = project.get_effective_end_date()
+        if org_end and org_end <= today and not active.exists():
             event_logger.emit(
                 "Project {project_name} is going to be deleted because end date has been reached and there are no active resources.",
                 event_type=EventType.PROJECT_DELETION_TRIGGERED,
@@ -1558,23 +1546,38 @@ def terminate_resources_if_project_end_date_has_been_reached():
             project.delete()
             continue
 
-        # We expect that resources with parents will be removed when parents are removed
-        terminatable_resources = project_resources.filter(
+        if project.end_date < today:
+            for resource in active:
+                _follow_grace_window(resource, today, open_grace_ids)
+
+        due_by_comment = collections.defaultdict(list)
+        due = resources.filter(
             _ready_for_scheduled_termination_filter(),
             offering__parent=None,
         ).distinct()
-        logger.info(
-            "About to terminate resources from expired project: %s",
-            ",".join([f"{r.uuid}, {r.name}" for r in terminatable_resources]),
-        )
-        project.get_effective_end_date()
-        grace_days = project.get_grace_period_days()
-        termination_comment = f"Project effective end date (including {grace_days} day grace period) has been reached on {today}"
-        _pause_before_scheduled_termination(terminatable_resources)
-        utils.schedule_resources_termination(
-            terminatable_resources,
-            termination_comment=termination_comment,
-        )
+        for resource in due:
+            project_end = resource.project_effective_end()
+            if not project_end or project_end > today:
+                continue
+            days = resource.project_grace_days()
+            comment = (
+                f"Project end date for this offering has been reached on {today} "
+                f"({days} day grace period)."
+            )
+            due_by_comment[comment].append(resource.pk)
+        for comment, pks in due_by_comment.items():
+            terminating = models.Resource.objects.filter(pk__in=pks)
+            logger.info(
+                "About to terminate resources from project %s: %s",
+                project.uuid,
+                ",".join(str(pk) for pk in pks),
+            )
+            _end_grace_windows(terminating, today, open_grace_ids)
+            _pause_before_scheduled_termination(terminating)
+            utils.schedule_resources_termination(
+                terminating,
+                termination_comment=comment,
+            )
 
 
 @shared_task(
@@ -1866,21 +1869,44 @@ def _record_unlink_failure(resource_uuid, exc):
 
 @shared_task(name="waldur_mastermind.marketplace.terminate_expired_resources")
 def terminate_expired_resources():
-    """Terminate marketplace resources that have reached their end date."""
-    expired_resources = models.Resource.objects.filter(
-        _ready_for_scheduled_termination_filter(),
-        end_date__lte=timezone.localdate(),
-    ).distinct()
+    """Terminate marketplace resources that have reached their end date.
+
+    An offering ``grace_period_days`` above 0 extends that date. Until the
+    extended date, a resource that supports pausing is paused and the grace
+    signal is sent; it is not terminated. Unset offering grace keeps the raw
+    end date as a hard stop.
+    """
+    today = timezone.localdate()
+    candidates = (
+        models.Resource.objects.filter(
+            _ready_for_scheduled_termination_filter(),
+            end_date__lte=today,
+        )
+        .select_related("offering", "project", "project__customer")
+        .distinct()
+    )
+    open_grace_ids = utils.resources_with_open_grace_signal()
+    to_terminate = []
+    for resource in candidates:
+        resource_end = resource.resource_effective_end()
+        if resource_end and resource_end > today:
+            _follow_grace_window(resource, today, open_grace_ids)
+            continue
+        to_terminate.append(resource.pk)
+    if not to_terminate:
+        return
+    expired_resources = models.Resource.objects.filter(pk__in=to_terminate)
     logger.info(
         "About to terminate expired resources: %s",
         ",".join([f"{r.uuid}, {r.name}" for r in expired_resources]),
     )
+    _end_grace_windows(expired_resources, today, open_grace_ids)
     _pause_before_scheduled_termination(
         expired_resources, pause=utils.pause_for_resource_end_date
     )
     utils.schedule_resources_termination(
         expired_resources,
-        termination_comment=f"Resource expired on {timezone.localdate()}",
+        termination_comment=f"Resource expired on {today}",
     )
 
 
@@ -2019,13 +2045,17 @@ def notification_about_resource_ending():
     announces), so they are pulled in by their project's raw end date even without
     an own end date — but only when the project has an actual grace window,
     otherwise raw == effective and the project-ending notice already covers them.
+
+    An offering ``grace_period_days`` above 0 moves the termination date past
+    both raw end dates, so its resources are found by the raw dates shifted back
+    by that length, and the reminder counts down to the date they terminate.
     """
     today = timezone.localdate()
     date_1 = today + datetime.timedelta(days=1)
     date_7 = today + datetime.timedelta(days=7)
 
-    def dates(days):
-        return [today + datetime.timedelta(days=n) for n in days]
+    def dates(days, shift=0):
+        return [today + datetime.timedelta(days=n - shift) for n in days]
 
     # A resource's own end date follows its offering's reminder schedule, so a
     # resource is a candidate only on the days its own offering names.
@@ -2043,15 +2073,40 @@ def notification_about_resource_ending():
     for days, offering_ids in schedules.items():
         own_end_query |= Q(offering_id__in=offering_ids, end_date__in=dates(days))
 
-    candidate_resources = (
-        models.Resource.objects.filter(
-            own_end_query
-            | Q(
-                project__end_date__in=(date_1, date_7),
-                offering__parent=None,
-                offering__plugin_options__disable_grace_period=True,
-            )
+    graced_query = Q(pk__in=[])
+    graced_offering_ids = []
+    for offering in models.Offering.objects.filter(
+        plugin_options__has_key="grace_period_days"
+    ).only("id", "plugin_options"):
+        grace_days = offering.configured_grace_period_days()
+        if not grace_days:
+            continue
+        graced_offering_ids.append(offering.id)
+        own_days = _resource_ending_reminder_days(offering.plugin_options)
+        graced_query |= Q(
+            offering_id=offering.id, end_date__in=dates(own_days, grace_days)
+        ) | Q(
+            offering_id=offering.id,
+            offering__parent=None,
+            project__end_date__in=dates((1, 7), grace_days),
         )
+
+    raw_date_query = (
+        own_end_query
+        | Q(
+            project__end_date__in=(date_1, date_7),
+            offering__parent=None,
+            offering__plugin_options__disable_grace_period=True,
+        )
+        | Q(
+            project__end_date__in=(date_1, date_7),
+            offering__parent=None,
+            offering__plugin_options__grace_period_days=0,
+        )
+    ) & ~Q(offering_id__in=graced_offering_ids)
+
+    candidate_resources = (
+        models.Resource.objects.filter(raw_date_query | graced_query)
         .exclude(state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING))
         .select_related("project", "project__customer", "offering")
     )
@@ -2061,18 +2116,35 @@ def notification_about_resource_ending():
         own_dates = dates(
             _resource_ending_reminder_days(resource.offering.plugin_options)
         )
-        own_ending = resource.end_date in own_dates and effective_end_date in own_dates
-        # Resources pulled in only by their project's raw end date are
-        # grace-disabled; skip them when the project has no grace window, since
-        # then raw == the project's effective end date and the project-ending
-        # notice already covers them on the same day.
-        project_ending = (
-            resource.offering.parent_id is None
-            and (resource.offering.plugin_options or {}).get("disable_grace_period")
-            and resource.project.end_date in (date_1, date_7)
-            and effective_end_date in (date_1, date_7)
-            and resource.project.get_grace_period_days() > 0
-        )
+        if resource.offering_id in graced_offering_ids:
+            own_ending = (
+                resource.resource_effective_end() == effective_end_date
+                and effective_end_date in own_dates
+            )
+            # The project-ending notice already announces this date when the
+            # offering length equals the project's.
+            project_ending = (
+                resource.offering.parent_id is None
+                and resource.project_effective_end() == effective_end_date
+                and effective_end_date in (date_1, date_7)
+                and resource.project_grace_days()
+                != resource.project.get_grace_period_days()
+            )
+        else:
+            own_ending = (
+                resource.end_date in own_dates and effective_end_date in own_dates
+            )
+            # Resources pulled in only by their project's raw end date are
+            # grace-disabled; skip them when the project has no grace window,
+            # since then raw == the project's effective end date and the
+            # project-ending notice already covers them on the same day.
+            project_ending = (
+                resource.offering.parent_id is None
+                and resource.offering.configured_grace_period_days() == 0
+                and resource.project.end_date in (date_1, date_7)
+                and effective_end_date in (date_1, date_7)
+                and resource.project.get_grace_period_days() > 0
+            )
         if not (own_ending or project_ending):
             continue
 

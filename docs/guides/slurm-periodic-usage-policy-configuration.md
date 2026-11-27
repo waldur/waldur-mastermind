@@ -77,11 +77,13 @@ fully in parallel.
 ### Interaction with the Project Grace Period
 
 A project past its end date but still inside its grace period has the resources
-of offerings with `supports_pausing` paused by the daily end-date task (unless
-the offering sets `disable_grace_period`). The policy never lifts such a pause:
-while the project is in its grace period, a resource stays paused even when its
-usage is below the grace limit, whether the pause came from the grace period or
-from the policy itself.
+of offerings with `supports_pausing` paused by the daily end-date task, unless
+the offering sets `grace_period_days` to 0 or the legacy `disable_grace_period`.
+An offering `grace_period_days` above 0 replaces the project length for that
+offering's resources, including a resource's own end date. The policy never
+lifts such a pause: while the resource is in its grace period, it stays paused
+even when its usage is below the grace limit, whether the pause came from the
+grace period or from the policy itself.
 
 Once the project leaves the grace period because its end date was extended or
 cleared, the pause set for the grace period is lifted unless usage is still over
@@ -90,13 +92,14 @@ evaluation as usual. When the grace period runs out instead, the resources stay
 paused until they are terminated.
 
 Resources are also paused right before they are terminated for an end date:
-once the project has expired (with no grace period, on the end date itself); on
-offerings with `disable_grace_period`, on the project's raw end date; and on a
-resource's own end date. A termination can fail -- slurmdbd refuses to remove
-an account while it still counts a job as running -- and is retried by the next
-daily run. Until it succeeds the resource stays paused, and neither the policy
-nor a usage-limit reset lifts it, so the account takes no new jobs meanwhile.
-Extending the end date lifts the pause.
+once the offering-resolved end date has passed; on offerings with
+`grace_period_days` 0 or `disable_grace_period`, on the project's raw end date;
+and on a resource's own end date when the offering sets no grace for it. A
+termination can fail -- slurmdbd refuses to remove an account while it still
+counts a job as running -- and is retried by the next daily run. Until it
+succeeds the resource stays paused, and neither the policy nor a usage-limit
+reset lifts it, so the account takes no new jobs meanwhile. Extending the end
+date lifts the pause.
 
 Outside the grace period the policy lifts a pause once usage is below the grace
 limit, except while a usage-limit restriction or a firing cost policy with

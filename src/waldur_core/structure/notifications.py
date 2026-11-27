@@ -494,7 +494,7 @@ class ResourceTerminationScheduledContext(BaseModel):
 
 class ProjectEndingContext(BaseModel):
     projects: list[Any] = Field(
-        description="A list of Project model instances that are ending. Each project is annotated with a `.url` attribute."
+        description="A list of Project model instances that are ending. Each project is annotated with `.url`, `.grace_period_days`, `.effective_end_date`, `.resources_on_project_date` (how many active resources terminate on the project end date) and `.termination_groups` (offerings that terminate on another date; empty when every resource follows the project date). Each group has `offering_name`, `resource_count`, `termination_date` and `past_due` (true when that date is already past, so the resource is still being terminated)."
     )
     user: Any = Field(
         description="The User model instance receiving the notification. Provides `user.full_name`."
@@ -504,6 +504,10 @@ class ProjectEndingContext(BaseModel):
         description="The number of projects in the `projects` list."
     )
     delta: int = Field(description="The number of days until the project ends.")
+    resources_follow_project_end: bool = Field(
+        default=True,
+        description="True when every active resource in every listed project terminates on the project end date. False when an offering resolves a different date, so the subject must not say the project is deleted on end_date.",
+    )
 
 
 class ResourceEndingContext(BaseModel):

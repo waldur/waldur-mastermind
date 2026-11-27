@@ -318,19 +318,36 @@ def validate_api_key_options(instance, plugin_options):
         )
 
 
-def validate_disable_grace_period_is_staff_only(request, instance, plugin_options):
-    """Reject a request not acting as staff setting or changing
-    disable_grace_period. Overriding the org/project grace period is a
-    staff-controlled policy, so it is locked at both creation and update,
-    regardless of who edits the offering."""
-    if has_staff_access(request) or "disable_grace_period" not in plugin_options:
+def validate_disable_grace_period_is_staff_only(
+    request, instance, plugin_options, replace=False
+):
+    """Reject a request not acting as staff setting or changing the grace period.
+
+    ``grace_period_days`` and the legacy ``disable_grace_period`` override the
+    organization and project grace period. That is a staff-controlled policy,
+    locked at both creation and update, regardless of who edits the offering.
+
+    The length the offering resolves is compared, not the raw keys: writing
+    ``grace_period_days`` also removes the legacy flag, so a null that matches
+    an absent key can still turn the setting off. ``replace`` is for an import,
+    which stores the sent options as they are.
+    """
+    if has_staff_access(request):
         return
-    old_value = (
-        instance.plugin_options.get("disable_grace_period", False)
-        if instance
-        else False
-    )
-    if old_value != plugin_options["disable_grace_period"]:
+    if (
+        "disable_grace_period" not in plugin_options
+        and "grace_period_days" not in plugin_options
+    ):
+        return
+    stored = (instance.plugin_options or {}) if instance else {}
+    if replace:
+        after = dict(plugin_options)
+    else:
+        after = {**stored, **plugin_options}
+        if "grace_period_days" in plugin_options:
+            after.pop("disable_grace_period", None)
+    before_days = models.Offering.grace_period_days_from(stored)
+    if models.Offering.grace_period_days_from(after) != before_days:
         raise rf_exceptions.ValidationError(
             {"plugin_options": _("Only staff can change the grace-period setting.")}
         )
@@ -554,9 +571,22 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     )
     disable_grace_period = serializers.BooleanField(
         required=False,
-        help_text="If set to True, this offering's resources ignore the project "
-        "grace period and are terminated on the project end date. "
+        help_text="Deprecated. If set to True, and grace_period_days is unset, "
+        "this offering's resources ignore the project grace period and are "
+        "terminated on the project end date. Prefer grace_period_days: 0. "
         "Only staff can change this option.",
+    )
+    grace_period_days = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        min_value=0,
+        help_text="Days after a project or resource end date before this "
+        "offering's resources are terminated. Unset inherits the organization "
+        "and project grace period for the project end date, and keeps a "
+        "resource's own end date a hard stop. 0 terminates on the raw end "
+        "date. A value above 0 is that many days past either end date and "
+        "overrides the organization and project length. Null clears the "
+        "setting so the offering inherits again. Only staff can change it.",
     )
     action_on_usage_limit = serializers.ChoiceField(
         choices=UsageLimitAction.CHOICES,
@@ -6827,6 +6857,12 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
             custom_components = validated_data.pop("components", [])
 
         agent_configuration = validated_data.pop("agent_configuration", None)
+        plugin_options = validated_data.get("plugin_options")
+        if plugin_options and "grace_period_days" in plugin_options:
+            # The new key replaces the legacy flag; null means inherit.
+            plugin_options.pop("disable_grace_period", None)
+            if plugin_options["grace_period_days"] is None:
+                plugin_options.pop("grace_period_days")
         offering = super().create(validated_data)
         if agent_configuration is not None:
             offering.agent_configuration = agent_configuration
@@ -7362,9 +7398,19 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                 # the provider value inherited again.
                 instance.plugin_options.pop(key, None)
                 continue
+            if key == "grace_period_days" and value is None:
+                # Null clears the offering length so the project clock is
+                # inherited again. Storing JSON null would look set.
+                instance.plugin_options.pop(key, None)
+                continue
             if isinstance(value, datetime.date | datetime.datetime):
                 value = value.isoformat()
             instance.plugin_options[key] = value
+        if "grace_period_days" in plugin_options:
+            # The new key replaces the legacy flag. Left behind, a true flag
+            # would keep the offering at 0 once the length is cleared, while
+            # the length reads as inherited.
+            instance.plugin_options.pop("disable_grace_period", None)
         return {"plugin_options"} if plugin_options else set()
 
     @transaction.atomic
@@ -9792,6 +9838,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_effective_end_date",
             "resource_effective_end_date",
             "project_is_in_grace_period",
+            "is_in_grace_period",
+            "grace_period_end_date",
             "project_end_date_requested_by",
             "customer_uuid",
             "customer_name",
@@ -10064,14 +10112,30 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         allow_null=True,
         source="effective_end_date",
         help_text="The date this resource is scheduled to terminate: the earliest "
-        "of its own end date and the project-driven termination date (the raw "
-        "project end date if the offering disables the grace period, otherwise the "
-        "effective with-grace end date).",
+        "of its own end date and the project end date, each plus the grace "
+        "length the offering resolves. Unset offering grace keeps a resource "
+        "end date as a hard stop and inherits the project grace. "
+        "grace_period_days 0, and disable_grace_period, use the raw project "
+        "end date.",
     )
     project_is_in_grace_period = serializers.BooleanField(
         read_only=True,
         source="project.is_in_grace_period",
-        help_text="True if the project is past its end date but still within the grace period.",
+        help_text="True if the project is past its end date but still within "
+        "the organization and project grace period. This is the project clock. "
+        "is_in_grace_period is the clock this resource's offering resolves.",
+    )
+    is_in_grace_period = serializers.BooleanField(
+        read_only=True,
+        help_text="True when this resource is past a raw end date and still "
+        "within the grace period its offering resolves. Independent of whether "
+        "the resource is paused.",
+    )
+    grace_period_end_date = serializers.DateField(
+        read_only=True,
+        allow_null=True,
+        help_text="The last day of this resource's grace window. Empty when "
+        "the offering gives it no grace period.",
     )
     project_end_date_requested_by = serializers.HyperlinkedRelatedField(
         source="project.end_date_requested_by",

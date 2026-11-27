@@ -1,1 +1,1 @@
-{% if count_projects > 1 %}Your {{ count_projects }} projects{% else %} Project{% endif %} will be deleted on {{ end_date|date:'d/m/Y' }}.
+{% if resources_follow_project_end %}{% if count_projects > 1 %}Your {{ count_projects }} projects{% else %}Project{% endif %} will be deleted on {{ end_date|date:'d/m/Y' }}.{% else %}{% if count_projects > 1 %}Your {{ count_projects }} projects reach their end date{% else %}Project reaches its end date{% endif %} on {{ end_date|date:'d/m/Y' }}.{% endif %}

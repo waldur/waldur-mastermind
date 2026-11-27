@@ -67,6 +67,7 @@ from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
 from waldur_mastermind.marketplace.secret_options import is_sensitive_key
+from waldur_mastermind.marketplace_site_agent import utils as site_agent_utils
 
 from . import (
     callbacks,
@@ -367,6 +368,20 @@ def close_customer_service_accounts_on_customer_deletion(
     )
 
 
+def _release_and_signal_grace(resources):
+    """Lift a grace pause, then open or close the grace signal for what remains."""
+    resource_ids = list(resources.values_list("pk", flat=True))
+    if not resource_ids:
+        return
+    fresh = models.Resource.objects.filter(pk__in=resource_ids).select_related(
+        "offering", "offering__customer", "project", "project__customer"
+    )
+    utils.release_project_grace_pauses(fresh)
+    for resource in fresh.exclude(state=ResourceStates.TERMINATED):
+        if utils.sync_grace_period_signal(resource):
+            site_agent_utils.push_resource_update_message(resource)
+
+
 def release_grace_pauses_when_project_end_date_changes(
     sender, instance: structure_models.Project, created=False, **kwargs
 ):
@@ -374,13 +389,14 @@ def release_grace_pauses_when_project_end_date_changes(
 
     Only the end date can do that: a changed grace period length either keeps
     the project in grace or lets it expire, and expired projects keep their
-    resources paused until they are terminated.
+    resources paused until they are terminated. The same save opens or closes
+    the grace signal, so a provider hears it without waiting for the daily task.
     """
     if created or not instance.tracker.has_changed("end_date"):
         return
     project_id = instance.pk
     transaction.on_commit(
-        lambda: utils.release_project_grace_pauses(
+        lambda: _release_and_signal_grace(
             models.Resource.objects.filter(project_id=project_id)
         )
     )
@@ -391,13 +407,14 @@ def release_end_date_pause_when_resource_end_date_changes(
 ):
     """Lift the end-date pause once a resource's own end date is moved past today.
 
-    The daily end-date task would lift it too, but only on its next run.
+    The daily end-date task would lift it too, but only on its next run. The
+    grace signal follows the same save.
     """
     if created or not instance.tracker.has_changed("end_date"):
         return
     resource_id = instance.pk
     transaction.on_commit(
-        lambda: utils.release_project_grace_pauses(
+        lambda: _release_and_signal_grace(
             models.Resource.objects.filter(pk=resource_id)
         )
     )
@@ -3636,3 +3653,24 @@ def revoke_api_keys_of_deleted_user(sender, instance, **kwargs):
     whole project while the departed person's copy still works.
     """
     resource_api_keys.revoke_keys_of_deleted_user(instance)
+
+
+def follow_grace_windows_when_offering_grace_changes(
+    sender, instance: Offering, created=False, **kwargs
+):
+    """Apply a changed offering grace length now, not on the next daily run.
+
+    Only a change to the length the offering resolves counts, so editing any
+    other plugin option sends nothing. The task runs once the save commits.
+    """
+    if created or not instance.tracker.has_changed("plugin_options"):
+        return
+    previous = Offering.grace_period_days_from(
+        instance.tracker.previous("plugin_options")
+    )
+    if previous == instance.configured_grace_period_days():
+        return
+    offering_id = instance.pk
+    transaction.on_commit(
+        lambda: tasks.follow_offering_grace_windows.delay(offering_id)
+    )
