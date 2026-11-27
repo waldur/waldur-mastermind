@@ -170,6 +170,7 @@ from waldur_mastermind.marketplace import (
     agent_configuration as site_agent_configuration,
 )
 from waldur_mastermind.marketplace import (
+    agent_import_serializers,
     billing_mode,
     callbacks,
     consistency,
@@ -4243,6 +4244,79 @@ class ProviderOfferingViewSet(
             ),
         )
     ]
+
+    @extend_schema(
+        summary="Import a site agent configuration file into the agent configuration",
+        description=(
+            "Reads one offering block of an existing site agent configuration "
+            "file (YAML) into this offering's agent configuration: role backends "
+            "(backend_type fills the three agent roles when the block sets none), "
+            "event and agent settings, backend_settings and the agent-only fields "
+            "of backend_components. Secrets, including ${VARIABLE} placeholders, "
+            "are left out and listed in dropped_secrets: they stay on the agent "
+            "host. A ${VARIABLE} placeholder of a setting that is not secret is "
+            "left out and listed in unresolved; values gives such settings, or "
+            "ones the file lacks, their values. How the agent reaches Waldur and other keys Waldur does not "
+            "hold are listed in ignored. Component fields the offering's "
+            "components hold are not imported; where they differ they are listed "
+            "in component_differences. The block is chosen by offering_index, "
+            "else the one whose waldur_offering_uuid is this offering, else the "
+            "only one; otherwise the 400 on offering_index lists the file's "
+            "offerings. With dry_run (the default) nothing is saved, and a "
+            "configuration that could not be saved is still previewed, with "
+            "the reasons in errors; otherwise the configuration is saved as update_integration saves it, with "
+            "the same validation, permission check and change record. By "
+            "choice the import also sets component fields the file holds "
+            "(apply_components, as update_offering_component would, with its "
+            "permission) and creates or updates the offering's SLURM periodic "
+            "usage policy from policy_settings (apply_policy, as that policy's "
+            "own endpoint would); everything is saved together or not at all. "
+            "Site agent offerings only."
+        ),
+        request=agent_import_serializers.AgentConfigurationImportSerializer,
+        responses={
+            status.HTTP_200_OK: agent_import_serializers.AgentConfigurationImportResultSerializer,
+            status.HTTP_400_BAD_REQUEST: OpenApiResponse(
+                description="The file cannot be read, no single offering of it "
+                "is chosen, a value cannot be given, or (when not a dry run) the "
+                "configuration it gives is not valid."
+            ),
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def import_agent_configuration(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        if offering.type != SITE_AGENT_OFFERING:
+            raise ValidationError(
+                _("Only site agent offerings have an agent configuration.")
+            )
+        serializer = agent_import_serializers.AgentConfigurationImportSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        provider = hooks.get_site_agent_provider()
+        if provider is None:
+            raise rf_exceptions.APIException(
+                "Site agent integration is not configured."
+            )
+        return Response(
+            agent_import_serializers.AgentConfigurationImportResultSerializer(
+                provider.import_agent_configuration(
+                    request, self, offering, serializer.validated_data
+                )
+            ).data
+        )
+
+    import_agent_configuration_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_INTEGRATION,
+            marketplace_permissions.OFFERING_ADMIN_SOURCES,
+        )
+    ]
+    import_agent_configuration_validators = update_validators
+    import_agent_configuration_serializer_class = (
+        agent_import_serializers.AgentConfigurationImportSerializer
+    )
 
     @extend_schema(
         summary="Check a site agent offering against the consistency rules",

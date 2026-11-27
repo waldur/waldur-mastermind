@@ -39,6 +39,12 @@ def _offering_agent_config(offering):
     return config_builder.offering_agent_config(offering)
 
 
+def _import_agent_configuration(request, view, offering, data):
+    from waldur_mastermind.marketplace_site_agent import agent_import_options
+
+    return agent_import_options.run_import(request, view, offering, data)
+
+
 class MarketplaceSlurmConfig(AppConfig):
     name = "waldur_mastermind.marketplace_site_agent"
     verbose_name = "Marketplace SLURM Remote"
@@ -139,5 +145,6 @@ class MarketplaceSlurmConfig(AppConfig):
                 push_resource_update_message=_push_resource_update_message,
                 generate_agent_config=_generate_agent_config,
                 offering_agent_config=_offering_agent_config,
+                import_agent_configuration=_import_agent_configuration,
             )
         )
