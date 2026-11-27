@@ -55,6 +55,13 @@ BOOTSTRAP_FIELDS = ("waldur_api_url", "waldur_api_token", "waldur_offering_uuid"
 LOCAL_SOURCE = "local"
 WALDUR_SOURCE = "waldur"
 
+# Where the agent's token comes from: a site agent token bound to the offering,
+# not the user's own API token, which reaches everything the user can.
+API_TOKEN_HINT = (
+    "Site agent token of the offering (offering -> Integration -> Credentials -> "
+    "Actions -> Create agent token); needs waldur-site-agent 1.0.8-rc.13 or later"
+)
+
 
 def has_agent_roles(offering) -> bool:
     configuration = offering.agent_configuration or {}
@@ -110,7 +117,7 @@ def build_offering_config(
                 "waldur_api_token",
                 None,
                 REQUIRED_SECRET,
-                "Waldur API token (User Profile -> Credentials -> API Token)",
+                API_TOKEN_HINT,
             )
         offering_config.update(
             {
@@ -172,7 +179,7 @@ def build_bootstrap_offering_config(
             "waldur_api_token",
             None,
             REQUIRED_SECRET,
-            "Waldur API token (User Profile -> Credentials -> API Token)",
+            API_TOKEN_HINT,
         ),
         "waldur_offering_uuid": str(offering.uuid),
     }
@@ -258,12 +265,21 @@ def build_backend_settings(
     backend_settings = {}
     # Membership sync and reporting read the SLURM settings too, so they
     # come with any role SLURM fills, not just order processing.
-    if any(backends.get(field) == DEFAULT_AGENT_BACKEND for field in AGENT_ROLE_FIELDS):
+    uses_slurm = any(
+        backends.get(field) == DEFAULT_AGENT_BACKEND for field in AGENT_ROLE_FIELDS
+    )
+    if uses_slurm:
         backend_settings = slurm_backend_settings(
             settings, legacy, generated.with_placeholders
         )
     for key, value in configured.items():
         backend_settings.setdefault(key, value)
+    if uses_slurm:
+        periodic_limits = periodic_limits_settings(
+            offering, backend_settings.get(PERIODIC_LIMITS_SETTING)
+        )
+        if periodic_limits:
+            backend_settings[PERIODIC_LIMITS_SETTING] = periodic_limits
     if not legacy:
         # What the configuration leaves out, the agent would take from its
         # plugins' defaults anyway; written out, the file says what runs.
@@ -383,6 +399,38 @@ def build_backend_components(offering) -> dict[str, dict[str, Any]]:
                 int(limit) if limit == int(limit) else float(limit)
             )
     return components
+
+
+PERIODIC_LIMITS_SETTING = "periodic_limits"
+
+
+def periodic_limits_settings(offering, configured=None) -> dict[str, Any] | None:
+    """Switch periodic limits on for an offering with a periodic usage policy.
+
+    The agent applies periodic limits only when
+    ``backend_settings.periodic_limits.enabled`` is set: that is what makes it
+    subscribe to the periodic limits events and run apply_periodic_settings.
+    The policy's parameters reach it in those events, and policy_settings is
+    informational, so without this block a generated configuration leaves
+    periodic limits off for every offering. limit_type is the agent's fallback
+    for an event that omits it.
+
+    A periodic_limits block of the offering's own agent configuration is kept
+    as set; what it leaves out or sets to null, enabled included, comes from
+    the policy. Only
+    the SLURM backend applies periodic limits, so the caller adds the block
+    only when SLURM fills one of the offering's roles.
+    """
+    policy = SlurmPeriodicUsagePolicy.objects.filter(scope=offering).first()
+    if policy is None:
+        return configured
+    stored = configured if isinstance(configured, dict) else {}
+    return {
+        "enabled": True,
+        "limit_type": policy.limit_type,
+        # A null in the stored block means unset, as elsewhere in this builder.
+        **{key: value for key, value in stored.items() if value is not None},
+    }
 
 
 def build_policy_settings(offering) -> dict[str, Any] | None:
@@ -564,8 +612,10 @@ class GeneratedAgentConfig(_SecretList):
             f"# Generated: {timezone.now().isoformat()}\n"
             "#\n"
             "# IMPORTANT - SECRETS TO CONFIGURE:\n"
-            "#   - waldur_api_token: Generate an API token from Waldur user settings\n"
-            "#     (User Profile -> Credentials -> API Token)\n"
+            "#   - waldur_api_token: a site agent token bound to the offering\n"
+            "#     (offering -> Integration -> Credentials -> Actions ->\n"
+            "#     Create agent token), not your own API token. A personal\n"
+            "#     access token needs waldur-site-agent 1.0.8-rc.13 or later.\n"
             f"{hostname_hint}"
             "#\n"
             "# Documentation: https://docs.waldur.com/latest/admin-guide/providers/site-agent/\n"
@@ -579,8 +629,9 @@ class GeneratedAgentConfig(_SecretList):
                 "# configuration_source: waldur - the agent reads each offering's\n"
                 "# roles, settings and components from Waldur when it starts, so\n"
                 "# this file holds only how to reach Waldur and the secrets. Any\n"
-                "# other key in an offering fails the load. Needs a site agent that\n"
-                "# supports configuration_source.\n#\n"
+                "# other key in an offering fails the load. Needs\n"
+                "# waldur-site-agent 1.0.8-rc.16 or later: an older agent ignores\n"
+                "# configuration_source without a warning.\n#\n"
             )
         if self.secret_format == self.ENV:
             header += (
@@ -588,20 +639,16 @@ class GeneratedAgentConfig(_SecretList):
                 "# the agent, for example with envsubst. The agent does not expand\n"
                 "# variables itself. A ' in a secret must be written twice ('').\n#\n"
             )
-        checklist, unset_block_checklist = self.checklist()
+        # A secret of a block the offering does not configure is not needed
+        # (the agent would refuse it), so the file does not mention it; it is
+        # needed, and listed, once the block is set in Waldur.
+        checklist, _unset_block_checklist = self.checklist()
         if checklist:
             # Waldur never stores these, so the file cannot carry them; required
             # ones are present as placeholders, the others only listed.
             lines = "".join(f"#   - {line}\n" for line in checklist)
             header += (
                 "# BACKEND SECRETS TO CONFIGURE (kept on the agent host only):\n"
-                f"{lines}#\n"
-            )
-        if unset_block_checklist:
-            lines = "".join(f"#   - {line}\n" for line in unset_block_checklist)
-            header += (
-                "# SECRETS NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED - the offering\n"
-                "# does not set the block, so leave them out until it does:\n"
                 f"{lines}#\n"
             )
 

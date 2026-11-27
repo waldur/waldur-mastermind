@@ -318,6 +318,7 @@ class SiteAgentConfigGenerationTest(test.APITestCase):
 
         # Policy settings should not be present if no policy exists
         self.assertNotIn("policy_settings", config["offerings"][0])
+        self.assertNotIn("periodic_limits", config["offerings"][0]["backend_settings"])
 
     def test_generate_config_exclude_policy_settings(self):
         """Test config generation with policy settings excluded."""
@@ -354,6 +355,37 @@ class SiteAgentConfigGenerationTest(test.APITestCase):
         self.assertIn("# Waldur Site Agent Configuration", content)
         self.assertIn("# Generated:", content)
         self.assertIn("waldur_api_token", content)
+
+    @data({}, {"secret_format": "env"}, {"configuration_source": "waldur"})
+    def test_header_points_to_the_agent_token(self, extra):
+        # The agent runs with a token bound to its offering, not with the
+        # user's own API token.
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            self._get_url(),
+            {"offering_uuids": [str(self.slurm_offering.uuid)], **extra},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        content = response.content.decode("utf-8")
+        self.assertIn("Create agent token", content)
+        self.assertIn("1.0.8-rc.13", content)
+        self.assertNotIn("User Profile", content)
+
+    def test_header_names_the_agent_that_reads_from_waldur(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            self._get_url(),
+            {
+                "offering_uuids": [str(self.slurm_offering.uuid)],
+                "configuration_source": "waldur",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("waldur-site-agent 1.0.8-rc.16", response.content.decode())
 
     def test_generate_config_returns_plain_text_for_ui(self):
         """Test that response is plain text for UI display."""
@@ -408,6 +440,7 @@ class SiteAgentConfigGenerationTest(test.APITestCase):
         self.assertIn("hostname: Your SLURM cluster hostname", content)
 
 
+@ddt
 class SiteAgentConfigWithPolicyTest(test.APITestCase):
     """Tests for site agent config generation with SLURM policy."""
 
@@ -475,6 +508,86 @@ class SiteAgentConfigWithPolicyTest(test.APITestCase):
         self.assertEqual(policy_settings["raw_usage_reset"], True)
         self.assertEqual(policy_settings["qos_strategy"], "progressive")
         self.assertEqual(policy_settings["tres_billing_weights"]["CPU"], 0.015625)
+
+    def _create_policy(self, limit_type="GrpTRESMins"):
+        return SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.slurm_offering,
+            actions="notify_organization_owners",
+            limit_type=limit_type,
+        )
+
+    def _backend_settings(self, **extra):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            self._get_url(),
+            {"offering_uuids": [str(self.slurm_offering.uuid)], **extra},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return yaml.safe_load(response.content)["offerings"][0]["backend_settings"]
+
+    @data(True, False)
+    def test_policy_enables_periodic_limits(self, include_policy_settings):
+        # The agent applies periodic limits only when this block enables
+        # them; policy_settings alone leaves them off.
+        self._create_policy(limit_type="MaxTRESMins")
+
+        backend_settings = self._backend_settings(
+            include_policy_settings=include_policy_settings
+        )
+
+        self.assertEqual(
+            backend_settings["periodic_limits"],
+            {"enabled": True, "limit_type": "MaxTRESMins"},
+        )
+
+    def test_periodic_limits_of_the_agent_configuration_are_kept(self):
+        self._create_policy()
+        self.slurm_offering.agent_configuration = {
+            "order_processing_backend": "slurm",
+            "membership_sync_backend": "slurm",
+            "reporting_backend": "slurm",
+            "backend_settings": {
+                "periodic_limits": {"enabled": False, "limit_type": "GrpTRESMins"}
+            },
+        }
+        self.slurm_offering.save()
+
+        backend_settings = self._backend_settings()
+
+        self.assertEqual(
+            backend_settings["periodic_limits"],
+            {"enabled": False, "limit_type": "GrpTRESMins"},
+        )
+
+    def test_policy_fills_in_what_a_stored_block_leaves_out(self):
+        self._create_policy(limit_type="MaxTRESMins")
+        self.slurm_offering.agent_configuration = {
+            "order_processing_backend": "slurm",
+            "membership_sync_backend": "slurm",
+            "reporting_backend": "slurm",
+            "backend_settings": {
+                "periodic_limits": {"emulator_mode": False, "enabled": None}
+            },
+        }
+        self.slurm_offering.save()
+
+        self.assertEqual(
+            self._backend_settings()["periodic_limits"],
+            {"enabled": True, "limit_type": "MaxTRESMins", "emulator_mode": False},
+        )
+
+    def test_no_periodic_limits_without_a_slurm_role(self):
+        # Only the SLURM backend applies periodic limits.
+        self._create_policy()
+        self.slurm_offering.agent_configuration = {
+            "order_processing_backend": "waldur",
+            "membership_sync_backend": "waldur",
+            "reporting_backend": "waldur",
+        }
+        self.slurm_offering.save()
+
+        self.assertNotIn("periodic_limits", self._backend_settings())
 
 
 class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
@@ -550,7 +663,11 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
             "cscs_dwdi_client_secret: ''  # SECRET: cscs-dwdi-compute\n", content
         )
         self.assertEqual(offering_config["waldur_api_token"], "")
-        self.assertIn("waldur_api_token: ''  # SECRET: Waldur API token", content)
+        self.assertIn(
+            "waldur_api_token: ''  # SECRET: Site agent token of the offering",
+            content,
+        )
+        self.assertIn("Create agent token", content)
         self.assertIn(
             "backend_settings.cscs_dwdi_client_secret (cscs-dwdi-compute)", content
         )
@@ -572,9 +689,8 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
         content, offering_config = self._generate()
 
         # The only backend secret is that of SLURM's optional ldap block, which
-        # is listed but not created.
-        unset_block = content.split("NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED")[1]
-        self.assertIn("backend_settings.ldap.bind_password (slurm)", unset_block)
+        # the offering does not set: not needed, so not mentioned.
+        self.assertNotIn("ldap.bind_password", content)
         self.assertNotIn("BACKEND SECRETS TO CONFIGURE", content)
         self.assertNotIn("ldap", offering_config["backend_settings"])
         self.assertEqual(
@@ -1008,6 +1124,20 @@ class SiteAgentOfferingConfigTest(test.APITestCase):
         self.assertEqual(set(config), {"offering", "secrets", "version"})
         self.assertEqual(config["offering"]["name"], "Test SLURM Cluster")
 
+    def test_agent_reading_from_waldur_gets_periodic_limits(self):
+        SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.slurm_offering,
+            actions="notify_organization_owners",
+            limit_type="GrpTRESMins",
+        )
+
+        backend_settings = self._config()["offering"]["backend_settings"]
+
+        self.assertEqual(
+            backend_settings["periodic_limits"],
+            {"enabled": True, "limit_type": "GrpTRESMins"},
+        )
+
     def test_who_may_read_it(self):
         provider_manager = structure_factories.UserFactory()
         self.service_provider.add_user(provider_manager, ServiceProviderRole.MANAGER)
@@ -1388,15 +1518,13 @@ class SiteAgentBootstrapConfigGenerationTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         return response.content.decode()
 
-    def test_header_keeps_secrets_of_unset_blocks_apart(self):
+    def test_header_leaves_out_secrets_of_unset_blocks(self):
         content = self._bootstrap_content()
 
-        to_add, unset_block = content.split(
-            "NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED"
-        )
-        # The agent refuses a secret whose block Waldur does not serve.
-        self.assertNotIn("ldap.bind_password", to_add)
-        self.assertIn("backend_settings.ldap.bind_password (slurm)", unset_block)
+        # Not needed while the block is not set, and the agent refuses a
+        # secret whose block Waldur does not serve.
+        self.assertNotIn("ldap.bind_password", content)
+        self.assertNotIn("NEEDED ONLY ONCE THEIR BLOCK IS CONFIGURED", content)
 
     def test_header_lists_secrets_of_set_blocks_to_add(self):
         self._configure_everything()
