@@ -6,11 +6,12 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_mastermind.marketplace import handlers, models
+from waldur_mastermind.marketplace import handlers, models, tasks, utils
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
     ResourceStates,
+    UsageLimitAction,
 )
 from waldur_mastermind.marketplace.serializers import ResourceSerializer
 from waldur_mastermind.marketplace.tests import factories
@@ -181,6 +182,269 @@ class UsageLimitRestrictionCoreTest(test.APITestCase):
         self.assertFalse(resource.paused)
         self.assertTrue(resource.downscaled)
         self.assertEqual(resource.usage_limit_restriction, "downscaled")
+
+
+@ddt
+class UsageLimitRestrictionActionChangeTest(test.APITestCase):
+    def set_action(self, offering, action):
+        offering.plugin_options = {"action_on_usage_limit": action} if action else {}
+        with (
+            mock.patch(
+                "waldur_mastermind.marketplace.tasks."
+                "evaluate_usage_limit_restriction_task.delay",
+                side_effect=tasks.evaluate_usage_limit_restriction_task,
+            ) as mock_delay,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            offering.save()
+        return mock_delay
+
+    @data("pause", "downscale")
+    def test_turning_action_on_restricts_resource_already_over_limit(self, action):
+        offering, component, resource = build_setup(action=None)
+        report(resource, component, usage=150)
+
+        self.set_action(offering, action)
+
+        resource.refresh_from_db()
+        flag = UsageLimitAction.FLAG[action]
+        self.assertTrue(getattr(resource, flag))
+        self.assertEqual(resource.usage_limit_restriction, flag)
+
+    @data("pause", "downscale")
+    def test_turning_action_off_lifts_its_restriction(self, action):
+        offering, component, resource = build_setup(action=action)
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        self.set_action(offering, None)
+
+        resource.refresh_from_db()
+        self.assertFalse(getattr(resource, UsageLimitAction.FLAG[action]))
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+    @data(("pause", "downscale"), ("downscale", "pause"))
+    @unpack
+    def test_switching_action_moves_restriction(self, old, new):
+        offering, component, resource = build_setup(action=old)
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        self.set_action(offering, new)
+
+        resource.refresh_from_db()
+        self.assertFalse(getattr(resource, UsageLimitAction.FLAG[old]))
+        self.assertTrue(getattr(resource, UsageLimitAction.FLAG[new]))
+        self.assertEqual(resource.usage_limit_restriction, UsageLimitAction.FLAG[new])
+
+    def test_switching_action_under_the_limit_lifts_old_restriction(self):
+        offering, component, resource = build_setup(action="pause")
+        usage = report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+        models.ComponentUsage.objects.filter(pk=usage.pk).update(usage=10)
+
+        self.set_action(offering, "downscale")
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertFalse(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+    def test_turning_action_off_keeps_manual_pause(self):
+        offering, component, resource = build_setup(action="pause")
+        resource.paused = True
+        resource.save()
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        mock_delay = self.set_action(offering, None)
+
+        mock_delay.assert_not_called()
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+    def test_turning_action_off_keeps_pause_a_keeper_holds_until_released(self):
+        offering, component, resource = build_setup(action="pause")
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        with mock.patch.object(utils, "PAUSE_KEEPERS", [lambda resource: True]):
+            self.set_action(offering, None)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+        self.assertEqual(resource.usage_limit_restriction, "paused")
+
+        tasks.re_evaluate_usage_limit_restrictions()
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+    def test_switching_action_keeps_pause_a_keeper_holds_until_released(self):
+        offering, component, resource = build_setup(action="pause")
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        with mock.patch.object(utils, "PAUSE_KEEPERS", [lambda resource: True]):
+            self.set_action(offering, "downscale")
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.paused)
+        self.assertFalse(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "paused")
+
+        tasks.re_evaluate_usage_limit_restrictions()
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertTrue(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "downscaled")
+
+    def test_turning_action_off_keeps_downscale_a_keeper_holds_until_released(self):
+        offering, component, resource = build_setup(action="downscale")
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        with mock.patch.object(
+            utils,
+            "DOWNSCALE_KEEPERS",
+            [lambda resource, exclude_policy=None: True],
+        ):
+            self.set_action(offering, None)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "downscaled")
+
+        tasks.re_evaluate_usage_limit_restrictions()
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+    def test_switching_action_leaves_flag_set_by_hand_to_its_setter(self):
+        offering, component, resource = build_setup(action="pause")
+        usage = report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+        models.Resource.objects.filter(pk=resource.pk).update(downscaled=True)
+
+        self.set_action(offering, "downscale")
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertTrue(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "")
+
+        models.ComponentUsage.objects.filter(pk=usage.pk).update(usage=10)
+        evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.downscaled)
+
+    def test_switching_action_marks_downscale_a_keeper_holds(self):
+        offering, component, resource = build_setup(action="pause")
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+        models.Resource.objects.filter(pk=resource.pk).update(downscaled=True)
+
+        with mock.patch.object(
+            utils,
+            "DOWNSCALE_KEEPERS",
+            [lambda resource, exclude_policy=None: True],
+        ):
+            self.set_action(offering, "downscale")
+
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+        self.assertTrue(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "downscaled")
+
+    def test_marks_downscale_a_keeper_holds_when_usage_reaches_limit(self):
+        _, component, resource = build_setup(action="downscale")
+        models.Resource.objects.filter(pk=resource.pk).update(downscaled=True)
+        report(resource, component, usage=150)
+
+        with mock.patch.object(
+            utils,
+            "DOWNSCALE_KEEPERS",
+            [lambda resource, exclude_policy=None: True],
+        ):
+            evaluate_usage_limit_restriction(resource)
+
+        resource.refresh_from_db()
+        self.assertTrue(resource.downscaled)
+        self.assertEqual(resource.usage_limit_restriction, "downscaled")
+
+    def test_switching_action_logs_why_old_flag_is_cleared(self):
+        offering, component, resource = build_setup(action="pause")
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        with mock.patch.object(utils.event_logger, "emit") as mock_emit:
+            self.set_action(offering, "downscale")
+
+        messages = [call.args[0] for call in mock_emit.call_args_list]
+        self.assertIn(
+            "Resource {resource_name} has been unpaused because its offering "
+            "switched its action on usage limit.",
+            messages,
+        )
+        self.assertNotIn(
+            "Resource {resource_name} has been unpaused because reported usage "
+            "dropped below the component limit.",
+            messages,
+        )
+
+    def test_turning_action_off_logs_why_resource_is_unpaused(self):
+        offering, component, resource = build_setup(action="pause")
+        report(resource, component, usage=150)
+        evaluate_usage_limit_restriction(resource)
+
+        with mock.patch.object(utils.event_logger, "emit") as mock_emit:
+            self.set_action(offering, None)
+
+        self.assertIn(
+            "Resource {resource_name} has been unpaused because its offering "
+            "no longer acts on usage limits.",
+            [call.args[0] for call in mock_emit.call_args_list],
+        )
+
+    @data(ResourceStates.TERMINATING, ResourceStates.TERMINATED)
+    def test_action_change_skips_terminating_and_terminated_resources(self, state):
+        offering, component, resource = build_setup(action=None)
+        report(resource, component, usage=150)
+        resource.state = state
+        resource.save()
+
+        mock_delay = self.set_action(offering, "pause")
+
+        mock_delay.assert_not_called()
+        resource.refresh_from_db()
+        self.assertFalse(resource.paused)
+
+    def test_unrelated_plugin_option_change_does_not_schedule(self):
+        offering, _, _ = build_setup(action="pause")
+        offering.plugin_options["supports_pausing"] = True
+
+        with (
+            mock.patch(
+                "waldur_mastermind.marketplace.tasks."
+                "evaluate_usage_limit_restriction_task.delay"
+            ) as mock_delay,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            offering.save()
+
+        mock_delay.assert_not_called()
+
+    def test_blank_action_counts_as_off(self):
+        offering, _, _ = build_setup(action=None)
+
+        mock_delay = self.set_action(offering, "")
+
+        mock_delay.assert_not_called()
 
 
 @ddt

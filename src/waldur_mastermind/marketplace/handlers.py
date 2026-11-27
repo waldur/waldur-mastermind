@@ -978,6 +978,42 @@ def evaluate_usage_limit_on_resource_limit_change(
     )
 
 
+def evaluate_usage_limit_on_action_change(
+    sender, instance: Offering, created=False, **kwargs
+):
+    """Re-evaluate an offering's resources when its action on usage limit changes.
+
+    Turning the action on restricts resources already over a limit, switching it
+    moves their restriction to the new flag, and turning it off lifts the
+    restrictions it applied, without waiting for the next usage report.
+    """
+    if created or not instance.tracker.has_changed("plugin_options"):
+        return
+    previous = marketplace_utils.usage_limit_flag(
+        instance.tracker.previous("plugin_options")
+    )
+    current = marketplace_utils.usage_limit_flag(instance.plugin_options)
+    # Compared by the flag each sets: a missing, blank or unknown action is off.
+    if previous == current:
+        return
+
+    from waldur_mastermind.marketplace import tasks
+
+    resources = Resource.objects.filter(offering=instance).exclude(
+        state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
+    )
+    if current is None:
+        # Turning it off changes only the resources it restricted.
+        resources = resources.exclude(usage_limit_restriction="")
+    resource_ids = list(resources.values_list("pk", flat=True))
+
+    def _schedule():
+        for resource_id in resource_ids:
+            tasks.evaluate_usage_limit_restriction_task.delay(resource_id)
+
+    transaction.on_commit(_schedule)
+
+
 def update_or_create_quotas(resource: Resource):
     components_map = resource.offering.get_limit_components(resource.plan)
     for key, value in resource.limits.items():
