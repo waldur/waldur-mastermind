@@ -88,7 +88,6 @@ depends_on = [
     "waldur_mastermind.common",
     "waldur_mastermind.invoices",
     "waldur_mastermind.marketplace",
-    "waldur_mastermind.marketplace_site_agent",
     "waldur_mastermind.matrix_chat",
     "waldur_mastermind.policy",
     "waldur_mastermind.proposal",
@@ -149,6 +148,7 @@ path = "waldur_firecrest"
 depends_on = [
     "waldur_auth_social",
     "waldur_core.configuration",
+    "waldur_mastermind.chat",
     "waldur_mastermind.invoices",
     "waldur_mastermind.marketplace",
 ]
@@ -209,6 +209,7 @@ depends_on = [
     "waldur_core.permissions",
     "waldur_core.quotas",
     "waldur_core.structure",
+    "waldur_mastermind.chat",
     "waldur_mastermind.marketplace",
     "waldur_mastermind.marketplace_metrics",
     "waldur_openstack",
@@ -411,9 +412,6 @@ depends_on = [
     "waldur_mastermind.invoices",
     "waldur_mastermind.marketplace",
     "waldur_mastermind.proposal",
-    # Upward dependencies (modularization debt; do not add new ones):
-    "waldur_firecrest",  # -> integrations
-    "waldur_openstack",  # -> integrations
 ]
 
 [[modules]]
@@ -556,11 +554,6 @@ depends_on = [
     "waldur_mastermind.marketplace_metrics",
     # Upward dependencies (modularization debt; do not add new ones):
     "waldur_mastermind.invoices",  # -> supporting
-    "waldur_mastermind.marketplace_openstack",  # -> integrations
-    "waldur_mastermind.marketplace_site_agent",  # -> integrations
-    "waldur_mastermind.policy",  # -> supporting
-    "waldur_mastermind.proposal",  # -> supporting
-    "waldur_openstack",  # -> integrations
 ]
 
 [[modules]]

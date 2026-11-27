@@ -1,5 +1,45 @@
 from django.apps import AppConfig
-from django.db.models import signals
+from django.db.models import Exists, OuterRef, Q, signals
+
+
+def _filter_orders_from_award(queryset, value: bool):
+    from waldur_mastermind.marketplace.enums import OrderTypes
+    from waldur_mastermind.proposal import models
+
+    from_award = Q(type=OrderTypes.CREATE) & Q(
+        Exists(
+            models.AwardedResource.objects.filter(resource_id=OuterRef("resource_id"))
+        )
+    )
+    return queryset.filter(from_award if value else ~from_award)
+
+
+def _annotate_offerings_open_for_proposals(queryset):
+    from waldur_mastermind.proposal import managers
+
+    return managers.annotate_offerings_open_for_proposals(queryset)
+
+
+def _is_offering_open_for_proposals(offering) -> bool:
+    from waldur_mastermind.proposal import models
+
+    return (
+        models.RequestedOffering.objects.open_for_proposals()
+        .filter(offering=offering)
+        .exists()
+    )
+
+
+def _offering_ids_in_active_calls():
+    from waldur_mastermind.proposal import models
+
+    return models.RequestedOffering.objects.offering_ids_in_active_calls()
+
+
+def _offering_ids_open_for_proposals():
+    from waldur_mastermind.proposal import models
+
+    return models.RequestedOffering.objects.offering_ids_open_for_proposals()
 
 
 class ProposalConfig(AppConfig):
@@ -413,3 +453,26 @@ class ProposalConfig(AppConfig):
         def _proposal(ids):
             # Same — no ancestor inheritance for Proposal.
             return ids_q("id", ids.get("proposal"))
+
+        from waldur_core.structure import filters as structure_filters
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
+        from waldur_mastermind.proposal import filters as proposal_filters
+        from waldur_mastermind.proposal import serializers as proposal_serializers
+
+        structure_filters.ExternalCustomerFilterBackend.register(
+            proposal_filters.CustomerCallManagingOrganisationFilter()
+        )
+        core_signals.pre_serializer_fields.connect(
+            sender=structure_serializers.CustomerSerializer,
+            receiver=proposal_serializers.add_call_managing_organization_uuid,
+            dispatch_uid="waldur_mastermind.proposal.add_call_managing_organization_uuid",
+        )
+        marketplace_hooks.register_proposal_provider(
+            marketplace_hooks.ProposalProvider(
+                filter_orders_from_award=_filter_orders_from_award,
+                annotate_offerings_open_for_proposals=_annotate_offerings_open_for_proposals,
+                is_offering_open_for_proposals=_is_offering_open_for_proposals,
+                offering_ids_in_active_calls=_offering_ids_in_active_calls,
+                offering_ids_open_for_proposals=_offering_ids_open_for_proposals,
+            )
+        )

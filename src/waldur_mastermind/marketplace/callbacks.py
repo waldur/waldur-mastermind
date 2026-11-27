@@ -14,7 +14,7 @@ from waldur_mastermind.common.serializers import strip_hidden_options
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 
-from . import billing_mode, log, models, signals, tasks
+from . import billing_mode, hooks, log, models, signals, tasks
 from .utils import format_limits_list, parse_date
 
 logger = logging.getLogger(__name__)
@@ -348,16 +348,7 @@ def _trigger_slurm_policy_reevaluation(resource_uuid, offering_id):
     QoS restrictions are lifted promptly instead of waiting for the
     next periodic evaluation cycle.
     """
-    from waldur_mastermind.policy import models as policy_models
-    from waldur_mastermind.policy import tasks as policy_tasks
-
-    policies = policy_models.SlurmPeriodicUsagePolicy.objects.filter(
-        scope_id=offering_id,
-    )
-    for policy in policies:
-        policy_tasks.evaluate_resource_against_policy.delay(
-            resource_uuid, str(policy.uuid)
-        )
+    hooks.schedule_slurm_policy_evaluation(offering_id, resource_uuid)
 
 
 def resource_update_failed(resource: models.Resource, validate=False):

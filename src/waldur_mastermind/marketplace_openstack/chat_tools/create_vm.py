@@ -7,7 +7,7 @@ from rest_framework.exceptions import ValidationError
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.vm.helpers import (
+from waldur_mastermind.marketplace_openstack.chat_tools.helpers import (
     MultipleOfferingsAvailable,
     build_order_attributes,
     format_vm_error,

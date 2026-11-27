@@ -59,6 +59,9 @@ from waldur_mastermind.invoices.models import (
     InvoiceItem,
     ProjectCredit,
 )
+from waldur_mastermind.marketplace import (
+    agent_configuration as site_agent_configuration,
+)
 from waldur_mastermind.marketplace import posix_ids
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
@@ -97,9 +100,6 @@ from waldur_mastermind.marketplace.models import (
     SlurmOfferingQoS,
     SlurmPartitionQoS,
     SoftwareCatalog,
-)
-from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration as site_agent_configuration,
 )
 from waldur_mastermind.policy.models import (
     CustomerEstimatedCostPolicy,

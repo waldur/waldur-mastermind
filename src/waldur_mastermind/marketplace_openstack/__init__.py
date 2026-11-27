@@ -1,6 +1,16 @@
-RAM_TYPE = "ram"
-CORES_TYPE = "cores"
-STORAGE_TYPE = "storage"
+from waldur_mastermind.marketplace.enums import (
+    INSTANCE_METRIC_KEYS,  # noqa: F401
+    VOLUME_METRIC_KEYS,  # noqa: F401
+)
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_CORES_TYPE as CORES_TYPE,
+)
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_RAM_TYPE as RAM_TYPE,
+)
+from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_STORAGE_TYPE as STORAGE_TYPE,
+)
 
 AVAILABLE_LIMITS = [RAM_TYPE, CORES_TYPE, STORAGE_TYPE]
 
@@ -27,12 +37,3 @@ BILLING_SOURCE_PLACEMENT = "placement"
 # offering's plugin options.
 INSTANCE_METRICS_ENABLED_OPTION = "instance_metrics_enabled"
 INSTANCE_METRICS_OPTION = "instance_metrics"
-INSTANCE_METRIC_KEYS = (
-    "vm.cpu.utilization",
-    "vm.cpu.time",
-    "vm.memory.utilization",
-    "vm.network.io",
-    "vm.disk.io",
-    "vm.disk.operations",
-)
-VOLUME_METRIC_KEYS = ("volume.io", "volume.operations")

@@ -23,9 +23,6 @@ from waldur_core.structure.models import (
     SharedServiceSettings,
 )
 from waldur_mastermind.marketplace.enums import OfferingStates, ResourceStates
-from waldur_mastermind.marketplace_openstack import (
-    executors as marketplace_openstack_executors,  # test-dependency-ignore
-)
 
 from . import billing_mode, executors, hooks, models, utils
 
@@ -770,10 +767,24 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, VersionAdmin):
     terminate_resources = TerminateResources()
 
     class RestoreLimits(ExecutorAdminAction):
-        executor = marketplace_openstack_executors.RestoreTenantLimitsExecutor
         short_description = "Restore Openstack limits"
         confirmation_description = "Openstack limits will be restored."
         confirmation = True
+
+        @property
+        def executor(self):
+            provider = hooks.get_openstack_admin_provider()
+            return provider.get_restore_limits_executor() if provider else None
+
+        def execute(self, admin_class, request, queryset):
+            if hooks.get_openstack_admin_provider() is None:
+                admin_class.message_user(
+                    request,
+                    _("OpenStack marketplace integration is not configured."),
+                    messages.WARNING,
+                )
+                return
+            return super().execute(admin_class, request, queryset)
 
         def validate(self, resource):
             if resource.state != ResourceStates.OK:
@@ -812,11 +823,16 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, VersionAdmin):
         ]
 
     def create_resources_for_lost_instances_and_volumes(self, request):
-        from waldur_mastermind.marketplace_openstack import (
-            tasks as marketplace_openstack_tasks,  # test-dependency-ignore
-        )
+        provider = hooks.get_openstack_admin_provider()
+        if provider is None:
+            self.message_user(
+                request,
+                _("OpenStack marketplace integration is not configured."),
+                messages.WARNING,
+            )
+            return redirect(reverse("admin:marketplace_resource_changelist"))
 
-        marketplace_openstack_tasks.create_resources_for_lost_instances_and_volumes.delay()
+        provider.schedule_create_lost_resources()
         self.message_user(
             request,
             _("Сreating resources for lost instances and volumes has been scheduled."),

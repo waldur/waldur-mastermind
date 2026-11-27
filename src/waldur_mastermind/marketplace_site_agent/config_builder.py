@@ -17,10 +17,10 @@ from typing import Any
 import yaml
 from django.utils import timezone
 
-from waldur_mastermind.marketplace.enums import BillingTypes
-from waldur_mastermind.marketplace_site_agent import (
+from waldur_mastermind.marketplace import (
     agent_configuration as site_agent_configuration,
 )
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 
 # An offering whose agent configuration names no backend for any role runs

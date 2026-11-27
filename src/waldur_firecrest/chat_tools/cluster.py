@@ -2,14 +2,14 @@
 
 from dataclasses import asdict
 
-from waldur_firecrest.workspace import resources_for_user
-from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS, BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
-from waldur_mastermind.chat.tools.hpc.helpers import (
+from waldur_firecrest.chat_tools.helpers import (
     ALLOCATION_PROPERTY,
     allocation_summary,
     run,
 )
+from waldur_firecrest.workspace import resources_for_user
+from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS, BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 

@@ -21,8 +21,8 @@ from waldur_core.structure.managers import (
     get_connected_customers_by_permission,
     get_connected_projects,
 )
-from waldur_firecrest import workspace
 from waldur_mastermind.chat import deployment_profile
+from waldur_mastermind.chat import hooks as chat_hooks
 from waldur_mastermind.chat.tools.account.helpers import (
     user_accessible_projects,
     user_consumer_resources,
@@ -150,7 +150,10 @@ def _has_project(user) -> bool:
 
 
 def has_hpc_allocation(user) -> bool:
-    return _own(user, workspace.resources_for_user(user)).exists()
+    resources = chat_hooks.get_hpc_resources_for_user(user)
+    if resources is None:
+        return False
+    return _own(user, resources).exists()
 
 
 _MARKETPLACE_HIDDEN = "feature:marketplace.hide_marketplace_from_end_users"

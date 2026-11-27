@@ -35,7 +35,6 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.core import access
 from waldur_core.core import filters as core_filters
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
 from waldur_core.core.facets import Facet
 from waldur_core.core.filters import (
     CharInFilter,
@@ -91,10 +90,8 @@ from waldur_mastermind.marketplace.managers import (
     get_connected_provider_customers_by_permission,
     get_connected_serviceproviders,
 )
-from waldur_mastermind.proposal import models as proposal_models
-from waldur_openstack import models as openstack_models
 
-from . import models, utils
+from . import hooks, models, utils
 
 
 class OfferingTypeMultipleChoiceFilter(LooseMultipleChoiceFilter):
@@ -447,9 +444,7 @@ class OfferingFilter(
         if value is None:
             return queryset
 
-        offerings_ids = (
-            proposal_models.RequestedOffering.objects.offering_ids_in_active_calls()
-        )
+        offerings_ids = hooks.offering_ids_in_active_calls()
 
         if value:
             return queryset.filter(id__in=offerings_ids)
@@ -460,9 +455,7 @@ class OfferingFilter(
         if value is None:
             return queryset
 
-        offerings_ids = (
-            proposal_models.RequestedOffering.objects.offering_ids_open_for_proposals()
-        )
+        offerings_ids = hooks.offering_ids_open_for_proposals()
 
         if value:
             return queryset.filter(id__in=offerings_ids)
@@ -1741,14 +1734,7 @@ class OrderFilter(
         points at, as the proposal app tells the award's order apart
         (``awarded_order_refused``). Later orders on that resource -- a
         limit change, the termination -- are ordinary orders."""
-        from_award = Q(type=OrderTypes.CREATE) & Q(
-            Exists(
-                proposal_models.AwardedResource.objects.filter(
-                    resource_id=OuterRef("resource_id")
-                )
-            )
-        )
-        return queryset.filter(from_award if value else ~from_award)
+        return hooks.filter_orders_from_award(queryset, bool(value))
 
 
 class ProjectOrderAutoApprovalFilter(django_filters.FilterSet):
@@ -2797,30 +2783,6 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
         ]
 
 
-class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        is_call_managing_organization = request.query_params.get(
-            "is_call_managing_organization"
-        )
-        if is_call_managing_organization in ["true", "True"]:
-            customers = proposal_models.CallManagingOrganisation.objects.values_list(
-                "customer_id", flat=True
-            )
-            return queryset.filter(pk__in=customers)
-        return queryset
-
-    def get_schema_operation_parameters(self, view):
-        return [
-            build_parameter_type(
-                name="is_call_managing_organization",
-                schema={"type": "boolean"},
-                location=OpenApiParameter.QUERY,
-                required=False,
-                description="Filter by customers that are call managing organizations.",
-            )
-        ]
-
-
 class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):
     user_uuid = core_filters.RelatedUUIDFilter(
         view_name="user-detail", field_name="user__uuid", label="User UUID"
@@ -3849,9 +3811,6 @@ structure_filters.ExternalCustomerFilterBackend.register(
 structure_filters.ExternalCustomerFilterBackend.register(
     CustomerServiceProviderFilter()
 )
-structure_filters.ExternalCustomerFilterBackend.register(
-    CustomerCallManagingOrganisationFilter()
-)
 
 structure_filters.UserFilterBackend.register_extra_query(user_extra_query)
 
@@ -4076,63 +4035,6 @@ class OfferingPartitionFilter(django_filters.FilterSet):
         if value:
             return queryset.exclude(gpu_arch="")
         return queryset.filter(gpu_arch="")
-
-
-class OpenStackInstanceReportFilter(django_filters.FilterSet):
-    name = django_filters.CharFilter(lookup_expr="icontains")
-    flavor_name = django_filters.CharFilter(lookup_expr="icontains")
-    image_name = django_filters.CharFilter(lookup_expr="icontains")
-    hypervisor_hostname = django_filters.CharFilter(lookup_expr="icontains")
-
-    runtime_state = django_filters.CharFilter()
-    availability_zone_name = django_filters.CharFilter(
-        field_name="availability_zone__name",
-    )
-
-    cores_min = django_filters.NumberFilter(field_name="cores", lookup_expr="gte")
-    cores_max = django_filters.NumberFilter(field_name="cores", lookup_expr="lte")
-    ram_min = django_filters.NumberFilter(field_name="ram", lookup_expr="gte")
-    ram_max = django_filters.NumberFilter(field_name="ram", lookup_expr="lte")
-    disk_min = django_filters.NumberFilter(field_name="disk", lookup_expr="gte")
-    disk_max = django_filters.NumberFilter(field_name="disk", lookup_expr="lte")
-
-    service_settings_uuid = django_filters.UUIDFilter(
-        field_name="service_settings__uuid",
-    )
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="project__customer__uuid",
-    )
-    project_uuid = django_filters.UUIDFilter(
-        field_name="project__uuid",
-    )
-    tenant_uuid = django_filters.UUIDFilter(
-        field_name="tenant__uuid",
-    )
-
-    state = core_filters.MappedMultipleChoiceFilter(
-        choices=CoreStates.choices,
-    )
-
-    o = django_filters.OrderingFilter(
-        fields=(
-            ("name", "name"),
-            ("cores", "cores"),
-            ("ram", "ram"),
-            ("disk", "disk"),
-            ("created", "created"),
-            ("runtime_state", "runtime_state"),
-            ("flavor_name", "flavor_name"),
-            ("hypervisor_hostname", "hypervisor_hostname"),
-            ("project__customer__name", "customer_name"),
-            ("project__name", "project_name"),
-            ("service_settings__name", "cluster_name"),
-            ("start_time", "start_time"),
-        ),
-    )
-
-    class Meta:
-        model = openstack_models.Instance
-        fields = []
 
 
 class ResourceLimitChangeRequestFilter(django_filters.FilterSet):

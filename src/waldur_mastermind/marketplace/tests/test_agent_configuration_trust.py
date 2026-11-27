@@ -31,10 +31,10 @@ from waldur_core.permissions.tests.pat_utils import use_pat
 from waldur_core.structure.models import Customer
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.marketplace import agent_configuration
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.tests import factories
-from waldur_mastermind.marketplace_site_agent import agent_configuration
 
 PERMISSIONS_YAML = Path(settings.BASE_DIR) / "docker/rootfs/etc/waldur/permissions.yaml"
 PERMISSION = PermissionEnum.UPDATE_OFFERING_AGENT_CONFIGURATION

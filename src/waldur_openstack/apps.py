@@ -2,6 +2,24 @@ from django.apps import AppConfig
 from django.db.models import signals
 
 
+def _get_instance_report_queryset(request):
+    from waldur_openstack import instance_reports
+
+    return instance_reports.get_instance_report_queryset(request)
+
+
+def _build_instance_report_rows(instances):
+    from waldur_openstack import instance_reports
+
+    return instance_reports.build_instance_report_rows(instances)
+
+
+def _aggregate_instance_report(request, mapping):
+    from waldur_openstack import instance_reports
+
+    return instance_reports.aggregate_instance_report(request, mapping)
+
+
 class OpenStackConfig(AppConfig):
     """OpenStack is a toolkit for building private and public clouds.
     This application adds support for managing OpenStack deployments -
@@ -189,3 +207,13 @@ class OpenStackConfig(AppConfig):
                 sender=Resource,
                 dispatch_uid="openstack.handlers.log_%s_action" % name,
             )
+
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
+
+        marketplace_hooks.register_openstack_instance_report_provider(
+            marketplace_hooks.OpenStackInstanceReportProvider(
+                get_instance_queryset=_get_instance_report_queryset,
+                serialize_instances=_build_instance_report_rows,
+                aggregate_instances=_aggregate_instance_report,
+            )
+        )

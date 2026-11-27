@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Refresh the vendored site agent plugin catalogue
-# (src/waldur_mastermind/marketplace_site_agent/plugin_catalogue/catalogue.json).
+# (src/waldur_mastermind/marketplace/plugin_catalogue/catalogue.json).
 #
 #   scripts/update_site_agent_plugin_catalogue.sh              # from the site agent's main CI artifact
 #   scripts/update_site_agent_plugin_catalogue.sh <ref>        # from a branch or tag's CI artifact
@@ -18,7 +18,7 @@ if [ "${1:-}" = "--check" ]; then
     shift
 fi
 
-target="$(cd "$(dirname "$0")/.." && pwd)/src/waldur_mastermind/marketplace_site_agent/plugin_catalogue/catalogue.json"
+target="$(cd "$(dirname "$0")/.." && pwd)/src/waldur_mastermind/marketplace/plugin_catalogue/catalogue.json"
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT
 

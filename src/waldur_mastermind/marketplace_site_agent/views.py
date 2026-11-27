@@ -35,12 +35,12 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
+from waldur_mastermind.marketplace import agent_configuration
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.managers import OfferingQuerySet
 from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration,
     filters,
     models,
     serializers,

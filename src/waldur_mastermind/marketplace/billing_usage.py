@@ -11,6 +11,7 @@ from waldur_core.core.middleware import get_skip_side_effects
 from waldur_mastermind.common import mixins as common_mixins
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import billing_discount, billing_mode
+from waldur_mastermind.marketplace import hooks as marketplace_hooks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing_utils import (
     convert_quantity,
@@ -382,8 +383,6 @@ def process_component_usage_billing(
     because ``_create_or_update_usage_invoice_item`` does upsert by
     (resource, component, billing_period).
     """
-    from waldur_mastermind.policy import handlers as policy_handlers
-
     try:
         usage = marketplace_models.ComponentUsage.objects.select_related(
             *BILLING_RELATED_FIELDS
@@ -401,21 +400,7 @@ def process_component_usage_billing(
     # Fire every handler that used to be wired directly to ComponentUsage
     # post_save in policy/apps.py (those with trigger_class=ComponentUsage).
     # These fire on every save to match the pre-MR semantics.
-    policy_handlers.offering_usage_policy_trigger_handler(
-        sender=marketplace_models.ComponentUsage,
-        instance=usage,
-        created=created,
-    )
-    policy_handlers.slurm_periodic_usage_policy_trigger_handler(
-        sender=marketplace_models.ComponentUsage,
-        instance=usage,
-        created=created,
-    )
-    policy_handlers.customer_component_usage_policy_trigger_handler(
-        sender=marketplace_models.ComponentUsage,
-        instance=usage,
-        created=created,
-    )
+    marketplace_hooks.on_component_usage_billed(usage, created)
 
 
 def schedule_component_usage_billing(

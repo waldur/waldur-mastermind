@@ -10,10 +10,10 @@ from waldur_core.core.models import Feature
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_firecrest.tests.test_hpc_tools import persisted_block
 from waldur_mastermind.chat import deployment_profile
 from waldur_mastermind.chat.block_schemas import BlockSerializer
 from waldur_mastermind.chat.parsers import StreamParser
-from waldur_mastermind.chat.tests.test_hpc_tools import persisted_block
 from waldur_mastermind.chat.tests.utils import assert_matches_output_schema
 from waldur_mastermind.chat.tools.account.chart_costs import ChartCostsTool
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName

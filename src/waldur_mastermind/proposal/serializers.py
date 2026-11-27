@@ -35,6 +35,7 @@ from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.models import Role
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -16603,3 +16604,31 @@ class OpenStepDiscussionSerializer(serializers.Serializer):
                 {"panel_uuid": "A proposal's step is discussed on its own panel."}
             )
         return attrs
+
+
+def get_call_managing_organization_uuid(serializer, scope) -> str | None:
+    customer = structure_permissions._get_customer(scope)
+
+    # Use prefetched data if available to avoid N+1 queries
+    if (
+        hasattr(customer, "_prefetched_objects_cache")
+        and "callmanagingorganisation" in customer._prefetched_objects_cache
+    ):
+        organization = customer._prefetched_objects_cache["callmanagingorganisation"]
+        if organization:
+            return str(organization.uuid)
+        return None
+    organization = models.CallManagingOrganisation.objects.filter(
+        customer=customer
+    ).first()
+    return str(organization.uuid) if organization else None
+
+
+def add_call_managing_organization_uuid(sender, fields, **kwargs):
+    """Add a call managing organization UUID field to the serializer."""
+    fields["call_managing_organization_uuid"] = serializers.SerializerMethodField()
+    setattr(
+        sender,
+        "get_call_managing_organization_uuid",
+        get_call_managing_organization_uuid,
+    )

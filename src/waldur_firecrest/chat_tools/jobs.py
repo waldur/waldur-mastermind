@@ -1,17 +1,17 @@
 """HPC tools that plan, submit and follow jobs."""
 
 from waldur_firecrest import scripts
-from waldur_firecrest.serializers import TIME_WINDOW_CHOICES, HpcJobSpecSerializer
-from waldur_firecrest.workspace import is_job_id
-from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS, BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
-from waldur_mastermind.chat.tools.hpc.helpers import (
+from waldur_firecrest.chat_tools.helpers import (
     ALLOCATION_PROPERTY,
     JOB_SPEC_PROPERTIES,
     allocation_summary,
     job_summary,
     run,
 )
+from waldur_firecrest.serializers import TIME_WINDOW_CHOICES, HpcJobSpecSerializer
+from waldur_firecrest.workspace import is_job_id
+from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS, BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 # Output shown to the model is capped: enough to diagnose a failure,

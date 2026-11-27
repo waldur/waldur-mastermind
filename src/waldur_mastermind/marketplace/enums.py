@@ -833,3 +833,16 @@ class OrderFlowChoices:
 
 DEPLOYMENT_MODE_MANAGED = "managed"
 DEPLOYMENT_MODE_SELF_MANAGED = "self_managed"
+
+OPENSTACK_RAM_TYPE = "ram"
+OPENSTACK_CORES_TYPE = "cores"
+OPENSTACK_STORAGE_TYPE = "storage"
+INSTANCE_METRIC_KEYS = (
+    "vm.cpu.utilization",
+    "vm.cpu.time",
+    "vm.memory.utilization",
+    "vm.network.io",
+    "vm.disk.io",
+    "vm.disk.operations",
+)
+VOLUME_METRIC_KEYS = ("volume.io", "volume.operations")
