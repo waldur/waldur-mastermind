@@ -7,9 +7,12 @@ from datetime import datetime
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import models as django_models
 from django.db import transaction
-from django.db.models import Manager, Prefetch, Q
+from django.db.models import Prefetch, Q
+from django.db.models.manager import BaseManager
 from django.template.defaultfilters import filesizeformat
+from django.urls import reverse as django_reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.drainage import set_override
@@ -17,6 +20,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.reverse import reverse
+from rest_framework.settings import api_settings
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
@@ -4874,30 +4878,81 @@ class ProtectedRoundSerializer(
         return attrs
 
 
-def _file_hashes(documents) -> dict[str, str]:
-    """The SHA-256 media storage recorded for each document's file, by name."""
+def _stored_files(documents) -> dict[str, dict]:
+    """What media storage holds for each document's file, by name: its uuid,
+    size and SHA-256. One query, and never the content itself."""
     names = [document.file.name for document in documents if document.file]
     if not names:
         return {}
-    return dict(
-        media_models.File.objects.filter(name__in=names).values_list("name", "hash")
-    )
+    return {
+        name: {"uuid": uuid, "size": size, "hash": file_hash}
+        for name, uuid, size, file_hash in media_models.File.objects.filter(
+            name__in=names
+        ).values_list("name", "uuid", "size", "hash")
+    }
+
+
+def _stored_file(document) -> dict | None:
+    """The stored file of ``document``, from the list's lookup when the
+    document came in a list, else looked up on its own."""
+    if not document.file:
+        return None
+    if not hasattr(document, "_stored_file"):
+        document._stored_file = _stored_files([document]).get(document.file.name)
+    return document._stored_file
+
+
+class StoredFileField(serializers.FileField):
+    """A document's file as a link, built from the stored file's uuid rather
+    than by asking the storage, which would read the file's row once per
+    document. A file storage no longer has keeps the storage's answer."""
+
+    def to_representation(self, value):
+        if not value:
+            return None
+        if not getattr(self, "use_url", api_settings.UPLOADED_FILES_USE_URL):
+            return value.name
+        stored = _stored_file(value.instance)
+        if stored is None:
+            return super().to_representation(value)
+        # As the storage's own link, made absolute as DRF's FileField does:
+        # no query parameters of the request carried over.
+        url = django_reverse("media", kwargs={"uuid": stored["uuid"].hex})
+        request = self.context.get("request")
+        return request.build_absolute_uri(url) if request is not None else url
+
+
+class StoredFileSizeField(FileSizeField):
+    """A document's file size, from the stored file's lookup."""
+
+    def to_representation(self, value):
+        if not value:
+            return None
+        stored = _stored_file(value.instance)
+        if stored is None:
+            return super().to_representation(value)
+        return stored["size"]
 
 
 class ProposalDocumentationListSerializer(serializers.ListSerializer):
-    """Looks up the hashes of a proposal's documents in one query."""
+    """Looks up the stored files of a proposal's documents in one query."""
 
     def to_representation(self, data):
-        documents = list(data.all() if isinstance(data, Manager) else data)
-        hashes = _file_hashes(documents)
+        documents = list(data.all() if isinstance(data, BaseManager) else data)
+        stored = _stored_files(documents)
         for document in documents:
-            document._file_hash = hashes.get(document.file.name)
+            if document.file:
+                document._stored_file = stored.get(document.file.name)
         return super().to_representation(documents)
 
 
 class ProposalDocumentationSerializer(serializers.ModelSerializer):
+    serializer_field_mapping = {
+        **serializers.ModelSerializer.serializer_field_mapping,
+        django_models.FileField: StoredFileField,
+    }
     file_name = serializers.CharField(source="file.name", read_only=True)
-    file_size = FileSizeField()
+    file_size = StoredFileSizeField()
     file_hash = serializers.SerializerMethodField(
         help_text=(
             "SHA-256 of the file's content, as the duplicate check compares "
@@ -4923,12 +4978,8 @@ class ProposalDocumentationSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_file_hash(self, document) -> str | None:
-        if not document.file:
-            return None
-        if not hasattr(document, "_file_hash"):
-            # Serialized alone, as the attach response is.
-            document._file_hash = _file_hashes([document]).get(document.file.name)
-        return document._file_hash
+        stored = _stored_file(document)
+        return stored["hash"] if stored else None
 
     def validate_file(self, upload):
         """Refuse a file the proposal already holds. Storage renames a second

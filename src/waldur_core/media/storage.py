@@ -67,16 +67,18 @@ class DatabaseStorage(Storage):
     def delete(self, name):
         models.File.objects.filter(name=name).delete()
 
+    # The file's content is a column of its row: reading the row whole to
+    # answer for its link or size would load the file each time.
     def url(self, name):
-        try:
-            file = models.File.objects.get(name=name)
-        except models.File.DoesNotExist:
+        uuid = (
+            models.File.objects.filter(name=name).values_list("uuid", flat=True).first()
+        )
+        if uuid is None:
             return
-        else:
-            return reverse("media", kwargs={"uuid": file.uuid.hex})
+        return reverse("media", kwargs={"uuid": uuid.hex})
 
     def size(self, name):
-        try:
-            return models.File.objects.get(name=name).size
-        except models.File.DoesNotExist:
-            return 0
+        size = (
+            models.File.objects.filter(name=name).values_list("size", flat=True).first()
+        )
+        return 0 if size is None else size
