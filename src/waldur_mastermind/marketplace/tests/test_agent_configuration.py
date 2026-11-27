@@ -18,6 +18,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BASIC_OFFERING, SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.serializers import ExportImportOfferingSerializer
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace_site_agent import config_builder
 
 SLURM_SETTINGS = {
     "default_account": "root",
@@ -159,7 +160,16 @@ class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase
             "Only site agent offerings have an agent configuration.",
         )
 
+    def set_a_role(self):
+        # With a role already set nothing is filled in for the next one.
+        self.offering.agent_configuration = {
+            "reporting_backend": "slurm",
+            "backend_settings": SLURM_SETTINGS,
+        }
+        self.offering.save()
+
     def test_each_missing_setting_is_named_once(self):
+        self.set_a_role()
         response = self.update({"order_processing_backend": "slurm"})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -168,6 +178,7 @@ class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase
             self.assertEqual(errors[name], ["slurm: This setting is required."])
 
     def test_missing_required_setting_is_named(self):
+        self.set_a_role()
         settings = dict(SLURM_SETTINGS)
         del settings["default_account"]
 
@@ -178,6 +189,54 @@ class AgentConfigurationUpdateTest(AgentConfigurationTestMixin, test.APITestCase
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         errors = response.data["agent_configuration"]["backend_settings"]
         self.assertIn("default_account", errors)
+
+    def test_first_role_takes_the_settings_the_generator_served(self):
+        # With no role set the offering is generated with SLURM's settings
+        # from its plugin options or the generator's defaults; choosing a role
+        # keeps them, rather than asking for settings that were never stored.
+        self.offering.plugin_options = {"customer_prefix": "c-", "project_prefix": "p-"}
+        self.offering.save()
+        before = config_builder.offering_agent_config(self.offering)["offering"]
+
+        response = self.update({"order_processing_backend": "slurm"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.agent_configuration["backend_settings"],
+            {
+                "customer_prefix": "c-",
+                "project_prefix": "p-",
+                "allocation_prefix": "",
+                "default_account": "root",
+            },
+        )
+        after = config_builder.offering_agent_config(self.offering)["offering"]
+        for key in ("customer_prefix", "project_prefix", "allocation_prefix"):
+            self.assertEqual(
+                after["backend_settings"][key], before["backend_settings"][key]
+            )
+
+    def test_first_role_keeps_the_settings_it_is_given(self):
+        response = self.update(
+            {
+                "order_processing_backend": "slurm",
+                "backend_settings": {"customer_prefix": "x-"},
+            }
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        settings = self.offering.agent_configuration["backend_settings"]
+        self.assertEqual(settings["customer_prefix"], "x-")
+        self.assertEqual(settings["default_account"], "root")
+
+    def test_first_role_without_slurm_fills_nothing(self):
+        response = self.update(WALDUR_BACKEND)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.agent_configuration, WALDUR_BACKEND)
 
     def test_secret_setting_is_refused(self):
         configuration = {

@@ -7247,6 +7247,13 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
                 normalize_offering_type(self.instance.type),
                 data.get("agent_configuration"),
             )
+            if "agent_configuration" in data:
+                data = {
+                    **data,
+                    "agent_configuration": site_agent_configuration.with_first_role_settings(
+                        self.instance, data["agent_configuration"]
+                    ),
+                }
         return super().to_internal_value(data)
 
     def validate(self, attrs):

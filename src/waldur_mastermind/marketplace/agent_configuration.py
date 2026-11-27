@@ -1163,3 +1163,44 @@ def trust_sensitive_changes(
                 f"backend_components.{component_type}",
             )
     return sorted(changed)
+
+
+def with_first_role_settings(offering, configuration):
+    """An agent configuration that gives the offering its first agent role,
+    with the SLURM settings the generator has been serving for it filled in.
+
+    With no role set, the offering is generated with SLURM for every agent
+    role and the SLURM settings taken from its plugin options or
+    ``SLURM_SETTING_DEFAULTS``, none of them stored. Setting a role makes the
+    SLURM plugin's schema apply, which requires some of them: filling those
+    in keeps the configuration the agent loads the same. Only the required
+    settings the configuration leaves out are filled in; the rest the
+    generator adds as it did before.
+    """
+    # The agent roles; username management alone sets none of them.
+    agent_roles = [
+        field for field, role in ROLE_FIELDS.items() if role != USERNAME_MANAGEMENT
+    ]
+    current = offering.agent_configuration or {}
+    if (
+        not isinstance(configuration, dict)
+        or any(current.get(field) for field in agent_roles)
+        or not any(configuration.get(field) == SLURM_BACKEND for field in agent_roles)
+    ):
+        return configuration
+    plugin = get_plugin(SLURM_BACKEND) or {}
+    required = (plugin.get("settings_schema") or {}).get("required") or []
+    stored = without_secrets(current.get("backend_settings") or {})
+    settings = {**(offering.plugin_options or {}), **stored}
+    requested = configuration.get("backend_settings")
+    requested = requested if isinstance(requested, dict) else {}
+    missing = {}
+    for key in required:
+        if key in requested:
+            continue
+        value = settings.get(key, SLURM_SETTING_DEFAULTS.get(key))
+        if value is not None:
+            missing[key] = value
+    if not missing:
+        return configuration
+    return {**configuration, "backend_settings": {**missing, **requested}}
