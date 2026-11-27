@@ -2976,7 +2976,9 @@ def resources_with_open_grace_signal() -> set[int]:
     latest = (
         _grace_signal_feed()
         .filter(object_id=OuterRef("object_id"))
-        .order_by("-event__created")
+        # Events recorded in the same instant keep the order they were
+        # recorded in.
+        .order_by("-event__created", "-event__id")
         .values("event__event_type")[:1]
     )
     return set(
