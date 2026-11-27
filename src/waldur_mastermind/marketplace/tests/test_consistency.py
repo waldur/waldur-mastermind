@@ -95,6 +95,7 @@ class ConsistencyBasicsTest(SimpleTestCase):
 
     def test_errors_come_first_and_has_errors(self):
         document = slurm_document()
+        document["offering"]["backend_id"] = None
         document["agent_configuration"]["backend_settings"].pop("cluster_name")
         document["plans"] = []
         findings = consistency.check_document(document)
@@ -321,8 +322,31 @@ class ClusterNameRuleTest(SimpleTestCase):
             self.findings(document), [(consistency.ERROR, "offering.backend_id")]
         )
 
-    def test_empty_cluster_name_is_a_warning_in_cli_mode(self):
+    def test_backend_id_fills_empty_cluster_name_with_roles_set(self):
+        # The config generator writes the backend ID as cluster_name.
+        for mode in ("cli", "rest"):
+            for value in ("", None, "  "):
+                document = slurm_document()
+                settings = document["agent_configuration"]["backend_settings"]
+                settings["cluster_name"] = value
+                settings["execution_mode"] = mode
+                self.assertEqual(self.findings(document), [], (mode, value))
+            document = slurm_document()
+            settings = document["agent_configuration"]["backend_settings"]
+            settings.pop("cluster_name")
+            settings["execution_mode"] = mode
+            self.assertEqual(self.findings(document), [], mode)
+
+    def test_set_cluster_name_must_match_backend_id_with_roles_set(self):
         document = slurm_document()
+        document["agent_configuration"]["backend_settings"]["cluster_name"] = "eiger"
+        self.assertEqual(
+            self.findings(document), [(consistency.ERROR, "offering.backend_id")]
+        )
+
+    def test_empty_cluster_name_without_backend_id_is_a_warning_in_cli_mode(self):
+        document = slurm_document()
+        document["offering"]["backend_id"] = ""
         document["agent_configuration"]["backend_settings"]["cluster_name"] = ""
         self.assertEqual(
             self.findings(document),
@@ -330,19 +354,49 @@ class ClusterNameRuleTest(SimpleTestCase):
                 (
                     consistency.WARNING,
                     "agent_configuration.backend_settings.cluster_name",
-                )
+                ),
+                (consistency.WARNING, "offering.backend_id"),
             ],
         )
 
-    def test_empty_cluster_name_is_an_error_in_rest_mode(self):
+    def test_empty_cluster_name_without_backend_id_is_an_error_in_rest_mode(self):
         document = slurm_document()
+        document["offering"]["backend_id"] = None
         settings = document["agent_configuration"]["backend_settings"]
         settings.pop("cluster_name")
         settings["execution_mode"] = "rest"
         self.assertEqual(
             self.findings(document),
-            [(consistency.ERROR, "agent_configuration.backend_settings.cluster_name")],
+            [
+                (
+                    consistency.ERROR,
+                    "agent_configuration.backend_settings.cluster_name",
+                ),
+                (consistency.WARNING, "offering.backend_id"),
+            ],
         )
+
+    def test_empty_cluster_name_without_roles_set_is_reported(self):
+        # The generator leaves cluster_name unset for an offering with no
+        # roles set, whatever its backend ID.
+        for mode, severity in (
+            ("cli", consistency.WARNING),
+            ("rest", consistency.ERROR),
+        ):
+            document = slurm_document()
+            configuration = document["agent_configuration"]
+            for field in (
+                "order_processing_backend",
+                "membership_sync_backend",
+                "reporting_backend",
+            ):
+                configuration.pop(field)
+            configuration["backend_settings"].pop("cluster_name")
+            configuration["backend_settings"]["execution_mode"] = mode
+            self.assertEqual(
+                self.findings(document),
+                [(severity, "agent_configuration.backend_settings.cluster_name")],
+            )
 
     def test_empty_backend_id_is_an_error_with_dwdi(self):
         document = dwdi_document()
@@ -382,6 +436,29 @@ class ClusterNameRuleTest(SimpleTestCase):
             }
         ]
         self.assertEqual(self.findings(document), [])
+
+    def test_backend_id_parameter_fills_empty_cluster_name_with_roles_set(self):
+        document = slurm_document()
+        document["offering"].pop("backend_id")
+        document["agent_configuration"]["backend_settings"].pop("cluster_name")
+        document["parameters"] = [
+            {"key": "backend_id", "paths": ["offering.backend_id"]}
+        ]
+        self.assertEqual(self.findings(document), [])
+
+    def test_cluster_name_parameter_with_empty_backend_id_is_a_warning(self):
+        document = slurm_document()
+        document["offering"].pop("backend_id")
+        document["agent_configuration"]["backend_settings"].pop("cluster_name")
+        document["parameters"] = [
+            {
+                "key": "cluster_name",
+                "paths": ["agent_configuration.backend_settings.cluster_name"],
+            }
+        ]
+        self.assertEqual(
+            self.findings(document), [(consistency.WARNING, "offering.backend_id")]
+        )
 
     def test_parameter_filling_one_side_is_a_warning(self):
         document = slurm_document()
@@ -543,6 +620,13 @@ class CheckConfigurationEndpointTest(test.APITestCase):
                 )
             ],
         )
+
+    def test_backend_id_fills_cluster_name_left_out(self):
+        self.offering.agent_configuration["backend_settings"].pop("cluster_name")
+        self.offering.save()
+        response = self.get(self.fixture.offering_owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data, [])
 
     def test_staff_and_offering_manager_may_check(self):
         manager = structure_factories.UserFactory()

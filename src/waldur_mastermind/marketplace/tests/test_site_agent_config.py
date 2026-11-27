@@ -1019,6 +1019,106 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
         self.assertEqual(components["cpu"]["unit_factor_reporting"], 2)
         self.assertEqual(components["mem"]["unit_factor"], 1024)
 
+    def _use_backend_id_without_cluster_name(self, backend_id="alps-dora"):
+        self._use_dwdi_reporting()
+        self.slurm_offering.agent_configuration["backend_settings"].pop("cluster_name")
+        self.slurm_offering.backend_id = backend_id
+        self.slurm_offering.save()
+
+    def test_backend_id_fills_cluster_name_left_out(self):
+        self._use_backend_id_without_cluster_name()
+
+        content, offering_config = self._generate()
+
+        self.assertEqual(
+            offering_config["backend_settings"]["cluster_name"], "alps-dora"
+        )
+        # A plain value, not a secret placeholder.
+        self.assertIn("cluster_name: alps-dora\n", content)
+        self.assertNotIn("cluster_name", content.split("offerings:")[0])
+
+    def test_cluster_name_from_backend_id_has_no_stray_whitespace(self):
+        self._use_backend_id_without_cluster_name()
+        self.slurm_offering.backend_id = " alps-dora "
+        self.slurm_offering.save()
+
+        _, offering_config = self._generate()
+
+        self.assertEqual(
+            offering_config["backend_settings"]["cluster_name"], "alps-dora"
+        )
+
+    def test_backend_id_fills_empty_cluster_name(self):
+        for value in ("", None):
+            with self.subTest(value=value):
+                self._use_backend_id_without_cluster_name()
+                configuration = self.slurm_offering.agent_configuration
+                configuration["backend_settings"]["cluster_name"] = value
+                self.slurm_offering.save()
+
+                _, offering_config = self._generate()
+
+                self.assertEqual(
+                    offering_config["backend_settings"]["cluster_name"], "alps-dora"
+                )
+
+    def test_cluster_name_set_is_kept(self):
+        self._use_dwdi_reporting()
+        self.slurm_offering.backend_id = "alps-dora"
+        self.slurm_offering.save()
+
+        _, offering_config = self._generate()
+
+        self.assertEqual(offering_config["backend_settings"]["cluster_name"], "alpha")
+
+    def test_no_cluster_name_without_backend_id(self):
+        self._use_backend_id_without_cluster_name(backend_id="")
+
+        _, offering_config = self._generate()
+
+        self.assertNotIn("cluster_name", offering_config["backend_settings"])
+
+    def test_offering_without_roles_gets_no_cluster_name(self):
+        self.slurm_offering.backend_id = "alps-dora"
+        self.slurm_offering.save()
+
+        _, offering_config = self._generate()
+
+        self.assertNotIn("cluster_name", offering_config["backend_settings"])
+
+    def test_roles_without_slurm_get_no_cluster_name(self):
+        self.slurm_offering.backend_id = "alps-dora"
+        self.slurm_offering.agent_configuration = {
+            "order_processing_backend": "moab",
+            "membership_sync_backend": "moab",
+            "reporting_backend": "moab",
+        }
+        self.slurm_offering.save()
+
+        _, offering_config = self._generate()
+
+        self.assertNotIn("cluster_name", offering_config["backend_settings"])
+
+    def test_slurm_in_one_role_gets_cluster_name(self):
+        self.slurm_offering.backend_id = "alps-dora"
+        self.slurm_offering.agent_configuration = {
+            "order_processing_backend": "moab",
+            "reporting_backend": "slurm",
+            "backend_settings": {
+                "default_account": "root",
+                "customer_prefix": "c_",
+                "project_prefix": "p_",
+                "allocation_prefix": "a_",
+            },
+        }
+        self.slurm_offering.save()
+
+        _, offering_config = self._generate()
+
+        self.assertEqual(
+            offering_config["backend_settings"]["cluster_name"], "alps-dora"
+        )
+
 
 class SiteAgentOfferingConfigTest(test.APITestCase):
     """The configuration a site agent loads for its offering (#1287)."""
@@ -1400,6 +1500,27 @@ class SiteAgentOfferingConfigTest(test.APITestCase):
         self.assertEqual(
             offering["backend_settings"]["hostname"], "slurm.test.example.com"
         )
+
+    def test_backend_id_fills_cluster_name_left_out(self):
+        self._use_dwdi_reporting()
+        self.slurm_offering.agent_configuration["backend_settings"].pop("cluster_name")
+        self.slurm_offering.backend_id = "alps-dora"
+        self.slurm_offering.save()
+
+        settings = self._config()["offering"]["backend_settings"]
+
+        self.assertEqual(settings["cluster_name"], "alps-dora")
+        self.assertEqual(
+            self._config()["offering"], self._generated_without_placeholders()
+        )
+
+    def test_legacy_offering_gets_no_cluster_name_from_backend_id(self):
+        self.slurm_offering.backend_id = "alps-dora"
+        self.slurm_offering.save()
+
+        settings = self._config()["offering"]["backend_settings"]
+
+        self.assertNotIn("cluster_name", settings)
 
 
 class SiteAgentBootstrapConfigGenerationTest(test.APITestCase):
