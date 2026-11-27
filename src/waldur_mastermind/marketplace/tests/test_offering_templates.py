@@ -443,6 +443,14 @@ class OfferingTemplatePermissionTest(BaseOfferingTemplateTest):
         )
         response = self.client.get(detail_url(self.draft))
         self.assertEqual(response.status_code, 404)
+
+    def test_offering_creator_sees_the_role_backends_only(self):
+        # The roles an offering created from the template starts with, without
+        # the rest of its agent configuration.
+        self.client.force_authenticate(self.owner)
+        template = self.client.get(detail_url(self.published)).data
+        self.assertEqual(template["agent_roles"], {"order_processing_backend": "slurm"})
+        self.assertNotIn("agent_configuration", template["document"])
         response = self.client.get(detail_url(self.published, "versions"))
         self.assertEqual(response.status_code, 403)
 

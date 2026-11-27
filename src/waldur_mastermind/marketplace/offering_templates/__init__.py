@@ -747,6 +747,47 @@ def fill_document(document: dict, values: dict) -> dict:
     return filled
 
 
+def with_agent_roles(agent_configuration: dict, roles: dict) -> dict:
+    """The agent configuration with the role backends chosen for the new
+    offering in place of the template's. A role left out keeps its backend, a
+    blank one names none; custom backends are added to the template's."""
+    configuration = copy.deepcopy(agent_configuration)
+    for field in site_agent_configuration.ROLE_FIELDS:
+        if field not in roles:
+            continue
+        if roles[field]:
+            configuration[field] = roles[field]
+        else:
+            configuration.pop(field, None)
+    custom = roles.get("custom_backends")
+    if custom:
+        configuration["custom_backends"] = list(
+            dict.fromkeys([*(configuration.get("custom_backends") or []), *custom])
+        )
+    return configuration
+
+
+def with_backend_settings(agent_configuration: dict, settings: dict) -> dict:
+    """The agent configuration with the backend settings given for the new
+    offering over the template's: a nested mapping is merged key by key, any
+    other value replaces the template's."""
+    configuration = copy.deepcopy(agent_configuration)
+    configuration["backend_settings"] = _merged(
+        configuration.get("backend_settings") or {}, settings
+    )
+    return configuration
+
+
+def _merged(base: dict, override: dict) -> dict:
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merged(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
 # Drift --------------------------------------------------------------------
 
 # How the items of a list section are told apart, so that a reordered list is

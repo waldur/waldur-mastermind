@@ -9,7 +9,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, offering_templates
-from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
+from waldur_mastermind.marketplace.enums import BASIC_OFFERING, SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_offering_templates import (
     LIST_URL,
@@ -280,6 +280,217 @@ class CreateOfferingFindingsTest(BaseCreateOfferingTest):
         self.assertTrue(
             models.Offering.objects.filter(uuid=response.data["offering_uuid"]).exists()
         )
+
+
+class CreateOfferingAgentRolesTest(BaseCreateOfferingTest):
+    """agent_roles replaces the template's role backends before the checks."""
+
+    def test_role_backend_replaces_the_templates(self):
+        response = self.create_offering(
+            agent_roles={"membership_sync_backend": "slurm"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+        self.assertEqual(
+            offering.agent_configuration["order_processing_backend"], "slurm"
+        )
+        self.assertEqual(
+            offering.agent_configuration["membership_sync_backend"], "slurm"
+        )
+
+    def test_roles_left_out_keep_the_templates(self):
+        response = self.create_offering(agent_roles={})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+        self.assertEqual(
+            offering.agent_configuration["order_processing_backend"], "slurm"
+        )
+        self.assertNotIn("membership_sync_backend", offering.agent_configuration)
+
+    def test_blank_role_names_no_backend(self):
+        response = self.create_offering(
+            agent_roles={"order_processing_backend": ""}, dry_run=True
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertNotIn(
+            "order_processing_backend", response.data["document"]["agent_configuration"]
+        )
+
+    def test_dry_run_checks_the_settings_of_the_chosen_backend(self):
+        # DWDI needs settings the SLURM template does not carry: the dry run
+        # names them, under the agent configuration.
+        response = self.create_offering(
+            agent_roles={"reporting_backend": "cscs-dwdi-compute"}, dry_run=True
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "cscs_dwdi_api_url",
+            response.data["agent_configuration"]["backend_settings"],
+        )
+
+    def test_backend_that_cannot_fill_the_role_is_refused(self):
+        response = self.create_offering(
+            agent_roles={"username_management_backend": "slurm"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("username_management_backend", str(response.data))
+        self.assertFalse(models.Offering.objects.exists())
+
+    def test_custom_backend_is_accepted_once_declared(self):
+        refused = self.create_offering(
+            agent_roles={"reporting_backend": "site-usage"}, dry_run=True
+        )
+        self.assertEqual(refused.status_code, status.HTTP_400_BAD_REQUEST)
+        response = self.create_offering(
+            agent_roles={
+                "reporting_backend": "site-usage",
+                "custom_backends": ["site-usage"],
+            }
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+        self.assertEqual(
+            offering.agent_configuration["reporting_backend"], "site-usage"
+        )
+        self.assertEqual(
+            offering.agent_configuration["custom_backends"], ["site-usage"]
+        )
+
+    def test_unknown_role_key_is_refused(self):
+        response = self.create_offering(agent_roles={"backend_settings": {}})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("agent_roles", response.data)
+
+
+AZURE_ROLES = {
+    "order_processing_backend": "azure",
+    "membership_sync_backend": "azure",
+    "reporting_backend": "azure",
+}
+AZURE_SETTINGS = {
+    "subscription_id": "sub-1",
+    "tenant_id": "tenant-1",
+    "client_id": "client-1",
+}
+
+
+class CreateOfferingBackendSettingsTest(BaseCreateOfferingTest):
+    """backend_settings is merged over the template's after the roles."""
+
+    def test_settings_the_chosen_backends_need_are_taken(self):
+        dry_run = self.create_offering(
+            agent_roles=AZURE_ROLES, backend_settings=AZURE_SETTINGS, dry_run=True
+        )
+        self.assertEqual(dry_run.status_code, status.HTTP_200_OK, dry_run.data)
+        self.assertEqual(
+            dry_run.data["document"]["agent_configuration"]["backend_settings"][
+                "tenant_id"
+            ],
+            "tenant-1",
+        )
+        self.assertFalse(models.Offering.objects.exists())
+
+        response = self.create_offering(
+            agent_roles=AZURE_ROLES, backend_settings=AZURE_SETTINGS
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+        settings = offering.agent_configuration["backend_settings"]
+        for name, value in AZURE_SETTINGS.items():
+            self.assertEqual(settings[name], value)
+        # The template's own settings stay.
+        self.assertEqual(settings["qos_default"], "normal")
+
+    def test_without_them_the_required_settings_are_named(self):
+        response = self.create_offering(agent_roles=AZURE_ROLES, dry_run=True)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        errors = response.data["agent_configuration"]["backend_settings"]
+        for name in AZURE_SETTINGS:
+            self.assertIn(name, errors)
+
+    def test_secret_is_refused_without_its_value(self):
+        response = self.create_offering(
+            agent_roles=AZURE_ROLES,
+            backend_settings={**AZURE_SETTINGS, "client_secret": "hunter2"},
+            dry_run=True,
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("client_secret", response.data["backend_settings"])
+        self.assertNotIn("hunter2", str(response.data))
+
+    def test_secret_nested_in_a_block_is_refused(self):
+        response = self.create_offering(
+            backend_settings={"extra": {"password": "hunter2"}}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("extra.password", response.data["backend_settings"])
+        self.assertNotIn("hunter2", str(response.data))
+        self.assertFalse(models.Offering.objects.exists())
+
+    def test_setting_overrides_the_templates(self):
+        response = self.create_offering(
+            backend_settings={"qos_default": "high", "customer_prefix": "org_"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        offering = models.Offering.objects.get(uuid=response.data["offering_uuid"])
+        settings = offering.agent_configuration["backend_settings"]
+        self.assertEqual(settings["qos_default"], "high")
+        # Over the filled-in parameter too, which is what the template sets.
+        self.assertEqual(settings["customer_prefix"], "org_")
+        self.assertEqual(settings["default_account"], "root")
+
+    def test_nested_mapping_is_merged(self):
+        configuration = offering_templates.with_backend_settings(
+            {"backend_settings": {"block": {"a": 1, "b": 2}, "c": 3}},
+            {"block": {"b": 20}},
+        )
+        self.assertEqual(
+            configuration["backend_settings"], {"block": {"a": 1, "b": 20}, "c": 3}
+        )
+
+    def basic_template(self):
+        return models.OfferingTemplate.objects.create(
+            name="Basic",
+            offering_type=BASIC_OFFERING,
+            document={"schema_version": 1, "offering": {"name": "Basic"}},
+            schema_version=1,
+            is_published=True,
+        )
+
+    def test_agent_roles_of_other_offering_types_are_refused(self):
+        response = self.create_offering(
+            self.basic_template(),
+            parameters={},
+            agent_roles={"order_processing_backend": "slurm"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("agent_roles", response.data)
+        self.assertFalse(models.Offering.objects.exists())
+
+    def test_empty_agent_roles_of_other_offering_types_are_ignored(self):
+        response = self.create_offering(
+            self.basic_template(),
+            parameters={},
+            agent_roles={},
+            backend_settings={},
+            dry_run=True,
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    def test_other_offering_types_are_refused(self):
+        template = models.OfferingTemplate.objects.create(
+            name="Basic",
+            offering_type=BASIC_OFFERING,
+            document={"schema_version": 1, "offering": {"name": "Basic"}},
+            schema_version=1,
+            is_published=True,
+        )
+        response = self.create_offering(
+            template, parameters={}, backend_settings={"qos_default": "high"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("backend_settings", response.data)
+        self.assertFalse(models.Offering.objects.exists())
 
 
 class CreateOfferingPermissionTest(BaseCreateOfferingTest):

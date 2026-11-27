@@ -22040,6 +22040,44 @@ class OfferingTemplateParameterSerializer(serializers.Serializer):
     )
 
 
+class OfferingTemplateAgentRolesSerializer(serializers.Serializer):
+    """The role backends of a site-agent offering created from a template.
+
+    The names are checked as the offering's agent configuration is: against
+    the plugin catalogue, or custom_backends for a plugin of the site's own.
+    """
+
+    order_processing_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=255
+    )
+    membership_sync_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=255
+    )
+    reporting_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=255
+    )
+    username_management_backend = serializers.CharField(
+        required=False, allow_blank=True, max_length=255
+    )
+    custom_backends = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        required=False,
+        help_text=(
+            "Backends of the site's own, not in the plugin catalog, that "
+            "the roles may name. Added to the template's."
+        ),
+    )
+
+    def to_internal_value(self, data):
+        if isinstance(data, dict):
+            unknown = sorted(set(data) - set(self.fields))
+            if unknown:
+                raise serializers.ValidationError(
+                    {key: [_("Not a role of the site agent.")] for key in unknown}
+                )
+        return super().to_internal_value(data)
+
+
 class OfferingTemplateSerializer(serializers.ModelSerializer):
     """An offering template; non-staff see a published one's public part only."""
 
@@ -22053,6 +22091,14 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
         ),
     )
     parameters = serializers.SerializerMethodField()
+    agent_roles = serializers.SerializerMethodField(
+        help_text=(
+            "The site agent's role backends and custom backends the document "
+            "names: what an offering created from the template starts with. "
+            "Shown to everyone who sees the template, unlike the rest of its "
+            "agent configuration."
+        )
+    )
     configuration_findings = serializers.SerializerMethodField(
         help_text=(
             "What the site-agent consistency rules find in the document. Paths "
@@ -22073,6 +22119,7 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
             "offering_type",
             "document",
             "parameters",
+            "agent_roles",
             "configuration_findings",
             "schema_version",
             "version",
@@ -22112,6 +22159,15 @@ class OfferingTemplateSerializer(serializers.ModelSerializer):
     @extend_schema_field(OfferingTemplateParameterSerializer(many=True))
     def get_parameters(self, template):
         return (template.document or {}).get(offering_templates.PARAMETERS_KEY) or []
+
+    @extend_schema_field(OfferingTemplateAgentRolesSerializer())
+    def get_agent_roles(self, template):
+        configuration = (template.document or {}).get("agent_configuration") or {}
+        return {
+            key: configuration[key]
+            for key in (*site_agent_configuration.ROLE_FIELDS, "custom_backends")
+            if configuration.get(key)
+        }
 
     @extend_schema_field(OfferingConfigurationFindingSerializer(many=True))
     def get_configuration_findings(self, template):
@@ -22230,12 +22286,49 @@ class OfferingTemplateCreateOfferingSerializer(serializers.Serializer):
             "parameter left out takes its default."
         ),
     )
+    agent_roles = OfferingTemplateAgentRolesSerializer(
+        required=False,
+        help_text=(
+            "Backends for the site agent's roles, replacing the template's. A "
+            "role left out keeps the template's backend; a blank one names "
+            "none."
+        ),
+    )
+    backend_settings = serializers.DictField(
+        required=False,
+        help_text=(
+            "Backend settings of the site agent, by name, over the template's: "
+            "what the chosen role backends need that the template does not "
+            "set. A nested mapping is merged key by key. Checked as the "
+            "agent configuration's backend_settings; secrets are refused, "
+            "they stay in the agent configuration file on the agent host. "
+            "Site agent templates only."
+        ),
+    )
     dry_run = serializers.BooleanField(
         default=False,
         help_text=(
             "Check everything and report what would be created, creating nothing."
         ),
     )
+
+    def validate_backend_settings(self, value):
+        # The message names the setting, never its value.
+        secrets = site_agent_configuration.find_secret_settings(value)
+        if secrets:
+            raise serializers.ValidationError(
+                {
+                    path: [
+                        _(
+                            "This is a secret, or is named like one. Keep it in "
+                            "the agent configuration file on the agent host; "
+                            "Waldur does not store it."
+                        )
+                    ]
+                    for path in secrets
+                }
+            )
+        return value
 
 
 class OfferingTemplateCreateOfferingResponseSerializer(serializers.Serializer):
