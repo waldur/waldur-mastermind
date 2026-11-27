@@ -788,3 +788,14 @@ class MarketplaceConfig(AppConfig):
 
         register_core_hooks()
         register_pat_filter(models.ResourceApiKey)(pat_filter_resource_api_keys)
+
+        # A Kubernetes cluster on sites the provider fixed is checked against
+        # those sites and their flavors, which the option field cannot see.
+        from waldur_mastermind.common.serializers import (
+            K8S_CLUSTER_CONFIG_FIELD_TYPE,
+            register_option_value_check,
+        )
+
+        from .k8s_sites import check_cluster_sites
+
+        register_option_value_check(K8S_CLUSTER_CONFIG_FIELD_TYPE, check_cluster_sites)

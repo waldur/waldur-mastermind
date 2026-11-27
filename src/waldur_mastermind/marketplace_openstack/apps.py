@@ -52,6 +52,12 @@ def _schedule_create_lost_resources() -> None:
     tasks.create_resources_for_lost_instances_and_volumes.delay()
 
 
+def _get_service_settings_flavors(service_settings):
+    from waldur_openstack import models as openstack_models
+
+    return openstack_models.Flavor.objects.filter(settings=service_settings)
+
+
 def _get_mb_component_types() -> frozenset[str]:
     from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
@@ -97,6 +103,9 @@ class MarketplaceOpenStackConfig(AppConfig):
             )
         )
         marketplace_hooks.register_mb_component_types_provider(_get_mb_component_types)
+        marketplace_hooks.register_service_settings_flavors_provider(
+            _get_service_settings_flavors
+        )
 
         signals.post_save.connect(
             handlers.create_offering_from_tenant,

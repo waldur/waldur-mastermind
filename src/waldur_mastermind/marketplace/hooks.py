@@ -322,3 +322,24 @@ def offering_ids_open_for_proposals() -> Any:
     if _proposal_provider is None:
         return ()
     return _proposal_provider.offering_ids_open_for_proposals()
+
+
+_service_settings_flavors_provider: Callable[[Any], Any] | None = None
+
+
+def register_service_settings_flavors_provider(
+    provider: Callable[[Any], Any],
+) -> None:
+    """Register ``provider(service_settings)`` returning the flavors of a cloud.
+
+    Each flavor has ``uuid``, ``name``, ``cores``, ``ram`` and ``disk``; the
+    Kubernetes site checks compare them across OpenStack sites.
+    """
+    global _service_settings_flavors_provider
+    _service_settings_flavors_provider = provider
+
+
+def get_service_settings_flavors(service_settings: Any) -> Any:
+    if _service_settings_flavors_provider is None:
+        return []
+    return _service_settings_flavors_provider(service_settings)

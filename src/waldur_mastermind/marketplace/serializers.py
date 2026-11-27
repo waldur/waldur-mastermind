@@ -109,6 +109,8 @@ from waldur_mastermind.common.serializers import (
     IPSEC_VPN_CONFIG_FIELD_TYPE,
     K8S_CLUSTER_CONFIG_FIELD_TYPE,
     K8S_EGRESS_RULES_FIELD_TYPE,
+    K8S_INFRASTRUCTURE_MODES,
+    K8S_TOPOLOGY_DATACENTER_COUNTS,
     K8S_TOPOLOGY_MODES,
     MAX_PATTERN_LENGTH,
     MAX_TRANSFORM_AFFIX_LENGTH,
@@ -148,6 +150,7 @@ from waldur_mastermind.marketplace import (
 )
 from waldur_mastermind.marketplace import (
     consistency,
+    k8s_sites,
     offering_merge_coverage,
     offering_templates,
 )
@@ -4134,6 +4137,23 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
         "to the customer's destinations only.",
     )
 
+    infrastructure_mode = serializers.ChoiceField(
+        choices=K8S_INFRASTRUCTURE_MODES,
+        required=False,
+        help_text="Who picks the OpenStack infrastructure of each site: the "
+        "customer, from the tenant offerings they can order (customer_choice), "
+        "or the provider, in fixed_openstack_offerings (provider_fixed). "
+        "Treated as customer_choice when omitted.",
+    )
+    fixed_openstack_offerings = serializers.DictField(
+        child=serializers.ListField(child=serializers.CharField()),
+        required=False,
+        help_text="With provider_fixed: the UUIDs of the OpenStack tenant "
+        "offerings a cluster is deployed to, per topology, in site order. "
+        '"1-datacenter" takes one, "3-datacenter" three; every topology the '
+        "option allows needs its list.",
+    )
+
     def validate_available_kubernetes_versions(self, value):
         """Validate Kubernetes version format"""
         if not value or not value.strip():
@@ -4157,6 +4177,49 @@ class K8sDefaultConfigurationSerializer(serializers.Serializer):
             )
 
         return value
+
+
+class K8sSitesQuerySerializer(serializers.Serializer):
+    option = serializers.CharField(
+        help_text="Name of the offering's k8s_cluster_config order option."
+    )
+    topology = serializers.ChoiceField(
+        choices=list(K8S_TOPOLOGY_DATACENTER_COUNTS),
+        help_text="The cluster topology whose sites to list.",
+    )
+
+
+class K8sSiteSerializer(serializers.Serializer):
+    uuid = serializers.CharField(help_text="UUID of the OpenStack tenant offering.")
+    name = serializers.CharField()
+
+
+class K8sSiteFlavorSerializer(serializers.Serializer):
+    offering_uuid = serializers.CharField(
+        help_text="UUID of the site's OpenStack tenant offering."
+    )
+    flavor_uuid = serializers.CharField(help_text="UUID of the flavor on that site.")
+
+
+class K8sCommonFlavorSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    cores = serializers.IntegerField()
+    ram = serializers.IntegerField(help_text="RAM in MiB.")
+    disk = serializers.IntegerField(
+        help_text="Root disk in MiB; the smallest among the sites."
+    )
+    sites = K8sSiteFlavorSerializer(
+        many=True, help_text="The flavor of every site, in site order."
+    )
+
+
+class K8sSitesSerializer(serializers.Serializer):
+    sites = K8sSiteSerializer(many=True, help_text="The sites, in order.")
+    flavors = K8sCommonFlavorSerializer(
+        many=True,
+        help_text="Flavors every site has under one name with the same vCPUs "
+        "and RAM, smallest first.",
+    )
 
 
 class OptionDefaultConfigsSerializer(
@@ -4586,6 +4649,16 @@ class OptionFieldSerializer(serializers.Serializer):
                 raise serializers.ValidationError(
                     "storage_folder_config is required for storage_folder_manager type"
                 )
+
+        if field_type == K8S_CLUSTER_CONFIG_FIELD_TYPE and k8s_sites.is_provider_fixed(
+            attrs.get("default_configs")
+        ):
+            try:
+                attrs["default_configs"][k8s_sites.FIXED_SITES_KEY] = (
+                    k8s_sites.validate_fixed_sites_policy(attrs["default_configs"])
+                )
+            except serializers.ValidationError as e:
+                raise serializers.ValidationError({"default_configs": e.detail})
 
         if field_type == K8S_CLUSTER_CONFIG_FIELD_TYPE:
             # default_configs is optional for K8s config types
@@ -6676,6 +6749,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
         self._validate_derived_options(attrs)
+        self._validate_k8s_sites(attrs)
 
         validate_auto_approve_for_roles_is_staff_only(
             self.context["request"], self.instance, attrs.get("plugin_options", {})
@@ -6817,6 +6891,16 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         serializer = OfferingOptionsSerializer(data=options)
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
+
+    def _validate_k8s_sites(self, attrs):
+        customer = attrs.get("customer") or getattr(self.instance, "customer", None)
+        for key in ("options", "resource_options"):
+            if attrs.get(key) is None:
+                continue
+            try:
+                k8s_sites.check_offering_sites(attrs[key], customer)
+            except serializers.ValidationError as e:
+                raise serializers.ValidationError({key: e.detail})
 
     def _validate_plans(self, attrs):
         custom_components = attrs.get("components")
@@ -7037,6 +7121,7 @@ class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
         fields = ("options",)
 
     def validate_options(self, options):
+        k8s_sites.check_offering_sites(options, self.instance.customer)
         # Plain limit components only: a prepaid one is priced per period in
         # a table of its own, where a calculated quantity has no place.
         derived_limits.validate_derived_components(
@@ -7107,6 +7192,7 @@ class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
         fields = ("resource_options",)
 
     def validate_resource_options(self, resource_options):
+        k8s_sites.check_offering_sites(resource_options, self.instance.customer)
         order_options = (self.instance.options or {}).get("options")
         resource_options = k8s_egress.pair_resource_options(
             derived_limits.pair_resource_options(resource_options, order_options),

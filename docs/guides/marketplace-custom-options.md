@@ -672,6 +672,50 @@ options of existing offerings and offering templates, setting `topology_mode`
 to what the old type implied (`1-datacenter` or `3-datacenter`) where the
 option had none.
 
+#### Sites fixed by the provider
+
+By default the customer picks the OpenStack infrastructure of each site from
+the tenant offerings they can order. A provider whose automation provisions
+the tenants itself sets `infrastructure_mode: provider_fixed` and lists the
+sites in `fixed_openstack_offerings`, per topology and in site order:
+
+```json
+{
+  "infrastructure_mode": "provider_fixed",
+  "topology_mode": "customer_choice",
+  "fixed_openstack_offerings": {
+    "1-datacenter": ["<tenant offering uuid>"],
+    "3-datacenter": ["<uuid>", "<uuid>", "<uuid>"]
+  }
+}
+```
+
+- Saving the option checks that every topology `topology_mode` allows has its
+  number of distinct `OpenStack.Tenant` offerings. UUIDs are stored in hex.
+- A site must be active or paused, and either the provider's own offering or
+  one shared with the provider's organisation (as `filter_for_customer`
+  decides, organisation groups included). Another organisation's private
+  offering is refused: its name and flavors would be shown to everyone who
+  sees the Kubernetes offering. The same rule is checked on create, on
+  `update_options` / `update_resource_options`, on `import_offering` and when
+  the sites are served.
+- `GET marketplace-public-offerings/{uuid}/k8s_sites/?option=<name>&topology=<topology>`
+  returns the sites of a topology and the flavors every site has under one
+  name with the same vCPUs and RAM, each with every site's own flavor UUID.
+  Any caller who can see the offering may call it, whether or not they can
+  see the OpenStack offerings.
+- An order is refused when its datacenters do not use the provider's sites in
+  order, when the node groups differ between sites, when a flavor is not that
+  site's own or differs in size between the sites, or when a worker flavor is
+  below `minimal_worker_vcpus` / `minimal_worker_ram_gb`. Each site's node
+  groups carry that site's flavor UUID.
+
+The check runs through `register_option_value_check` in
+`common/serializers.py`: `validate_options` calls the checks registered for
+an option type on every value its field accepted. The marketplace app
+registers this one in `apps.py`, because the field itself cannot reach the
+database.
+
 ### Kubernetes Egress Rules
 
 A Kubernetes cluster configuration (`k8s_cluster_config`) can carry the
