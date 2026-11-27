@@ -427,6 +427,9 @@
 - marketplace_resource_end_date_change_request_canceled
 - marketplace_resource_end_date_change_request_created
 - marketplace_resource_end_date_change_request_rejected
+- marketplace_resource_grace_period_cancelled
+- marketplace_resource_grace_period_ended
+- marketplace_resource_grace_period_started
 - marketplace_resource_limit_change_request_approved
 - marketplace_resource_limit_change_request_created
 - marketplace_resource_limit_change_request_rejected
@@ -473,6 +476,9 @@
 - marketplace_resource_end_date_change_request_created
 - marketplace_resource_end_date_change_request_rejected
 - marketplace_resource_erred_on_backend
+- marketplace_resource_grace_period_cancelled
+- marketplace_resource_grace_period_ended
+- marketplace_resource_grace_period_started
 - marketplace_resource_limit_change_request_approved
 - marketplace_resource_limit_change_request_created
 - marketplace_resource_limit_change_request_rejected

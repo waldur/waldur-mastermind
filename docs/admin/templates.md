@@ -2251,7 +2251,7 @@ Reminder about stale resources.
 
 ```txt
 
-{% if count_projects > 1 %}Your {{ count_projects }} projects{% else %} Project{% endif %} will be deleted on {{ end_date|date:'d/m/Y' }}.
+{% if resources_follow_project_end %}{% if count_projects > 1 %}Your {{ count_projects }} projects{% else %}Project{% endif %} will be deleted on {{ end_date|date:'d/m/Y' }}.{% else %}{% if count_projects > 1 %}Your {{ count_projects }} projects reach their end date{% else %}Project reaches its end date{% endif %} on {{ end_date|date:'d/m/Y' }}.{% endif %}
 
 ```
 
@@ -2519,7 +2519,7 @@ Resource limit change request rejected for {{ resource_limit_change_request.reso
 </head>
 <body>
 <p>Hello {{ user.full_name }}!</p>
-<p>The following projects will have their resources terminated {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):</p>
+<p>{% if resources_follow_project_end %}The following projects will have their resources terminated {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):{% else %}The following projects reach their end date {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):{% endif %}</p>
 <ul>
 {% for project in projects %}
     <li>
@@ -2527,11 +2527,19 @@ Resource limit change request rejected for {{ resource_limit_change_request.reso
         {% if project.grace_period_days %}
         <br /><small>End date: {{ project.end_date|date:'d/m/Y' }} | Grace period: {{ project.grace_period_days }} days | Termination date: {{ project.effective_end_date|date:'d/m/Y' }}</small>
         {% endif %}
+        {% if not resources_follow_project_end %}
+        {% if project.resources_on_project_date %}
+        <br />{{ project.resources_on_project_date }} resource{{ project.resources_on_project_date|pluralize }} terminate{{ project.resources_on_project_date|pluralize:"s," }} on the project end date.
+        {% endif %}
+        {% for group in project.termination_groups %}
+        <br />{% if group.past_due %}{{ group.resource_count }} resource{{ group.resource_count|pluralize }} of {{ group.offering_name }} {{ group.resource_count|pluralize:"is,are" }} being terminated (due {{ group.termination_date|date:'d/m/Y' }}).{% else %}{{ group.resource_count }} resource{{ group.resource_count|pluralize }} of {{ group.offering_name }} terminate{{ group.resource_count|pluralize:"s," }} on {{ group.termination_date|date:'d/m/Y' }}.{% endif %}
+        {% endfor %}
+        {% endif %}
     </li>
 {% endfor %}
 </ul>
 <p>
-    End of the project will lead to termination of all resources in the project. <br />
+    {% if resources_follow_project_end %}End of the project will lead to termination of all resources in the project.{% else %}Resources terminate on the dates above. The project is removed once its end date has passed and no resource is left.{% endif %}<br />
     If you are aware of that, then no actions are needed from your side. <br />
     If you need to update project end date, please update it in project details.
 </p>
@@ -2606,14 +2614,18 @@ Thank you!
 
 Hello {{ user.full_name }}!
 
-The following projects will have their resources terminated {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):
+{% if resources_follow_project_end %}The following projects will have their resources terminated {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):{% else %}The following projects reach their end date {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):{% endif %}
 
 {% for project in projects %}
     - {{ project.name }} ({{ project.url }}){% if project.grace_period_days %}
-      End date: {{ project.end_date|date:'d/m/Y' }} | Grace period: {{ project.grace_period_days }} days | Termination date: {{ project.effective_end_date|date:'d/m/Y' }}{% endif %}
+      End date: {{ project.end_date|date:'d/m/Y' }} | Grace period: {{ project.grace_period_days }} days | Termination date: {{ project.effective_end_date|date:'d/m/Y' }}{% endif %}{% if not resources_follow_project_end %}{% if project.resources_on_project_date %}
+      {{ project.resources_on_project_date }} resource{{ project.resources_on_project_date|pluralize }} terminate{{ project.resources_on_project_date|pluralize:"s," }} on the project end date.{% endif %}
+{% for group in project.termination_groups %}
+      {% if group.past_due %}{{ group.resource_count }} resource{{ group.resource_count|pluralize }} of {{ group.offering_name }} {{ group.resource_count|pluralize:"is,are" }} being terminated (due {{ group.termination_date|date:'d/m/Y' }}).{% else %}{{ group.resource_count }} resource{{ group.resource_count|pluralize }} of {{ group.offering_name }} terminate{{ group.resource_count|pluralize:"s," }} on {{ group.termination_date|date:'d/m/Y' }}.{% endif %}
+{% endfor %}{% endif %}
 {% endfor %}
 
-End of the project will lead to termination of all resources in the project.
+{% if resources_follow_project_end %}End of the project will lead to termination of all resources in the project.{% else %}Resources terminate on the dates above. The project is removed once its end date has passed and no resource is left.{% endif %}
 If you are aware of that, then no actions are needed from your side.
 If you need to update project end date, please update it in project details.
 
@@ -3455,7 +3467,8 @@ Extension: {{ extension_months }} months
 Old end date: {{ old_end_date }}
 New end date: {{ new_end_date }}
 Renewal cost: {{ cost }}
-{% if request_comment %}Purchase order reference: {{ request_comment }}
+{% if volume_discount %}Volume discount: {{ volume_discount }}
+{% endif %}{% if request_comment %}Purchase order reference: {{ request_comment }}
 {% endif %}Old limits: {{ old_limits }}.
 New limits: {{ new_limits }}.
 {% if resource_slug %}Resource slug: {{ resource_slug }}

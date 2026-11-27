@@ -120,10 +120,14 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
 | [`ResourceEndDateUpdateMixin`](#resourceenddateupdatemixin) | `waldur_mastermind.marketplace.serializers` | Write the end date and who set it, and nothing else |
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
+| [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace.tests.test_agent_configuration` | No description available |
+| [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
+| [`SitesMixin`](#sitesmixin) | `waldur_mastermind.marketplace.tests.test_k8s_sites` | Three OpenStack tenant offerings with overlapping flavors |
 | [`SecretAbsenceMixin`](#secretabsencemixin) | `waldur_mastermind.marketplace.tests.test_network_options` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
 | [`OrderResourceVisibilityMixin`](#orderresourcevisibilitymixin) | `waldur_mastermind.marketplace.tests.test_order_resource_visibility` | No description available |
+| [`PrepaidRenewalMixin`](#prepaidrenewalmixin) | `waldur_mastermind.marketplace.tests.test_renewal_billing` | A prepaid storage allocation of 50 at 4 |
 | [`ScopeHelperAgreementMixin`](#scopehelperagreementmixin) | `waldur_mastermind.marketplace.tests.test_scope_helpers_by_permission` | Each helper must list exactly the scopes has_permission allows |
 | [`GrantMixin`](#grantmixin) | `waldur_mastermind.marketplace.tests.test_slug_permissions` | No description available |
 | [`SpendingLimitsSetupMixin`](#spendinglimitssetupmixin) | `waldur_mastermind.marketplace.tests.test_spending_limits` | No description available |
@@ -137,8 +141,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ConcealmentMixin`](#concealmentmixin) | `waldur_mastermind.marketplace_openstack.tests.test_plugin_resource_concealment` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
-| [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace.tests.test_agent_configuration` | No description available |
-| [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
+| [`ImportTestMixin`](#importtestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_import` | No description available |
 | [`ConformanceMixin`](#conformancemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_contract_conformance` | Capture what a consumer queue receives and check it against a contract |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`SiteAgentFixtureMixin`](#siteagentfixturemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_pat_template` | No description available |
@@ -168,6 +171,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`OverrideApiMixin`](#overrideapimixin) | `waldur_mastermind.proposal.tests.test_notification_overrides` | No description available |
 | [`ApplicantRolesMixin`](#applicantrolesmixin) | `waldur_mastermind.proposal.tests.test_notification_roles` | No description available |
 | [`PanelChairMixin`](#panelchairmixin) | `waldur_mastermind.proposal.tests.test_panel_chair_completer` | The rapporteur assignment is the panel chair's step |
+| [`PanelExportTestMixin`](#panelexporttestmixin) | `waldur_mastermind.proposal.tests.test_panel_exports` | A call with two panels, physics and chemistry, each with a chair and a member |
 | [`ManagerSetupMixin`](#managersetupmixin) | `waldur_mastermind.proposal.tests.test_pool_invitation_expiry` | No description available |
 | [`ActivityReaderMixin`](#activityreadermixin) | `waldur_mastermind.proposal.tests.test_proposal_activity` | No description available |
 | [`ProposalAdminMixin`](#proposaladminmixin) | `waldur_mastermind.proposal.tests.test_proposal_admin` | No description available |
@@ -1680,11 +1684,38 @@ email are declared by the serializers themselves.
 
 **Base classes:** `Serializer`
 
+### AgentConfigurationTestMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_agent_configuration`
+
+**Description:** No description available.
+
+### AgentConfigurationTrustTestMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_agent_configuration_trust`
+
+**Description:**
+
+An offering with a SLURM agent configuration, its owner, service provider
+manager and offering manager, with the roles' grants from permissions.yaml.
+
 ### DerivedLimitsOrderMixin
 
 **Module:** `waldur_mastermind.marketplace.tests.test_derived_limits`
 
 **Description:** No description available.
+
+### SitesMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_k8s_sites`
+
+**Description:**
+
+Three OpenStack tenant offerings with overlapping flavors.
+
+m1.small and m1.large exist on every site with the same size; m1.odd
+exists everywhere but is bigger on the third site; only-first exists on
+the first site alone.
 
 ### SecretAbsenceMixin
 
@@ -1703,6 +1734,15 @@ email are declared by the serializers themselves.
 **Module:** `waldur_mastermind.marketplace.tests.test_order_resource_visibility`
 
 **Description:** No description available.
+
+### PrepaidRenewalMixin
+
+**Module:** `waldur_mastermind.marketplace.tests.test_renewal_billing`
+
+**Description:**
+
+A prepaid storage allocation of 50 at 4.5 a month, paid until 2024-04-15,
+and the helpers to renew it.
 
 ### ScopeHelperAgreementMixin
 
@@ -1824,20 +1864,11 @@ class MyTestClass(SelectiveDNSMockMixin, test.APITransactionTestCase):
 
 Mixin to execute scripts in containers for marketplace script processing.
 
-### AgentConfigurationTestMixin
+### ImportTestMixin
 
-**Module:** `waldur_mastermind.marketplace.tests.test_agent_configuration`
+**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_agent_import`
 
 **Description:** No description available.
-
-### AgentConfigurationTrustTestMixin
-
-**Module:** `waldur_mastermind.marketplace.tests.test_agent_configuration_trust`
-
-**Description:**
-
-An offering with a SLURM agent configuration, its owner, service provider
-manager and offering manager, with the roles' grants from permissions.yaml.
 
 ### ConformanceMixin
 
@@ -2177,6 +2208,17 @@ assignment step right after the administrative check.
 The rapporteur assignment is the panel chair's step.
 
 **Base classes:** `EvaluatorRoleTestMixin`
+
+### PanelExportTestMixin
+
+**Module:** `waldur_mastermind.proposal.tests.test_panel_exports`
+
+**Description:**
+
+A call with two panels, physics and chemistry, each with a chair and a
+member. One proposal per panel. A blind step of individual reports by
+the panel members, a panel review chaired by the call's panel chair that
+reads those reports, and a technical assessment per requested offering.
 
 ### ManagerSetupMixin
 

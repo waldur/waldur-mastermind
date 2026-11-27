@@ -569,12 +569,14 @@ td:nth-child(4) {
 | `end_evaluator_roles_on_call_role_revoked` | `Custom Signal (role_revoked)` | `—` | Whoever loses a role on a call -- taken away, or lapsed and swept by |
 | `end_evaluator_roles_on_chair_change` | `Django Signal (post_save)` | `proposal.CallPanel` | A panel's chair replaced, or cleared, loses the roles held as its |
 | `end_evaluator_roles_on_leaving_panel` | `Django Signal (m2m_changed)` | `CallPanel_members` | Whoever is taken off a call's panel loses the evaluator roles they |
+| `evaluate_usage_limit_on_action_change` | `Django Signal (post_save)` | `marketplace.Offering` | Re-evaluate an offering's resources when its action on usage limit changes. |
 | `evaluate_usage_limit_on_component_change` | `Django Signal (post_save)` | `marketplace.OfferingComponent` | Re-evaluate an offering's resources when a component's limit_amount changes. |
 | `evaluate_usage_limit_on_daily_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentDailyUsage` | Re-evaluate a resource with spending limits when a day's usage changes. |
 | `evaluate_usage_limit_on_resource_limit_change` | `Django Signal (post_save)` | `marketplace.Resource` | Re-evaluate a resource's usage-limit restriction when its limits change. |
 | `evaluate_usage_limit_on_usage_report` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Pause or downscale a resource when reported usage reaches a component limit. |
 | `follow_call_chairs_for_discussions` | `Django Signal (post_save)` | `proposal.Call` | The call's panel chair or vice-chair changed. |
 | `follow_discussion_settings` | `Django Signal (post_save)` | `proposal.CallWorkflowStep` | A step whose discussion is switched off closes its open discussions, |
+| `follow_grace_windows_when_offering_grace_changes` | `Django Signal (post_save)` | `marketplace.Offering` | Apply a changed offering grace length now, not on the next daily run. |
 | `follow_panel_for_discussions` | `Django Signal (post_save)` | `proposal.CallPanel` | A panel added to the call, or its chair changed (as |
 | `follow_proposal_for_discussions` | `Django Signal (post_save)` | `proposal.Proposal` | A proposal rejected or withdrawn closes its discussions; one moved to |
 | `follow_step_for_discussions` | `Django Signal (post_save)` | `proposal.ProposalWorkflowStepInstance` | A proposal's step that is no longer active closes its discussion, and |
@@ -916,7 +918,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 832
+Total unique handlers found: 834
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_auth_social**: 2 handlers
@@ -924,7 +926,7 @@ Total unique handlers found: 832
 - **waldur_core**: 354 handlers
 - **waldur_freeipa**: 13 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 413 handlers
+- **waldur_mastermind**: 415 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 15 handlers
 - **waldur_openstack_replication**: 1 handlers
