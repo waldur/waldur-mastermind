@@ -6779,6 +6779,105 @@ class COIDetectionJob(
         return round((self.processed_pairs / self.total_pairs) * 100, 1)
 
 
+class BulkStepDecision(TimeStampedModel, core_models.UuidMixin):
+    """One step of a call decided for many proposals at once, with one
+    outcome and reason: who ran it, for which selection, and what came of
+    each proposal (``BulkStepDecisionResult``).
+
+    Each proposal is decided on its own, in its own transaction, as on its
+    page (``bulk_decisions``). A small selection is decided within the
+    request; a larger one by a background task, which records each proposal
+    as it goes: a run interrupted on the way is picked up again by the
+    sweeper and goes on from the first proposal it has not recorded. A
+    large preview (``dry_run``) runs the same way and decides nothing.
+    """
+
+    call = models.ForeignKey(
+        Call, on_delete=models.CASCADE, related_name="bulk_step_decisions"
+    )
+    call_step = models.ForeignKey(
+        CallWorkflowStep,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    # Kept as the run saw it: the step may be renamed or removed later.
+    step_name = models.CharField(max_length=255, blank=True)
+    outcome = models.CharField(max_length=30)
+    outcome_reason = models.TextField(blank=True)
+    dry_run = models.BooleanField(default=False)
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    # Whether the run decides with the staff access of the request that
+    # started it: a token without the staff scope does not.
+    acts_as_staff = models.BooleanField(default=False)
+    state = models.CharField(
+        max_length=20,
+        choices=enums.BulkStepDecisionStates.CHOICES,
+        default=enums.BulkStepDecisionStates.PENDING,
+    )
+    # The proposals named, as uuid hex, in the order named; the first
+    # ``processed`` of them are recorded.
+    proposal_uuids = models.JSONField(default=list, blank=True)
+    total = models.PositiveIntegerField(default=0)
+    processed = models.PositiveIntegerField(default=0)
+    decided_count = models.PositiveIntegerField(default=0)
+    refused_count = models.PositiveIntegerField(default=0)
+    # How often the sweeper has dispatched the run again.
+    attempts = models.PositiveSmallIntegerField(default=0)
+    celery_task_id = models.CharField(max_length=255, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = _("Bulk step decision")
+        verbose_name_plural = _("Bulk step decisions")
+        ordering = ["-created", "id"]
+        indexes = [models.Index(fields=["call", "-created"])]
+
+    def __str__(self):
+        return f"{self.step_name} as {self.outcome} for {self.total} proposal(s)"
+
+
+class BulkStepDecisionResult(models.Model):
+    """What a bulk step decision did with one proposal, at its place in the
+    selection. Written in the transaction that decides the proposal."""
+
+    run = models.ForeignKey(
+        BulkStepDecision, on_delete=models.CASCADE, related_name="result_rows"
+    )
+    position = models.PositiveIntegerField()
+    # Kept as hex: a proposal deleted later still has its id here.
+    proposal_uuid = models.CharField(max_length=32, blank=True)
+    # Empty for a proposal the run's user may not act on: only its id and
+    # why are recorded.
+    proposal_name = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20, choices=enums.BulkStepDecisionResults.CHOICES
+    )
+    detail = models.TextField(blank=True)
+    proposal_state = models.CharField(max_length=30, blank=True)
+    current_step_name = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["run", "position", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "position"], name="bulk_step_decision_result_position"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.proposal_name or self.proposal_uuid}: {self.status}"
+
+
 # =============================================================================
 # Matching Models
 # =============================================================================

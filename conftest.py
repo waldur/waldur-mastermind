@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from waldur_core.configuration.testing import override_config
@@ -105,7 +107,16 @@ def _immediate_on_commit(monkeypatch):
     # tests behave the same way as production code.
     from django.db import transaction
 
-    monkeypatch.setattr(transaction, "on_commit", lambda func, using=None: func())
+    def on_commit(func, using=None, robust=False):
+        # As Django runs a robust callback: its failure is logged, not raised.
+        if not robust:
+            return func()
+        try:
+            func()
+        except Exception:
+            logging.getLogger(__name__).exception("on_commit callback failed")
+
+    monkeypatch.setattr(transaction, "on_commit", on_commit)
 
 
 @pytest.fixture(autouse=True)

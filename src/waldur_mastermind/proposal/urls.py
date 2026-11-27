@@ -128,6 +128,11 @@ def register_in(router):
         basename="call-reviewer-pool",
     )
     router.register(
+        r"proposal-bulk-step-decisions",
+        views.BulkStepDecisionViewSet,
+        basename="proposal-bulk-step-decision",
+    )
+    router.register(
         r"coi-detection-jobs",
         views.COIDetectionJobViewSet,
         basename="coi-detection-job",

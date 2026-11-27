@@ -21,6 +21,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import (
     activity,
+    bulk_decisions,
     change_requests,
     contributions,
     mail_capture,
@@ -993,6 +994,45 @@ def notify_contribution_decision(proposal, completed, next_instance):
         notify_proposal_decision(
             proposal.uuid, ProposalStates.IN_REVIEW, proposal.state
         )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.run_bulk_step_decision",
+    bind=True,
+    # Acknowledged once it has run: a worker lost mid-run hands the run back
+    # to the broker, and the next worker goes on from where it stopped.
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def run_bulk_step_decision(self, run_uuid: str):
+    """Decide, or preview, one step for the proposals of a bulk run in the
+    background (``bulk_decisions.execute``).
+
+    Each proposal is recorded in the transaction that decides it, under the
+    run's row lock, so a run picked up again -- redelivered after a lost
+    worker, or dispatched again by ``resume_stale_bulk_step_decisions`` --
+    goes on from the first proposal not yet recorded, and two executors of
+    one run never record a proposal twice. A run that ends in an unexpected
+    error is marked failed, with what it recorded so far kept.
+    """
+    run = proposal_models.BulkStepDecision.objects.filter(uuid=run_uuid).first()
+    if run is None:
+        logger.warning("Bulk step decision %s not found", run_uuid)
+        return
+    proposal_models.BulkStepDecision.objects.filter(pk=run.pk).update(
+        celery_task_id=self.request.id or ""
+    )
+    try:
+        bulk_decisions.execute(run)
+    except Exception:
+        logger.exception("Bulk step decision %s failed", run_uuid)
+        bulk_decisions.fail(run, bulk_decisions.RUN_FAILED)
+
+
+@shared_task(name="waldur_mastermind.proposal.resume_stale_bulk_step_decisions")
+def resume_stale_bulk_step_decisions():
+    """Dispatch again the bulk step decisions that have stopped moving."""
+    return bulk_decisions.resume_stale()
 
 
 @shared_task(

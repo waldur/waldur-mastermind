@@ -289,6 +289,11 @@ class ProposalConfig(AppConfig):
             logging_utils.register_event_type_guard(
                 event_type, permissions.calls_hiding_round_events_from
             )
+        # So is who decided a step for many proposals at once, and why.
+        logging_utils.register_event_type_guard(
+            EventType.PROPOSAL_STEPS_DECIDED_IN_BULK,
+            permissions.calls_hiding_round_events_from,
+        )
         # Who released a report to the applicant is for those overseeing
         # the call: the applicant team reads the report, not who released it.
         logging_utils.register_event_type_guard(

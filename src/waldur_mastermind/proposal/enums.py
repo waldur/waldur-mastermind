@@ -1502,6 +1502,34 @@ class COIDetectionJobTypes:
     )
 
 
+class BulkStepDecisionStates:
+    """Where a run deciding one step for many proposals stands."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+    CHOICES = (
+        (PENDING, "Pending"),
+        (RUNNING, "Running"),
+        (DONE, "Done"),
+        (FAILED, "Failed"),
+    )
+
+
+class BulkStepDecisionResults:
+    """What a run deciding one step for many proposals did with each."""
+
+    DECIDED = "decided"
+    REFUSED = "refused"
+
+    CHOICES = (
+        (DECIDED, "Decided"),
+        (REFUSED, "Refused"),
+    )
+
+
 class COIDetectionJobStates:
     PENDING = "pending"
     RUNNING = "running"
