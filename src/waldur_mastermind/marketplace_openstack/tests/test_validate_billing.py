@@ -215,6 +215,27 @@ class ValidateOpenstackBillingCommandTest(test.APITestCase):
         self.assertIn("under-billed", output)
         self.assertEqual(exit_code, 1)
 
+    def test_stopped_instance_left_out_of_billing_reports_no_drift(self):
+        # The audit compares each instance's flavor with its own allocation, so
+        # an offering that does not bill stopped servers is not drift: a stopped
+        # server keeps its allocation, a shelved-offloaded one has none.
+        offering = self.resource.offering
+        offering.plugin_options = {"bill_inactive_instances": False}
+        offering.save()
+        self.instance.runtime_state = "SHUTOFF"
+        self.instance.save()
+        output, exit_code = self._run(
+            {"rp": {"resources": {"VCPU": 2, "MEMORY_MB": 2048}}}
+        )
+        self.assertIn("No drift", output)
+        self.assertEqual(exit_code, 0)
+
+        self.instance.runtime_state = "SHELVED_OFFLOADED"
+        self.instance.save()
+        output, exit_code = self._run({})
+        self.assertIn("No drift", output)
+        self.assertEqual(exit_code, 0)
+
     def test_empty_placement_record_does_not_crash(self):
         output, exit_code = self._run({})
         self.assertIn("No drift", output)

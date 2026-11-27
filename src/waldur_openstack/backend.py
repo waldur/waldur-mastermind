@@ -19,6 +19,7 @@ from django.utils.decorators import method_decorator
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from glanceclient import exc as glance_exceptions
+from keystoneauth1 import exceptions as keystoneauth_exceptions
 from keystoneauth1.exceptions.http import NotFound
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
@@ -6165,6 +6166,61 @@ class OpenStackBackend(ServiceBackend):
             return None
         except glance_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
+
+    def get_tenant_server_compute(self, tenant: models.Tenant) -> list[dict]:
+        """Status, flavor size and last-change time of every server, read live.
+
+        Billing uses this to tell running servers from stopped ones in the same
+        poll, rather than trusting the last instance pull. The flavor is embedded
+        in the server (microversion 2.47 and later), so one list call is enough.
+        ``updated`` is Nova's own last-change time, as Nova wrote it: every
+        start, stop, suspend, resume, shelve or unshelve moves it. Billing only
+        compares it with the value an earlier poll read, never with a clock,
+        so it is kept as the raw string.
+        A server whose flavor carries no size raises, so that the caller falls
+        back to unfiltered usage instead of billing that server as zero.
+        """
+        if not tenant.backend_id:
+            # novaclient drops an empty project_id filter, and all_tenants
+            # would then list every server in the cloud.
+            raise OpenStackBackendError(f"Tenant {tenant} has no backend ID.")
+        nova = get_nova_client(self.admin_session)
+        try:
+            # limit=-1 follows every page: novaclient otherwise stops after the
+            # first one (Nova's [api] max_limit), and the rest would go unbilled.
+            backend_servers = nova.servers.list(
+                search_opts={"project_id": tenant.backend_id, "all_tenants": 1},
+                limit=-1,
+            )
+        except (
+            nova_exceptions.ClientException,
+            # A connection failure comes from keystoneauth, not novaclient, and
+            # must reach the caller's fallback like any other Nova error.
+            keystoneauth_exceptions.ClientException,
+        ) as e:
+            raise OpenStackBackendError(e)
+
+        servers = []
+        for backend_server in backend_servers:
+            flavor = getattr(backend_server, "flavor", None) or {}
+            try:
+                vcpus = int(flavor["vcpus"])
+                ram = int(flavor["ram"])
+            except (KeyError, TypeError, ValueError):
+                raise OpenStackBackendError(
+                    f"Server {backend_server.id} has no flavor size in its details."
+                )
+            updated = getattr(backend_server, "updated", None)
+            servers.append(
+                {
+                    "id": backend_server.id,
+                    "status": backend_server.status,
+                    "vcpus": vcpus,
+                    "ram": ram,
+                    "updated": updated if isinstance(updated, str) else None,
+                }
+            )
+        return servers
 
     def get_instances(self, tenant: models.Tenant) -> list[models.Instance]:
         nova = get_nova_client(self.admin_session)

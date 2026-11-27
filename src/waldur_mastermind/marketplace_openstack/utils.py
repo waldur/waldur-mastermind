@@ -30,14 +30,17 @@ from waldur_mastermind.marketplace.utils import (
     import_resource_metadata,
 )
 from waldur_mastermind.marketplace_openstack import (
+    BILL_INACTIVE_INSTANCES_OPTION,
     BILLING_SOURCE_PLACEMENT,
     BILLING_SOURCE_QUOTA,
     CORES_TYPE,
+    INACTIVE_INSTANCE_STATES,
     RAM_TYPE,
     STORAGE_MODE_DYNAMIC,
     STORAGE_MODE_FIXED,
     STORAGE_TYPE,
 )
+from waldur_mastermind.marketplace_openstack import models as openstack_billing_models
 from waldur_openstack import (
     executors as openstack_executors,
 )
@@ -184,6 +187,13 @@ def _apply_quotas(target: openstack_models.Tenant, quotas: dict[str, int]):
 
 
 def get_usage_values(resource: marketplace_models.Resource, tenant) -> dict:
+    """The ``{component_type: usage}`` dict; see ``compute_usage_values``."""
+    return compute_usage_values(resource, tenant)[0]
+
+
+def compute_usage_values(
+    resource: marketplace_models.Resource, tenant
+) -> tuple[dict, list[dict] | None]:
     """Build the ``{component_type: usage}`` dict for a tenant resource.
 
     Default (``billing_source`` unset or ``"quota"``) sources cores/ram/storage
@@ -192,16 +202,53 @@ def get_usage_values(resource: marketplace_models.Resource, tenant) -> dict:
     specialty resource classes (VGPU, PCI_DEVICE, custom) come from Placement
     allocations instead; storage stays on Cinder quota (Placement ``DISK_GB`` is
     ephemeral disk, not Cinder volumes — see ``PLACEMENT_CLASSES_IGNORED``).
+
+    With ``plugin_options["bill_inactive_instances"]`` false, the compute of
+    servers that stayed stopped for the whole interval since the previous poll
+    is left out in either mode (see ``idle_server_ids``). The servers read are
+    returned too, for ``import_usage`` to store once the usage is recorded:
+    stored before, a failed recording would let the next poll treat the
+    interval as idle.
     """
     quota_usages = import_quotas(resource.offering, tenant.quota_usages)
-    billing_source = (
-        resource.offering.plugin_options.get("billing_source") or BILLING_SOURCE_QUOTA
-    )
+    plugin_options = resource.offering.plugin_options or {}
+    billing_source = plugin_options.get("billing_source") or BILLING_SOURCE_QUOTA
+    # Only an explicit false turns billing of stopped servers off; unset or a
+    # null written outside the API keeps the default of billing everything.
+    bill_inactive = plugin_options.get(BILL_INACTIVE_INSTANCES_OPTION) is not False
+
+    servers = None
+    if not bill_inactive:
+        try:
+            servers = tenant.get_backend().get_tenant_server_compute(tenant)
+        except OpenStackBackendError as e:
+            # Not knowing which servers run must not cut the bill: charge
+            # every server for this tick, as if the option were on.
+            logger.warning(
+                "Cannot list servers of tenant %s to leave inactive ones out of "
+                "billing; billing all of them: %s",
+                tenant,
+                e,
+            )
+
+    idle_ids: set[str] = set()
+    filtered_quota_usages = quota_usages
+    if servers is not None:
+        idle_ids = idle_server_ids(servers, load_server_snapshot(tenant))
+        # Recomputed from the server list rather than subtracted from Nova's
+        # quota usage: a Nova counting usage from Placement already leaves
+        # shelved-offloaded servers out of it, and they would be taken off twice.
+        filtered_quota_usages = {
+            **quota_usages,
+            **active_server_compute(servers, idle_ids),
+        }
     if billing_source != BILLING_SOURCE_PLACEMENT:
-        return quota_usages
+        return filtered_quota_usages, servers
 
     try:
-        placement_totals = collect_placement_allocations(tenant)
+        placement_totals = collect_placement_allocations(
+            tenant, excluded_backend_ids=idle_ids
+        )
     except OpenStackBackendError as e:
         # A transient Placement outage must not zero the bill: fall back to the
         # quota-derived numbers for this tick. The high-watermark in
@@ -212,8 +259,15 @@ def get_usage_values(resource: marketplace_models.Resource, tenant) -> dict:
             tenant,
             e,
         )
-        return quota_usages
-    return merge_placement_usages(quota_usages, placement_totals)
+        return filtered_quota_usages, servers
+    usages = merge_placement_usages(quota_usages, placement_totals)
+    if servers is not None:
+        # A class only idle servers hold (vGPU, say) drops out of the totals.
+        # Its poll would then stop advancing, and the next one after a restart
+        # would bill the whole gap: report it as zero instead.
+        for component_type in billing_mode.resolve_for_resource(resource).usage_types:
+            usages.setdefault(component_type, 0)
+    return usages, servers
 
 
 def import_usage(resource: marketplace_models.Resource):
@@ -222,11 +276,13 @@ def import_usage(resource: marketplace_models.Resource):
     if not tenant:
         return
 
-    usages = get_usage_values(resource, tenant)
+    usages, servers = compute_usage_values(resource, tenant)
     has_usage_billing = billing_mode.resolve_for_resource(resource).is_usage_based
     # Update ComponentUsage for billing (monthly peak for LIMIT components,
     # hourly accumulator for USAGE components, both resolved per plan).
     import_current_usages(resource, usages, hourly_accumulation=has_usage_billing)
+    if servers is not None:
+        save_server_snapshot(tenant, servers)
     # current_usages drives the UI's "right-now consumption" widget. Write
     # the fresh values directly — the ComponentUsage mirror would otherwise
     # latch at the monthly peak or grow with cumulative core-hours, neither
@@ -1684,13 +1740,78 @@ def detect_untracked_volume_types(
 # offering via plugin_options["billing_source"] == "placement".
 
 
-def collect_placement_allocations(tenant) -> dict:
+def idle_server_ids(servers: list[dict], previous: dict) -> set[str]:
+    """Servers that stayed stopped for the whole interval being billed.
+
+    A poll bills the interval since the previous one at the values it reads,
+    so a server read as stopped now may have run for most of that interval. It
+    is left out only if it is stopped now (``INACTIVE_INSTANCE_STATES``) and
+    its ``updated`` is exactly what the previous poll read (``previous``, by
+    server ID). Every start, stop, suspend or resume moves ``updated``, and the
+    tenant cannot set it, so an unchanged value means the server did not run.
+    Both values are Nova's, so no clock is compared and skew between Nova and
+    Waldur cannot matter. A server the previous poll did not see, or without
+    an ``updated``, is billed.
+    """
+    return {
+        server["id"]
+        for server in servers
+        if server["status"] in INACTIVE_INSTANCE_STATES
+        and server.get("updated")
+        and previous.get(server["id"]) == server["updated"]
+    }
+
+
+def load_server_snapshot(tenant) -> dict:
+    """Each server's ``updated`` as the previous poll stored it, by server ID."""
+    snapshot = openstack_billing_models.TenantServerSnapshot.objects.filter(
+        tenant=tenant
+    ).first()
+    return dict(snapshot.servers) if snapshot else {}
+
+
+def save_server_snapshot(tenant, servers: list[dict]):
+    """Store each server's ``updated`` for the next poll to compare against.
+
+    A poll that cannot list the servers, or fails to record usage, stores
+    nothing, and the next poll compares against an older snapshot: an
+    ``updated`` unchanged across the longer span is unchanged across the
+    interval inside it too.
+    """
+    openstack_billing_models.TenantServerSnapshot.objects.update_or_create(
+        tenant=tenant,
+        defaults={
+            "taken_at": timezone.now(),
+            "servers": {s["id"]: s.get("updated") for s in servers},
+        },
+    )
+
+
+def active_server_compute(servers: list[dict], idle_ids: set[str]) -> dict:
+    """Cores and RAM (MiB) of every server not in ``idle_ids``.
+
+    ``servers`` is the shape ``OpenStackBackend.get_tenant_server_compute``
+    returns.
+    """
+    cores = ram = 0
+    for server in servers:
+        if server["id"] in idle_ids:
+            continue
+        cores += server["vcpus"]
+        ram += server["ram"]
+    return {CORES_TYPE: cores, RAM_TYPE: ram}
+
+
+def collect_placement_allocations(
+    tenant, excluded_backend_ids: set[str] | frozenset[str] = frozenset()
+) -> dict:
     """Sum Placement allocations across all of a tenant's instances.
 
     One ``PlacementClient`` per tenant. Instances with no ``backend_id`` or no
     Placement record contribute nothing — transient (just created) or never
-    scheduled — mirroring the reconciliation audit. Returns a flat
-    ``{resource_class: total}`` dict.
+    scheduled — mirroring the reconciliation audit. Instances whose backend id
+    is in ``excluded_backend_ids`` are skipped without asking Placement.
+    Returns a flat ``{resource_class: total}`` dict.
     """
     backend = tenant.get_backend()
     placement = get_placement_client(backend.admin_session)
@@ -1698,6 +1819,7 @@ def collect_placement_allocations(tenant) -> dict:
         openstack_models.Instance.objects.filter(tenant=tenant)
         .exclude(backend_id="")
         .exclude(backend_id__isnull=True)
+        .exclude(backend_id__in=excluded_backend_ids)
     )
     totals: dict[str, int] = {}
     for instance in instances:
