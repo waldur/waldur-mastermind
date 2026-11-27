@@ -774,6 +774,16 @@ SERVICE_PROVIDER_DIRECTORY_ACCESS = access.custom(
     "is on."
 )
 
+# Who may read the site agent configuration of a service provider's offerings:
+# who may generate its configuration file reads every offering; anyone else
+# only the offerings whose own site_agent_config they may read, such as a site
+# agent whose token is bound to them.
+SITE_AGENT_CONFIG_ACCESS = access.custom(
+    "SERVICE_PROVIDER.GET_API_SECRET_CODE on the organization for every site "
+    "agent offering; otherwise the offerings whose own site_agent_config the "
+    "caller may read, refused when there is none."
+)
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -814,6 +824,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         "list": [SERVICE_PROVIDER_DIRECTORY_ACCESS],
         "retrieve": [SERVICE_PROVIDER_DIRECTORY_ACCESS],
         "create": [permissions.REGISTERS_SERVICE_PROVIDER],
+        "site_agent_config": [SITE_AGENT_CONFIG_ACCESS],
     }
 
     @extend_schema(
@@ -1355,6 +1366,92 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
 
     site_agent_config_secrets_permissions = generate_site_agent_config_permissions
+
+    @extend_schema(
+        summary="Site agent configuration of the service provider's offerings",
+        description=(
+            "For each site agent offering of the service provider that the "
+            "filters select, the block the offering's own site_agent_config "
+            "returns: its configuration without secrets, the backend secrets "
+            "the agent keeps in its own configuration, and the version. "
+            "backend_id matches exactly and backend_id_startswith by prefix, "
+            "such as every offering of one cluster; archived offerings are left "
+            "out of those. Without filters, every site agent offering. Who may "
+            "generate the provider's configuration file gets every offering; "
+            "anyone else, such as a site agent whose token is bound to some of "
+            "the offerings, only those whose own site_agent_config they may "
+            "read."
+        ),
+        parameters=[serializers.SiteAgentConfigQuerySerializer],
+        responses={
+            status.HTTP_200_OK: serializers.ProviderSiteAgentOfferingConfigSerializer(
+                many=True
+            )
+        },
+        filters=False,
+    )
+    @action(detail=True, methods=["get"], pagination_class=None)
+    def site_agent_config(self, request, uuid=None):
+        service_provider: models.ServiceProvider = self.get_object()
+        may_generate = self._may_generate_site_agent_config(request, service_provider)
+        # Access is decided before the query is read, so that how a query is
+        # answered cannot tell a stranger which offerings the provider has.
+        if not may_generate and not any(
+            self._offerings_with_readable_agent_config(
+                request, serializers.select_site_agent_offerings(service_provider)
+            )
+        ):
+            raise PermissionDenied()
+        query = serializers.SiteAgentConfigQuerySerializer(
+            data={
+                **request.query_params.dict(),
+                "offering_uuid": request.query_params.getlist("offering_uuid"),
+            },
+            context={"request": request, "service_provider": service_provider},
+        )
+        query.is_valid(raise_exception=True)
+        offerings = query.context["validated_offerings"]
+        if not may_generate:
+            offerings = list(
+                self._offerings_with_readable_agent_config(request, offerings)
+            )
+        provider = hooks.get_site_agent_provider()
+        if provider is None:
+            raise rf_exceptions.APIException(
+                "Site agent integration is not configured."
+            )
+        return Response(
+            [
+                {
+                    "offering_uuid": str(offering.uuid),
+                    "offering_name": offering.name,
+                    **provider.offering_agent_config(offering),
+                }
+                for offering in offerings
+            ]
+        )
+
+    @staticmethod
+    def _may_generate_site_agent_config(request, service_provider) -> bool:
+        try:
+            for check in ServiceProviderViewSet.generate_site_agent_config_permissions:
+                check(request, None, service_provider)
+        except PermissionDenied:
+            return False
+        return True
+
+    @staticmethod
+    def _offerings_with_readable_agent_config(request, offerings):
+        """The offerings whose own site_agent_config the caller may read, one
+        at a time, so that a caller who needs only the first stops there: the
+        same checks as that endpoint, so the two cannot disagree."""
+        for offering in offerings:
+            try:
+                for check in ProviderOfferingViewSet.site_agent_config_permissions:
+                    check(request, None, offering)
+            except PermissionDenied:
+                continue
+            yield offering
 
     def _generate_site_agent_config(self, request):
         service_provider: models.ServiceProvider = self.get_object()

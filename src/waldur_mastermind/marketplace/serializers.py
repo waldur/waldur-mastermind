@@ -19914,13 +19914,93 @@ class ResourceProvisioningStatsSerializer(serializers.Serializer):
 # Site Agent Configuration Serializers
 
 
-class SiteAgentConfigGenerationSerializer(serializers.Serializer):
+def select_site_agent_offerings(
+    service_provider,
+    offering_uuids=None,
+    backend_id=None,
+    backend_id_startswith=None,
+    strict=True,
+):
+    """The service provider's site agent offerings the selectors pick.
+
+    Every selector given applies. With ``strict``, offerings named by UUID
+    must all be the provider's site agent offerings, or the request is
+    refused; otherwise a UUID that names none simply matches nothing, as a
+    query filter does. Offerings picked by backend ID alone are those that
+    match and are not archived.
+    """
+    offerings = models.Offering.objects.filter(
+        customer=service_provider.customer, type=SITE_AGENT_OFFERING
+    )
+    if offering_uuids:
+        named = offerings.filter(uuid__in=offering_uuids)
+        # Use .hex for consistent UUID comparison (no dashes)
+        found = {o.uuid.hex for o in named}
+        invalid = {str(u) for u in offering_uuids if u.hex not in found}
+        if invalid and strict:
+            raise serializers.ValidationError(
+                {
+                    "offering_uuids": _(
+                        "Invalid, non-SLURM, or unauthorized offerings: %s"
+                    )
+                    % invalid
+                }
+            )
+        offerings = named
+    if (backend_id or backend_id_startswith) and not offering_uuids:
+        # An offering named by UUID is included as named, archived or not.
+        offerings = offerings.exclude(state=models.Offering.States.ARCHIVED)
+    if backend_id:
+        offerings = offerings.filter(backend_id=backend_id)
+    if backend_id_startswith:
+        offerings = offerings.filter(backend_id__startswith=backend_id_startswith)
+    return list(offerings.order_by("backend_id", "name"))
+
+
+class SiteAgentOfferingSelectionSerializer(serializers.Serializer):
+    """Which of the service provider's site agent offerings to include."""
+
+    backend_id = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        help_text="Only the offering whose backend ID is exactly this.",
+    )
+    backend_id_startswith = serializers.CharField(
+        required=False,
+        allow_blank=False,
+        help_text="Only offerings whose backend ID starts with this, such as "
+        "every offering of one cluster.",
+    )
+
+    # Whether offerings named by UUID must all exist; see
+    # select_site_agent_offerings.
+    strict_uuids = True
+
+    def selected_offerings(self, attrs, offering_uuids=None):
+        service_provider = self.context.get("service_provider")
+        if not service_provider:
+            raise serializers.ValidationError("Service provider context is required.")
+        offerings = select_site_agent_offerings(
+            service_provider,
+            offering_uuids,
+            attrs.get("backend_id"),
+            attrs.get("backend_id_startswith"),
+            strict=self.strict_uuids,
+        )
+        self.context["validated_offerings"] = offerings
+        return offerings
+
+
+class SiteAgentConfigGenerationSerializer(SiteAgentOfferingSelectionSerializer):
     """Request serializer for site agent configuration generation."""
 
     offering_uuids = serializers.ListField(
         child=serializers.UUIDField(),
         min_length=1,
-        help_text="List of SLURM offering UUIDs to include in configuration",
+        required=False,
+        help_text="Site agent offerings to include. With backend_id or "
+        "backend_id_startswith, only those of them that match. At least one "
+        "of the three is required.",
     )
     include_policy_settings = serializers.BooleanField(
         default=True,
@@ -19959,34 +20039,45 @@ class SiteAgentConfigGenerationSerializer(serializers.Serializer):
         ),
     )
 
-    def validate_offering_uuids(self, value):
-        """Validate that all offerings exist and belong to the service provider."""
-        service_provider = self.context.get("service_provider")
-        if not service_provider:
-            raise serializers.ValidationError("Service provider context is required.")
-
-        # Find valid offerings that belong to this service provider and are SLURM type
-        valid_offerings = models.Offering.objects.filter(
-            uuid__in=value,
-            customer=service_provider.customer,
-            type=SITE_AGENT_OFFERING,
-        )
-
-        # Use .hex for consistent UUID comparison (no dashes)
-        valid_uuids = set(o.uuid.hex for o in valid_offerings)
-        provided_uuids = set(u.hex for u in value)
-        invalid_uuids = provided_uuids - valid_uuids
-
-        if invalid_uuids:
-            # Format UUIDs with dashes for display
-            formatted_invalid = {str(u) for u in value if u.hex in invalid_uuids}
+    def validate(self, attrs):
+        if not (
+            attrs.get("offering_uuids")
+            or attrs.get("backend_id")
+            or attrs.get("backend_id_startswith")
+        ):
             raise serializers.ValidationError(
-                f"Invalid, non-SLURM, or unauthorized offerings: {formatted_invalid}"
+                _(
+                    "Select offerings with offering_uuids, backend_id or "
+                    "backend_id_startswith."
+                )
             )
+        if not self.selected_offerings(attrs, attrs.get("offering_uuids")):
+            raise serializers.ValidationError(
+                _("No site agent offering of the service provider matches.")
+            )
+        return attrs
 
-        # Store offerings for later use
-        self.context["validated_offerings"] = list(valid_offerings)
-        return value
+
+class SiteAgentConfigQuerySerializer(SiteAgentOfferingSelectionSerializer):
+    """Query parameters of the service provider's site_agent_config.
+
+    Filters, as query parameters are: an offering_uuid that names none of the
+    provider's site agent offerings matches nothing. So a caller let in on
+    some offerings cannot tell the provider's others from UUIDs that do not
+    exist.
+    """
+
+    strict_uuids = False
+
+    offering_uuid = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="Only these offerings; repeat the parameter for several.",
+    )
+
+    def validate(self, attrs):
+        self.selected_offerings(attrs, attrs.get("offering_uuid"))
+        return attrs
 
 
 class SiteAgentConfigSecretSerializer(serializers.Serializer):
@@ -20098,6 +20189,13 @@ class SiteAgentOfferingConfigSerializer(serializers.Serializer):
         help_text="sha256 of offering as canonical JSON (sorted keys, no "
         "whitespace); changes when, and only when, offering does."
     )
+
+
+class ProviderSiteAgentOfferingConfigSerializer(SiteAgentOfferingConfigSerializer):
+    """What a site agent loads for one of the service provider's offerings."""
+
+    offering_uuid = serializers.UUIDField()
+    offering_name = serializers.CharField()
 
 
 class ResourceMissingUsageSerializer(serializers.ModelSerializer):
