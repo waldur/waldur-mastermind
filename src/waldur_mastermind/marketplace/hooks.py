@@ -65,6 +65,10 @@ class SiteAgentProvider:
     push_resource_update_message: Callable[[Any], None]
     generate_agent_config: Callable[[list[Any], dict[str, Any], str], Any]
     offering_agent_config: Callable[[Any], dict[str, Any]]
+    # (request, view, offering, validated request) -> the import's response data
+    import_agent_configuration: Callable[
+        [Any, Any, Any, dict[str, Any]], dict[str, Any]
+    ]
 
 
 @dataclass(frozen=True)

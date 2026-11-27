@@ -160,6 +160,12 @@ SPECTACULAR_SETTINGS = {
         # An offering option transform's "case"; would otherwise be a generic
         # CaseEnum. A path, so settings do not import the serializers module.
         "OptionTransformCase": "waldur_mastermind.common.serializers.TRANSFORM_CASES",
+        # A component field an agent configuration import may set; would
+        # otherwise be the generic FieldEnum. A path, as above.
+        "AgentComponentFieldEnum": (
+            "waldur_mastermind.marketplace.agent_import_serializers."
+            "COMPARED_COMPONENT_FIELDS"
+        ),
         "RoleType": TYPE_MAP.keys(),
         "InvitationState": InvitationState.values,
         "BillingUnit": Units.CHOICES,

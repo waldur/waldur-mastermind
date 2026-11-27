@@ -17,7 +17,6 @@ from waldur_core.core.views import (
     HistoryViewSetMixin,
     UpdateReversionMixin,
 )
-from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.pat_filtering import PATScopeListFilter
@@ -33,6 +32,7 @@ from waldur_mastermind.marketplace.managers import (
 from . import (
     filters,
     models,
+    policy_events,
     serializers,
     slurm_commands,
     slurm_preview,
@@ -52,74 +52,20 @@ class PolicyEventsMixin:
     """
 
     def emit_policy_event(self, policy, event_type, verb, changes=""):
-        scope = policy.scope
-        message = (
-            "{policy_type} {policy_uuid} for {policy_scope_type} "
-            "{policy_scope_name} has been %s by {user_username}." % verb
+        policy_events.emit_policy_event(
+            self.request.user, policy, event_type, verb, changes
         )
-        if changes:
-            message += " Changes: {policy_changes}."
-        event_logger.emit(
-            message,
-            event_type=event_type,
-            event_context={
-                "user": self.request.user,
-                "policy_type": policy.__class__.__name__,
-                "policy_uuid": policy.uuid.hex,
-                "policy_scope_type": scope.__class__.__name__,
-                "policy_scope_uuid": scope.uuid.hex,
-                "policy_scope_name": scope.name,
-                "policy_actions": policy.actions,
-                "policy_changes": changes,
-            },
-            scopes=[scope],
-        )
-
-    @staticmethod
-    def describe_related_item(item):
-        # Nested limits are deleted and recreated on every update and have no
-        # __str__, so they are compared by their field values, not identity.
-        parts = []
-        for field in item._meta.concrete_fields:
-            if field.primary_key or field.name in ("policy", "created", "modified"):
-                continue
-            value = getattr(item, field.name)
-            # Names repeat across offerings (every one has a "CPU"), so a
-            # related object is told apart by its UUID as well.
-            if field.is_relation and hasattr(value, "uuid"):
-                value = f"{value} [{value.uuid.hex}]"
-            parts.append(f"{field.name}={value}")
-        return "(" + ", ".join(parts) + ")"
-
-    def get_field_values(self, policy, fields):
-        values = {}
-        for field in fields:
-            value = getattr(policy, field, None)
-            if hasattr(value, "all"):
-                value = sorted(self.describe_related_item(item) for item in value.all())
-            values[field] = value
-        return values
 
     def perform_create(self, serializer):
         super().perform_create(serializer)
         self.emit_policy_event(serializer.instance, EventType.POLICY_CREATED, "created")
 
     def perform_update(self, serializer):
-        # Clients send the whole form, so the submitted fields are not the
-        # changed ones; compare the values instead.
-        fields = sorted(serializer.validated_data)
-        old_values = self.get_field_values(serializer.instance, fields)
-        super().perform_update(serializer)
-        new_values = self.get_field_values(serializer.instance, fields)
-        changes = ", ".join(
-            f"{field}: {old_values[field]} -> {new_values[field]}"
-            for field in fields
-            if old_values[field] != new_values[field]
+        policy_events.save_updated(
+            self.request.user,
+            serializer,
+            lambda: super(PolicyEventsMixin, self).perform_update(serializer),
         )
-        if changes:
-            self.emit_policy_event(
-                serializer.instance, EventType.POLICY_UPDATED, "updated", changes
-            )
 
     def perform_destroy(self, instance):
         super().perform_destroy(instance)
