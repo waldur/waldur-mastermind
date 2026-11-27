@@ -45,6 +45,8 @@ class LifecyclePluginOptionsPersistenceTest(test.APITestCase):
         ("instance_metrics_poll_interval_minutes", 30),
         ("instance_metrics_enabled", True),
         ("instance_metrics", ["vm.cpu.utilization", "vm.network.io"]),
+        ("bill_inactive_instances", False),
+        ("bill_inactive_instances", True),
     )
     @unpack
     def test_option_persists(self, key, value):

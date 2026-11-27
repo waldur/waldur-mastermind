@@ -59,3 +59,29 @@ class InstanceMetricSchedule(TimeStampedModel):
 
     def __str__(self):
         return f"{self.instance} every {self.interval} min until {self.until}"
+
+
+class TenantServerSnapshot(models.Model):
+    """Each server's last-change time in a tenant, as the last billing poll read it.
+
+    Used when an offering does not bill stopped servers. A poll bills the
+    interval since the previous one at what it reads, so a server read as
+    stopped now may have run for most of that interval. It is left out only if
+    its last-change time is the same as the previous poll read: Nova moves it on
+    every start, stop, suspend or resume, and comparing Nova's value with
+    Nova's value needs no clock, so skew between Nova and Waldur cannot matter.
+    """
+
+    tenant = models.OneToOneField(
+        openstack_models.Tenant,
+        on_delete=models.CASCADE,
+        related_name="server_snapshot",
+    )
+    taken_at = models.DateTimeField()
+    servers = models.JSONField(
+        default=dict,
+        help_text="Nova's `updated` value of each server, by server ID.",
+    )
+
+    def __str__(self):
+        return f"{self.tenant} @ {self.taken_at}"

@@ -22,6 +22,17 @@ STORAGE_MODE_DYNAMIC = "dynamic"
 BILLING_SOURCE_QUOTA = "quota"
 BILLING_SOURCE_PLACEMENT = "placement"
 
+# Whether the cores and RAM of servers that are not running are billed. On by
+# default; an offering turns it off to bill compute for running servers only.
+# Storage is billed either way, because the volumes of a stopped server remain.
+BILL_INACTIVE_INSTANCES_OPTION = "bill_inactive_instances"
+# Nova statuses of a server that is not running. PAUSED keeps the server's
+# memory on the host, and ERROR or a transitional status says nothing about
+# whether it runs, so those stay billed.
+INACTIVE_INSTANCE_STATES = frozenset(
+    ("SHUTOFF", "SUSPENDED", "SHELVED", "SHELVED_OFFLOADED")
+)
+
 # Custom metrics an OpenStack offering can collect for the instances in its
 # tenants, and for the volumes attached to them. Turned on, and chosen, in the
 # offering's plugin options.

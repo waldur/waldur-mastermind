@@ -1038,6 +1038,12 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
         "'quota' (flavor-derived Nova quota, default) or 'placement' "
         "(Placement allocations; also bills VGPU/PCI/custom resource classes).",
     )
+    bill_inactive_instances = serializers.BooleanField(
+        required=False,
+        help_text="Bill the cores, RAM and other compute of instances that are "
+        "not running (SHUTOFF, SUSPENDED, SHELVED, SHELVED_OFFLOADED) under "
+        "usage-based billing (default: true). Storage is billed either way.",
+    )
 
 
 # Shared validator for POSIX path-like values (login shell, home directory and
