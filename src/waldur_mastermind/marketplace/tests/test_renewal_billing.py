@@ -11,12 +11,14 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_mastermind.common.utils import quantize_price
 from waldur_mastermind.invoices import models as invoices_models
-from waldur_mastermind.marketplace import callbacks, models, utils
+from waldur_mastermind.marketplace import billing_discount, callbacks, models, utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     BillingTypes,
+    DiscountAggregations,
     LimitPeriods,
     OfferingStates,
     OrderStates,
@@ -27,8 +29,10 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories
 
 
-@freeze_time("2024-01-15")
-class PrepaidRenewalBillingTest(test.APITestCase):
+class PrepaidRenewalMixin:
+    """A prepaid storage allocation of 50 at 4.5 a month, paid until 2024-04-15,
+    and the helpers to renew it."""
+
     def setUp(self):
         self.user = structure_factories.UserFactory(is_staff=True)
         self.offering = factories.OfferingFactory(
@@ -118,6 +122,9 @@ class PrepaidRenewalBillingTest(test.APITestCase):
             if item.details.get("is_supplementary")
         ]
 
+
+@freeze_time("2024-01-15")
+class PrepaidRenewalBillingTest(PrepaidRenewalMixin, test.APITestCase):
     def test_renewal_is_invoiced_at_its_quote(self):
         order = self._renewal_order(12)
 
@@ -1130,3 +1137,226 @@ class RenewalDerivedLimitsTest(test.APITestCase):
 
         self.assertEqual(order.limits, {"data": 10, "backup": 10})
         self.assertEqual(order.cost, Decimal("1320"))
+
+
+@freeze_time("2024-01-15")
+class RenewalVolumeDiscountTest(PrepaidRenewalMixin, test.APITestCase):
+    """A renewal takes part in the plan component's volume discount the way the
+    first charge does, thresholded on the allocation rather than on its months."""
+
+    def setUp(self):
+        super().setUp()
+        self.plan_component = self.plan.components.get()
+        self.plan_component.discount_formula = "10 if usage >= 100 else 0"
+        self.plan_component.save()
+        # The allocation's first charge stays on this month's invoice: it is the
+        # same allocation as the renewal, so it must not add to its volume.
+
+    def _discount_lines(self, order):
+        invoice = self._renewal_items(order).first().invoice
+        billing_discount.apply_aggregated_volume_discounts(invoice)
+        renewal_items = {item.uuid.hex: item for item in self._renewal_items(order)}
+        return {
+            renewal_items[line.details["discount_of_item"]]: line
+            for line in invoice.items.filter(details__is_discount=True)
+            if line.details["discount_of_item"] in renewal_items
+        }
+
+    def test_renewal_at_or_above_the_threshold_is_discounted(self):
+        self.resource.limits = {"storage": 120}
+        self.resource.save()
+        order = self._renewal_order(12)
+
+        utils.process_order(order, self.user)
+
+        lines = self._discount_lines(order)
+        extension = self._renewal_items(order).get()
+        # 10% of 120 x 4.5 x 12.
+        self.assertEqual(lines[extension].total, Decimal("-648"))
+        self.assertEqual(lines[extension].details["aggregated_usage"], 120.0)
+
+    def test_raise_across_the_threshold_discounts_both_terms(self):
+        order = self._renewal_order(12, limits={"storage": 120})
+
+        utils.process_order(order, self.user)
+
+        lines = self._discount_lines(order)
+        items = self._renewal_items(order)
+        current = items.get(details__renewal_term=RenewalTerms.CURRENT)
+        extension = items.get(details__renewal_term=RenewalTerms.EXTENSION)
+        # The raise adds no volume of its own: the tier is the new allocation.
+        self.assertEqual(lines[extension].details["aggregated_usage"], 120.0)
+        self.assertEqual(lines[extension].total, -extension.total / 10)
+        self.assertEqual(lines[current].details["aggregated_usage"], 120.0)
+        self.assertEqual(lines[current].total, -quantize_price(current.total / 10))
+
+    def test_months_do_not_count_towards_the_threshold(self):
+        # 50 for 12 months bills a quantity of 600, still a 50 allocation.
+        order = self._renewal_order(12)
+
+        utils.process_order(order, self.user)
+
+        self.assertEqual(self._discount_lines(order), {})
+        self.assertEqual(
+            self._renewal_items(order)
+            .get()
+            .details[billing_discount.DISCOUNT_USAGE_KEY],
+            50.0,
+        )
+
+    def test_plan_component_without_a_formula_is_not_discounted(self):
+        self.plan_component.discount_formula = ""
+        self.plan_component.save()
+        order = self._renewal_order(12, limits={"storage": 120})
+
+        utils.process_order(order, self.user)
+
+        self.assertEqual(self._discount_lines(order), {})
+
+    def test_renewal_order_placed_before_lines_were_recorded_is_billed_as_quoted(
+        self,
+    ):
+        order = self._renewal_order(12, limits={"storage": 120}, with_lines=False)
+
+        utils.process_order(order, self.user)
+
+        extension = self._renewal_items(order).get()
+        self.assertNotIn(billing_discount.DISCOUNT_USAGE_KEY, extension.details)
+        self.assertEqual(self._discount_lines(order), {})
+
+    def test_renewal_order_quoted_before_discounts_is_billed_as_quoted(self):
+        order = self._renewal_order(12, limits={"storage": 120})
+        # As the order recorded its lines before discounts were quoted.
+        for line in order.attributes["cost_lines"]:
+            for key in ("discount_percent", "discount_total", "discount_deferred"):
+                line.pop(key)
+        order.save()
+
+        utils.process_order(order, self.user)
+
+        self.assertEqual(self._discount_lines(order), {})
+
+    def test_two_renewals_in_a_month_count_the_allocation_once(self):
+        # Two 1-month renewals of 60 in one month are still a 60 allocation.
+        self.resource.limits = {"storage": 60}
+        self.resource.save()
+        first = self._renewal_order(1)
+        utils.process_order(first, self.user)
+        self.resource.refresh_from_db()
+        second = self._renewal_order(1)
+        utils.process_order(second, self.user)
+
+        self.assertEqual(self._discount_lines(first), {})
+        self.assertEqual(self._discount_lines(second), {})
+
+
+@freeze_time("2024-01-15")
+class RenewalVolumeDiscountQuoteTest(PrepaidRenewalMixin, test.APITestCase):
+    """The consumer is quoted the volume discount the invoice will give: exactly
+    when it is computed per resource, as a note when it is aggregated over the
+    customer's resources."""
+
+    def setUp(self):
+        super().setUp()
+        self.plan_component = self.plan.components.get()
+        self.plan_component.discount_formula = "10 if usage >= 100 else 0"
+        self.plan_component.discount_aggregation = DiscountAggregations.PER_RESOURCE
+        self.plan_component.save()
+        invoices_models.InvoiceItem.objects.filter(resource=self.resource).delete()
+        self.client.force_authenticate(self.user)
+
+    def _estimate(self, limits):
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "estimate_renewal"),
+            {"extension_months": 12, "limits": limits},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return response.data
+
+    def _renew(self, limits):
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "renew"),
+            {"extension_months": 12, "limits": limits},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        return models.Order.objects.get(uuid=response.data["order_uuid"])
+
+    def test_estimate_quotes_a_per_resource_discount(self):
+        estimate = self._estimate({"storage": 120})
+
+        lines = {line["term"]: line for line in estimate["components"]}
+        extension = lines[RenewalTerms.EXTENSION]
+        current = lines[RenewalTerms.CURRENT]
+        # 120 x 4.5 x 12 = 6480, less 10%.
+        self.assertEqual(Decimal(extension["total"]), Decimal("6480"))
+        self.assertEqual(Decimal(extension["discount_percent"]), Decimal("10"))
+        self.assertEqual(Decimal(extension["discount_total"]), Decimal("648"))
+        # The raise for the rest of the term is discounted at the same tier.
+        self.assertEqual(Decimal(current["discount_percent"]), Decimal("10"))
+        self.assertGreater(Decimal(current["discount_total"]), 0)
+        self.assertEqual(
+            Decimal(estimate["discount_total"]),
+            Decimal(extension["discount_total"]) + Decimal(current["discount_total"]),
+        )
+        self.assertEqual(
+            Decimal(estimate["total"]),
+            Decimal(estimate["subscription_total"])
+            - Decimal(estimate["discount_total"]),
+        )
+        self.assertFalse(estimate["discount_deferred"])
+
+    def test_below_the_threshold_nothing_is_quoted(self):
+        estimate = self._estimate({"storage": 50})
+
+        self.assertEqual(Decimal(estimate["discount_total"]), 0)
+        self.assertEqual(
+            Decimal(estimate["total"]), Decimal(estimate["subscription_total"])
+        )
+        self.assertFalse(estimate["discount_deferred"])
+
+    def test_order_cost_matches_the_invoice(self):
+        estimate = self._estimate({"storage": 120})
+        order = self._renew({"storage": 120})
+
+        self.assertEqual(order.cost, Decimal(estimate["total"]))
+        utils.process_order(order, self.user)
+        invoice = self._renewal_items(order).first().invoice
+        billing_discount.apply_aggregated_volume_discounts(invoice)
+
+        # The renewal items at their price, and the invoice's discount lines for
+        # them, come to what the order was quoted.
+        self.assertEqual(self._invoiced_total(), order.cost)
+
+    def test_per_customer_discount_is_only_flagged(self):
+        self.plan_component.discount_aggregation = DiscountAggregations.PER_CUSTOMER
+        self.plan_component.save()
+
+        estimate = self._estimate({"storage": 120})
+        order = self._renew({"storage": 120})
+
+        self.assertTrue(estimate["discount_deferred"])
+        self.assertEqual(Decimal(estimate["discount_total"]), 0)
+        self.assertEqual(order.cost, Decimal(estimate["subscription_total"]))
+
+    def test_renewal_in_the_month_of_purchase_is_invoiced_as_quoted(self):
+        # The first charge of the 50 is on this month's invoice too.
+        MarketplaceBillingService.handle_resource_creation(self.resource)
+        order = self._renew({"storage": 120})
+
+        utils.process_order(order, self.user)
+        invoice = self._renewal_items(order).first().invoice
+        billing_discount.apply_aggregated_volume_discounts(invoice)
+
+        renewal_items = list(self._renewal_items(order))
+        discounts = invoice.items.filter(
+            details__discount_of_item__in=[item.uuid.hex for item in renewal_items]
+        )
+        self.assertEqual(
+            sum(item.total for item in renewal_items)
+            + sum(line.total for line in discounts),
+            order.cost,
+        )
+        # The allocation counted once, at 120: not 50 + 120.
+        self.assertEqual(discounts.first().details["aggregated_usage"], 120.0)

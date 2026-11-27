@@ -12000,7 +12000,12 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         # The priced lines are recorded on the order, so that it shows what the
         # user is charged for each term and the invoice bills exactly that.
         renewal_lines = quote["lines"]
-        renewal_cost = sum((line["total"] for line in renewal_lines), Decimal("0"))
+        # Less the volume discount the invoice will give, where it is known now:
+        # the order cost is what the consumer is quoted and approves.
+        renewal_cost = sum(
+            (line["total"] - line["discount_total"] for line in renewal_lines),
+            Decimal("0"),
+        )
 
         # Create an 'UPDATE' order to handle the renewal.
         # The order processor will be responsible for updating the resource's

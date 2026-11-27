@@ -26,6 +26,13 @@ Main invoice items opt into aggregation by storing the volume that feeds the
 formula under ``details["discount_usage"]`` at creation time (usage equals the
 billed quantity for usage components, the raw limit for limit components and
 the configured amount for fixed components).
+
+A prepaid allocation is one volume however many times it is charged in a month:
+its first charge, a renewal's extension and the rest of a term it raises all
+carry ``details["discount_usage_is_allocation"]``, and a resource's allocation
+counts once, at its largest, rather than once per charge. Otherwise renewing
+in pieces, or in the month the resource was bought, would add the same storage
+up into a higher tier.
 """
 
 import logging
@@ -49,6 +56,10 @@ logger = logging.getLogger(__name__)
 # Marker key on InvoiceItem.details carrying the volume that feeds the discount
 # formula. Only main items with this key participate in aggregation.
 DISCOUNT_USAGE_KEY = "discount_usage"
+
+# Marker key on a main item whose discount volume is a prepaid allocation; see
+# the module docstring.
+ALLOCATION_KEY = "discount_usage_is_allocation"
 
 # Marker key on a discount line of an open invoice: the amount is month to date
 # and is replaced by the final one when the month closes.
@@ -166,9 +177,7 @@ def _wanted_lines(invoice, estimate) -> dict[str, dict]:
             groups = [items]
 
         for group in groups:
-            total_usage = sum(
-                Decimal(str(item.details[DISCOUNT_USAGE_KEY])) for item in group
-            )
+            total_usage = group_volume(group)
             try:
                 percent = _evaluate_percent(formula, total_usage)
             except FormulaError:
@@ -187,6 +196,22 @@ def _wanted_lines(invoice, estimate) -> dict[str, dict]:
                 if line:
                     wanted[item.uuid.hex] = line
     return wanted
+
+
+def group_volume(items) -> Decimal:
+    """The volume a group of main items is discounted on: the sum of their
+    volumes, with each resource's prepaid allocation counted once."""
+    total = Decimal("0")
+    allocations = {}
+    for item in items:
+        volume = Decimal(str(item.details[DISCOUNT_USAGE_KEY]))
+        if item.details.get(ALLOCATION_KEY):
+            allocations[item.resource_id] = max(
+                allocations.get(item.resource_id, volume), volume
+            )
+        else:
+            total += volume
+    return total + sum(allocations.values(), Decimal("0"))
 
 
 def _evaluate_percent(formula: str, usage) -> Decimal:

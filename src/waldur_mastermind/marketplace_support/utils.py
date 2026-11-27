@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.template import Context
@@ -395,6 +396,25 @@ def format_update_limits_description(order):
     )
 
 
+def _renewal_volume_discount(order):
+    """How the renewal's volume discount reads on the ticket: the amount the
+    cost already has taken off, a note when it is only known on the invoice, or
+    an empty string when there is none."""
+    lines = order.attributes.get("cost_lines") or []
+    try:
+        amount = sum(
+            (Decimal(str(line.get("discount_total") or 0)) for line in lines),
+            Decimal("0"),
+        )
+    except ArithmeticError:
+        amount = Decimal("0")
+    if amount > 0:
+        return f"{amount:.2f}, included in the renewal cost"
+    if any(line.get("discount_deferred") for line in lines):
+        return "applied on the invoice"
+    return ""
+
+
 def format_renewal_description(order):
     offering = order.resource.offering
     request_url = get_request_link(order.resource)
@@ -413,6 +433,7 @@ def format_renewal_description(order):
         "old_end_date": order.attributes.get("old_end_date", "N/A"),
         "new_end_date": order.attributes.get("new_end_date", "N/A"),
         "cost": f"{order.cost:.2f}" if order.cost is not None else "N/A",
+        "volume_discount": _renewal_volume_discount(order),
         "request_comment": order.request_comment or "",
         "resource_slug": getattr(resource, "slug", ""),
         "project_slug": getattr(order.project, "slug", "") if order.project else "",
