@@ -712,6 +712,14 @@ class Access:
             lambda: proposal_roles.is_on_applicant_team(self.user, proposal),
         )
 
+    def assume_off_applicant_teams(self, proposal_ids):
+        """Record that the user is on none of these proposals' applicant
+        teams, for a caller that has already left out those they are on --
+        an export of many proposals -- so ``on_applicant_team`` does not ask
+        again for each."""
+        for pk in proposal_ids:
+            self._memo.setdefault(("applicant", pk), False)
+
     def holds_step_work(self, instance) -> bool:
         return self._cached(
             ("work", instance.pk), lambda: holds_step_work(self.user, instance)

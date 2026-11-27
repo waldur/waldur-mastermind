@@ -27,6 +27,7 @@ from waldur_mastermind.proposal import (
     change_requests,
     contributions,
     managers,
+    panels,
     proposal_roles,
 )
 from waldur_mastermind.proposal import models as proposal_models
@@ -1321,6 +1322,65 @@ def can_read_call_panels(request, view, obj=None):
 
 
 can_read_call_panels.sources = ["*"]
+
+
+def export_panel(call, raw):
+    """The panel of ``call`` that the ``panel_uuid`` query parameter
+    ``raw`` names; None when it names none, or no panel of the call."""
+    if not raw:
+        return None
+    try:
+        panel_uuid = uuid.UUID(str(raw)).hex
+    except (TypeError, ValueError, AttributeError):
+        return None
+    return proposal_models.CallPanel.objects.filter(call=call, uuid=panel_uuid).first()
+
+
+def sits_on_panel(user, panel) -> bool:
+    """Whether ``user`` chairs or sits on ``panel`` while holding the call's
+    panel member role, as ``panels`` counts the panel's people."""
+    if panel is None or user is None or user.is_anonymous:
+        return False
+    if panels.chair_of_panel(panel) == user:
+        return True
+    return panels.members_of(panel).filter(pk=user.pk).exists()
+
+
+@access.describes(
+    access.any_of(
+        access.staff_or_support(),
+        access.permission(PermissionEnum.UPDATE_CALL, CALL_PERMISSION_SOURCES),
+        access.custom(
+            "The chair and the members of the call's panel named in "
+            "panel_uuid, for that panel's proposals; they need to hold the "
+            "call's panel member role."
+        ),
+    ),
+    needs_object=True,
+)
+def can_export_panel_evaluations(request, view, obj=None):
+    """Export a call's evaluations or panel sheets: those who may update the
+    call, staff and support for the whole call; a panel's chair and members
+    for that panel alone, named in ``panel_uuid``. What each reads in the
+    file is narrowed further by ``panel_exports.Viewer``."""
+    if obj is None:
+        return
+    user = request.user
+    if has_staff_access(request) or (
+        user.is_support and check_pat_support_scope(request)
+    ):
+        return
+    if has_permission_on_any_source(
+        request, PermissionEnum.UPDATE_CALL, obj, CALL_PERMISSION_SOURCES
+    ):
+        return
+    panel = export_panel(obj, request.query_params.get("panel_uuid"))
+    if sits_on_panel(user, panel):
+        return
+    raise exceptions.PermissionDenied(
+        "Only the call's managers and the panel's chair and members can export "
+        "a panel's evaluations; name a panel you sit on in panel_uuid."
+    )
 
 
 def can_act_on_active_workflow_step(request, view, obj=None):

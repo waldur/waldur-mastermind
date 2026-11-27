@@ -27,7 +27,7 @@ from collections import Counter
 from collections.abc import Iterator
 from decimal import Decimal, InvalidOperation
 
-from django.db.models import Prefetch
+from django.db.models import Exists, OuterRef, Prefetch
 from django.http import FileResponse, StreamingHttpResponse
 
 from waldur_mastermind.marketplace.enums import BillingTypes
@@ -288,17 +288,34 @@ def proposal_queryset(
     applicant_uuid=None,
     name=None,
     proposal_uuids=None,
+    panel=None,
+    call_step=None,
 ):
     """The proposals the export covers.
 
     Mirrors the filters the proposal list offers, so a manager who filters the
     table and exports it gets the rows they were looking at. The list's
     organisation filter has no counterpart: every proposal of one call shares
-    its managing organisation, so it cannot discriminate here.
+    its managing organisation, so it cannot discriminate here. ``panel`` keeps
+    the proposals routed to that panel, ``call_step`` those standing in that
+    step of the call now -- one of their active steps, where several of a
+    stage run at once.
     """
     queryset = models.Proposal.objects.filter(round__call=call)
     if round_uuid:
         queryset = queryset.filter(round__uuid=round_uuid)
+    if panel is not None:
+        queryset = queryset.filter(panel=panel)
+    if call_step is not None:
+        queryset = queryset.filter(
+            Exists(
+                models.ProposalWorkflowStepInstance.objects.filter(
+                    proposal=OuterRef("pk"),
+                    call_step=call_step,
+                    status=WorkflowStepInstanceStatuses.ACTIVE,
+                )
+            )
+        )
     if states:
         queryset = queryset.filter(state__in=states)
     if applicant_uuid:
@@ -328,11 +345,21 @@ def review_queryset(
     reviewer_uuid=None,
     proposal_uuids=None,
     proposal_name=None,
+    panel=None,
+    call_step=None,
 ):
-    """The reviews the export covers — the review list's filters, as above."""
+    """The reviews the export covers — the review list's filters, as above.
+    ``panel`` keeps the reviews of the proposals routed to that panel,
+    ``call_step`` the reviews given in that step (``reviews_in_step``)."""
     queryset = models.Review.objects.filter(proposal__round__call=call)
     if round_uuid:
         queryset = queryset.filter(proposal__round__uuid=round_uuid)
+    if panel is not None:
+        queryset = queryset.filter(proposal__panel=panel)
+    if call_step is not None:
+        queryset = queryset.filter(
+            pk__in=contributions.reviews_in_step(call_step).values("pk")
+        )
     if states:
         queryset = queryset.filter(state__in=states)
     if reviewer_uuid:
@@ -555,7 +582,44 @@ def _xlsx_width(value) -> int:
 def xlsx_response(
     rows: Iterator[list], filename: str, sheet_title: str
 ) -> FileResponse:
-    """The rows as a one-sheet Excel attachment, header bold and frozen.
+    """The rows as a one-sheet Excel attachment; see ``xlsx_workbook_response``."""
+    return xlsx_workbook_response([(sheet_title, rows)], filename)
+
+
+# What Excel refuses in a sheet's name, and how long the name may be.
+XLSX_SHEET_TITLE_RE = re.compile(r"[\\/*?:\[\]]")
+XLSX_SHEET_TITLE_LENGTH = 31
+
+
+def xlsx_sheet_titles(names) -> list[str]:
+    """``names`` as titles a workbook accepts: without the characters Excel
+    refuses, cut to its limit, and told apart by a number where two would
+    otherwise read the same -- Excel compares them ignoring case. Nor does a
+    title begin or end with an apostrophe, which Excel refuses too: the name
+    is trimmed again wherever it is cut."""
+
+    def cut(text, length):
+        return text[:length].strip(" '") or "Sheet"
+
+    titles: list[str] = []
+    # Excel keeps a sheet of this name for itself and refuses one that takes it.
+    taken: set[str] = {"history"}
+    for name in names:
+        base = XLSX_SHEET_TITLE_RE.sub(" ", _xlsx_text(name)).strip(" '") or "Sheet"
+        title = cut(base, XLSX_SHEET_TITLE_LENGTH)
+        number = 2
+        while title.lower() in taken:
+            suffix = f" ({number})"
+            title = cut(base, XLSX_SHEET_TITLE_LENGTH - len(suffix)) + suffix
+            number += 1
+        taken.add(title.lower())
+        titles.append(title)
+    return titles
+
+
+def xlsx_workbook_response(sheets, filename: str) -> FileResponse:
+    """``sheets``, pairs of a title and its rows, as an Excel attachment with
+    one sheet each, every header bold and frozen.
 
     Numbers are written as numbers, so they sum and sort, whatever the
     reader's locale. Every other cell is a string cell with its type set
@@ -579,36 +643,40 @@ def xlsx_response(
     from openpyxl.utils import get_column_letter
 
     workbook = Workbook(write_only=True)
-    sheet = workbook.create_sheet(sheet_title)
-
-    def cell(value, font=None):
-        number = _xlsx_number(value)
-        if number is not None:
-            result = WriteOnlyCell(sheet, value=number)
-        else:
-            text = _xlsx_text(value)
-            if not text:
-                return None
-            result = WriteOnlyCell(sheet, value=text)
-            result.data_type = TYPE_STRING
-        if font:
-            result.font = font
-        return result
-
-    rows = iter(rows)
-    header = next(rows, [])
-    sample = list(itertools.islice(rows, XLSX_WIDTH_SAMPLE))
-    for index in range(len(header)):
-        width = max(_xlsx_width(row[index]) for row in [header, *sample])
-        sheet.column_dimensions[get_column_letter(index + 1)].width = min(
-            max(width + 2, XLSX_MIN_WIDTH), XLSX_MAX_WIDTH
-        )
-    sheet.freeze_panes = "A2"
-
     bold = Font(bold=True)
-    sheet.append([cell(title, bold) for title in header])
-    for row in itertools.chain(sample, rows):
-        sheet.append([cell(value) for value in row])
+    sheets = list(sheets)
+    titles = xlsx_sheet_titles(title for title, _rows in sheets)
+
+    for title, rows in zip(titles, (rows for _title, rows in sheets)):
+        sheet = workbook.create_sheet(title)
+
+        def cell(value, font=None, sheet=sheet):
+            number = _xlsx_number(value)
+            if number is not None:
+                result = WriteOnlyCell(sheet, value=number)
+            else:
+                text = _xlsx_text(value)
+                if not text:
+                    return None
+                result = WriteOnlyCell(sheet, value=text)
+                result.data_type = TYPE_STRING
+            if font:
+                result.font = font
+            return result
+
+        rows = iter(rows)
+        header = next(rows, [])
+        sample = list(itertools.islice(rows, XLSX_WIDTH_SAMPLE))
+        for index in range(len(header)):
+            width = max(_xlsx_width(row[index]) for row in [header, *sample])
+            sheet.column_dimensions[get_column_letter(index + 1)].width = min(
+                max(width + 2, XLSX_MIN_WIDTH), XLSX_MAX_WIDTH
+            )
+        sheet.freeze_panes = "A2"
+
+        sheet.append([cell(heading, bold) for heading in header])
+        for row in itertools.chain(sample, rows):
+            sheet.append([cell(value) for value in row])
 
     # Closed, and so deleted, by the response once it has been sent.
     output = tempfile.TemporaryFile()  # noqa: SIM115

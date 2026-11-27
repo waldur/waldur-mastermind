@@ -103,6 +103,7 @@ from waldur_mastermind.proposal import (
     notification_rules,
     offering_demand,
     orcid_service,
+    panel_exports,
     panels,
     proposal_pdf,
     proposal_roles,
@@ -1453,6 +1454,47 @@ _EXPORT_ROUND_PARAMETER = OpenApiParameter(
 )
 
 
+_EXPORT_PANEL_PARAMETER = _export_uuid_parameter(
+    "panel_uuid",
+    "proposal_protected_calls_panels_list",
+    "Limit the export to the proposals routed to one panel of the call.",
+)
+
+_EXPORT_CALL_STEP_PARAMETER = _export_uuid_parameter(
+    "call_step_uuid",
+    "proposal_protected_calls_workflow_steps_list",
+    "Limit the export to one step of the call's workflow.",
+)
+
+
+def _export_panel(request, call):
+    """The panel ``panel_uuid`` names, refused when the call has none such."""
+    raw = _export_uuid(request, "panel_uuid")
+    if not raw:
+        return None
+    panel = proposal_permissions.export_panel(call, raw)
+    if panel is None:
+        raise exceptions.ValidationError(
+            {"panel_uuid": _("The call has no such panel.")}
+        )
+    return panel
+
+
+def _export_call_step(request, call):
+    """The step ``call_step_uuid`` names, refused when the call has none such."""
+    raw = _export_uuid(request, "call_step_uuid")
+    if not raw:
+        return None
+    step = models.CallWorkflowStep.objects.filter(
+        call=call, uuid=uuid_module.UUID(raw).hex
+    ).first()
+    if step is None:
+        raise exceptions.ValidationError(
+            {"call_step_uuid": _("The call has no such step.")}
+        )
+    return step
+
+
 _EXPORT_FILE_FORMATS = ("csv", "xlsx")
 
 _EXPORT_FILE_FORMAT_PARAMETER = OpenApiParameter(
@@ -2048,6 +2090,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             _EXPORT_APPLICANT_PARAMETER,
             _EXPORT_PROPOSAL_PARAMETER,
             _EXPORT_NAME_PARAMETER,
+            _EXPORT_PANEL_PARAMETER,
+            _EXPORT_CALL_STEP_PARAMETER,
             _EXPORT_FILE_FORMAT_PARAMETER,
             OpenApiParameter(
                 "proposal_state",
@@ -2072,6 +2116,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             applicant_uuid=_export_uuid(request, "created_by_uuid"),
             proposal_uuids=_export_uuids(request, "proposal_uuid"),
             name=request.query_params.get("proposal_name"),
+            panel=_export_panel(request, call),
+            call_step=_export_call_step(request, call),
         )
         schema = exports.CallExportSchema(call)
         return _export_response(
@@ -2100,6 +2146,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             _EXPORT_REVIEWER_PARAMETER,
             _EXPORT_PROPOSAL_PARAMETER,
             _EXPORT_NAME_PARAMETER,
+            _EXPORT_PANEL_PARAMETER,
+            _EXPORT_CALL_STEP_PARAMETER,
             _EXPORT_FILE_FORMAT_PARAMETER,
             OpenApiParameter(
                 "review_state",
@@ -2124,6 +2172,8 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             reviewer_uuid=_export_uuid(request, "reviewer_uuid"),
             proposal_uuids=_export_uuids(request, "proposal_uuid"),
             proposal_name=request.query_params.get("proposal_name"),
+            panel=_export_panel(request, call),
+            call_step=_export_call_step(request, call),
         )
         return _export_response(
             file_format,
@@ -2133,6 +2183,130 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
 
     export_reviews_permissions = export_proposals_permissions
+
+    @extend_schema(
+        operation_id="proposal_protected_calls_export_evaluations",
+        description=(
+            "Download the call's step contributions as CSV or as an Excel "
+            "workbook, one row per proposal and contribution: individual and "
+            "consolidated reports, technical assessments and every other "
+            "contribution to a step, with its outcome, conditions, comment and "
+            "one column per question of the step's form. Open to whoever may "
+            "update the call, and to a panel's chair and members for that "
+            "panel, named in panel_uuid. Each reads only the contributions the "
+            "proposal pages show them: a blind step names its contributors by "
+            "their anonymous label, and a panel member gets no row for a "
+            "proposal they have a conflict of interest with."
+        ),
+        parameters=[
+            _EXPORT_ROUND_PARAMETER,
+            _EXPORT_PANEL_PARAMETER,
+            _EXPORT_CALL_STEP_PARAMETER,
+            _EXPORT_PROPOSAL_PARAMETER,
+            _EXPORT_NAME_PARAMETER,
+            _EXPORT_FILE_FORMAT_PARAMETER,
+        ],
+        responses=_EXPORT_RESPONSES,
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="export-evaluations")
+    def export_evaluations(self, request, uuid=None):
+        call: models.Call = self.get_object()
+        file_format = _export_file_format(request)
+        panel = _export_panel(request, call)
+        call_step = _export_call_step(request, call)
+        viewer = panel_exports.Viewer(request, call)
+        proposals = panel_exports.evaluation_proposals(
+            call,
+            viewer,
+            round_uuid=_export_uuid(request, "round_uuid"),
+            panel=panel,
+            proposal_uuids=_export_uuids(request, "proposal_uuid"),
+            proposal_name=request.query_params.get("proposal_name"),
+        )
+        basename = f"{call.slug}-evaluations"
+        if panel is not None:
+            basename = f"{call.slug}-{panel.key}-evaluations"
+        return _export_response(
+            file_format,
+            panel_exports.evaluation_rows(viewer, call, proposals, call_step),
+            basename,
+            "Evaluations",
+        )
+
+    export_evaluations_permissions = [proposal_permissions.can_export_panel_evaluations]
+
+    @extend_schema(
+        operation_id="proposal_protected_calls_export_panel_sheet",
+        description=(
+            "Download a panel's evaluation sheet: one row per proposal routed "
+            "to the panel, with the amounts it requests, its review scores and "
+            "their average per criterion, the outcome of each assessment step "
+            "and the technical assessment of each requested offering. CSV or "
+            "Excel for one panel, named in panel_uuid; an Excel workbook "
+            "without panel_uuid holds one sheet per panel of the call. Open to "
+            "whoever may update the call, and to a panel's chair and members "
+            "for that panel, who read in it what the proposal pages show them."
+        ),
+        parameters=[
+            _EXPORT_PANEL_PARAMETER,
+            _EXPORT_ROUND_PARAMETER,
+            _EXPORT_FILE_FORMAT_PARAMETER,
+        ],
+        responses=_EXPORT_RESPONSES,
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="export-panel-sheet")
+    def export_panel_sheet(self, request, uuid=None):
+        call: models.Call = self.get_object()
+        file_format = _export_file_format(request)
+        panel = _export_panel(request, call)
+        round_uuid = _export_uuid(request, "round_uuid")
+        viewer = panel_exports.Viewer(request, call)
+        schema = panel_exports.PanelSheetSchema(call)
+        if panel is not None:
+            return _export_response(
+                file_format,
+                panel_exports.panel_sheet_rows(
+                    schema,
+                    viewer,
+                    panel_exports.panel_proposals(call, viewer, panel, round_uuid),
+                ),
+                f"{call.slug}-{panel.key}-panel-sheet",
+                panel.name,
+            )
+        if file_format != "xlsx":
+            raise exceptions.ValidationError(
+                {
+                    "panel_uuid": _(
+                        "Name a panel: a CSV file holds one panel's sheet. An "
+                        "Excel workbook holds one sheet per panel."
+                    )
+                }
+            )
+        call_panels = list(call.panels.order_by("order", "id"))
+        if not call_panels:
+            raise exceptions.ValidationError(
+                {"panel_uuid": _("The call has no panels.")}
+            )
+        return exports.xlsx_workbook_response(
+            [
+                (
+                    call_panel.name,
+                    panel_exports.panel_sheet_rows(
+                        schema,
+                        viewer,
+                        panel_exports.panel_proposals(
+                            call, viewer, call_panel, round_uuid
+                        ),
+                    ),
+                )
+                for call_panel in call_panels
+            ],
+            f"{call.slug}-panel-sheets.xlsx",
+        )
+
+    export_panel_sheet_permissions = export_evaluations_permissions
 
     @extend_schema(
         operation_id="proposal_protected_calls_duplicate",
