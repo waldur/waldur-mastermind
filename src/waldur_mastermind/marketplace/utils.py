@@ -2604,8 +2604,22 @@ _USAGE_LIMIT_EVENT_TYPES = {
 }
 
 
-def _emit_usage_limit_event(resource, flag, applied, reached=None):
-    if applied and reached:
+def _emit_usage_limit_event(
+    resource, flag, applied, reached=None, opted_out=False, switched=False
+):
+    if switched:
+        message = (
+            "Resource {resource_name} has been "
+            + ("unpaused" if flag == "paused" else "restored from downscaling")
+            + " because its offering switched its action on usage limit."
+        )
+    elif opted_out:
+        message = (
+            "Resource {resource_name} has been "
+            + ("unpaused" if flag == "paused" else "restored from downscaling")
+            + " because its offering no longer acts on usage limits."
+        )
+    elif applied and reached:
         message = (
             "Resource {resource_name} has been "
             + ("paused" if flag == "paused" else "downscaled")
@@ -2648,32 +2662,40 @@ def evaluate_usage_limit_restriction(resource):
     component reaches or exceeds that component's ``limit_amount``, the matching
     flag (``paused`` or ``downscaled``) is set; when usage falls back below every
     limit, a restriction previously applied here is lifted. A restriction
-    applied by hand is never touched, and a pause the grace period or a cost
-    policy holds is never lifted here — tracked via
+    applied by hand is never touched, and a pause or downscale that the grace
+    period or a policy holds is never lifted here — tracked via
     ``Resource.usage_limit_restriction``.
 
     A reached spending limit of a usage-based component restricts the resource
     the same way. While spending limits alone hold the restriction,
     ``Resource.usage_limit_resumes_at`` is when they have all reset.
+
+    A restriction applied here is lifted once the offering stops acting on
+    usage limits, and moved to the new flag once it switches action.
     """
-    offering = resource.offering
-    action = offering.plugin_options.get("action_on_usage_limit")
-    if action not in UsageLimitAction.FLAG:
-        return
     if resource.state in (
         ResourceStates.TERMINATING,
         ResourceStates.TERMINATED,
     ):
         return
-
-    flag = UsageLimitAction.FLAG[action]
+    if (
+        usage_limit_flag(resource.offering.plugin_options) is None
+        and not resource.usage_limit_restriction
+    ):
+        return
 
     with transaction.atomic():
         locked = models.Resource.objects.select_for_update().get(pk=resource.pk)
-        # Decided from the locked row: the caller's copy may predate a limit
-        # change (a task loaded before set_spending_limits committed).
-        limit_over = is_usage_over_limit_component_limit(locked)
-        reached = spending_limits.reached_limits(locked)
+        # The action is read with the locked row: an evaluation scheduled by an
+        # action change waits for one that read the previous action.
+        flag = usage_limit_flag(locked.offering.plugin_options)
+        if flag is None:
+            limit_over, reached = False, []
+        else:
+            # Decided from the locked row: the caller's copy may predate a limit
+            # change (a task loaded before set_spending_limits committed).
+            limit_over = is_usage_over_limit_component_limit(locked)
+            reached = spending_limits.reached_limits(locked)
         over_limit = limit_over or bool(reached)
         # Only spending limits have a known reset to wait for; a limit-based
         # component's restriction lifts on the hourly re-evaluation.
@@ -2683,23 +2705,35 @@ def evaluate_usage_limit_restriction(resource):
             over_limit
             and not locked.usage_limit_restriction
             and getattr(locked, flag)
-            and not _automatic_pause_holds(locked, flag)
+            and not _automatic_flag_holds(locked, flag)
         ):
             # Already restricted by hand. Marking it would make the automatic
             # lift, which runs at every daily reset, undo that restriction.
-            # A pause the grace period or a cost policy holds is marked: the
-            # lift below leaves it to them, and their own release then keeps
-            # the resource paused while it is over the limit.
+            # A pause the grace period holds, or a flag a policy holds, is
+            # marked: the lift below leaves it to them, and their own release
+            # then keeps the flag set while the resource is over the limit.
             return
         if over_limit and locked.usage_limit_restriction != flag:
-            update_fields = {flag, "usage_limit_restriction", "usage_limit_resumes_at"}
+            update_fields = {"usage_limit_restriction", "usage_limit_resumes_at"}
             stale = locked.usage_limit_restriction
-            if stale and stale != flag:
+            if stale:
                 # Offering switched action while a resource carried the old
                 # restriction (e.g. pause -> downscale): clear the old flag.
+                if _flag_held_elsewhere(locked, stale):
+                    # Kept until nothing else holds it; the periodic
+                    # re-evaluation then makes the switch.
+                    return
                 setattr(locked, stale, False)
                 update_fields.add(stale)
-                _emit_usage_limit_event(locked, stale, applied=False)
+                _emit_usage_limit_event(locked, stale, applied=False, switched=True)
+                if getattr(locked, flag) and not _automatic_flag_holds(locked, flag):
+                    # The new flag was set by hand. Marking it would make the
+                    # automatic lift undo that restriction.
+                    locked.usage_limit_restriction = ""
+                    locked.usage_limit_resumes_at = None
+                    locked.save(update_fields=list(update_fields))
+                    return
+            update_fields.add(flag)
             setattr(locked, flag, True)
             locked.usage_limit_restriction = flag
             locked.usage_limit_resumes_at = resumes_at
@@ -2712,48 +2746,70 @@ def evaluate_usage_limit_restriction(resource):
                 # Still restricted, by other limits or until a later reset.
                 locked.usage_limit_resumes_at = resumes_at
                 locked.save(update_fields=["usage_limit_resumes_at"])
-        elif locked.usage_limit_restriction == flag:
-            if flag == "paused" and (
-                is_held_by_project_grace(locked)
-                or any(keeper(locked) for keeper in PAUSE_KEEPERS)
-            ):
-                # The project grace period or a registered keeper (a cost
-                # policy that fired after the limit paused the resource) still
-                # wants it paused. The restriction is kept, so the periodic
+        elif locked.usage_limit_restriction:
+            # Lifted under the flag it was applied with, which differs from
+            # ``flag`` once the offering has switched or dropped its action.
+            stale = locked.usage_limit_restriction
+            if _flag_held_elsewhere(locked, stale):
+                # The project grace period or a registered keeper (a policy
+                # that fired after the limit restricted the resource) still
+                # wants it restricted. The restriction is kept, so the periodic
                 # re-evaluation lifts it once nothing else holds the resource.
                 if locked.usage_limit_resumes_at is not None:
                     locked.usage_limit_resumes_at = None
                     locked.save(update_fields=["usage_limit_resumes_at"])
                 return
-            setattr(locked, flag, False)
+            setattr(locked, stale, False)
             locked.usage_limit_restriction = ""
             locked.usage_limit_resumes_at = None
             locked.save(
                 update_fields=[
-                    flag,
+                    stale,
                     "usage_limit_restriction",
                     "usage_limit_resumes_at",
                 ]
             )
-            _emit_usage_limit_event(locked, flag, applied=False)
+            _emit_usage_limit_event(
+                locked, stale, applied=False, opted_out=flag is None
+            )
         elif locked.usage_limit_resumes_at is not None:
             locked.usage_limit_resumes_at = None
             locked.save(update_fields=["usage_limit_resumes_at"])
 
 
-def _automatic_pause_holds(resource, flag) -> bool:
-    """Whether the grace period or a registered keeper set ``resource``'s pause.
+def usage_limit_flag(plugin_options) -> str | None:
+    """The resource flag an offering's action on usage limit sets, or None."""
+    return UsageLimitAction.FLAG.get(
+        (plugin_options or {}).get("action_on_usage_limit")
+    )
 
-    Such a pause is lifted by its own mechanism, which leaves the resource
-    paused while a usage-limit restriction is marked on it. The grace period is
+
+def _flag_held_elsewhere(resource, flag) -> bool:
+    """Whether the project grace period or a registered keeper wants ``flag`` set.
+
+    Such policies leave a flag to the usage limit while it is marked on the
+    resource, so the usage limit does not clear the flag while they want it.
+    """
+    if flag == "paused":
+        return is_held_by_project_grace(resource) or any(
+            keeper(resource) for keeper in PAUSE_KEEPERS
+        )
+    return any(keeper(resource) for keeper in DOWNSCALE_KEEPERS)
+
+
+def _automatic_flag_holds(resource, flag) -> bool:
+    """Whether the grace period or a registered keeper set ``resource``'s ``flag``.
+
+    Such a flag is lifted by its own mechanism, which leaves it set while a
+    usage-limit restriction is marked on the resource. The grace period is
     known by its marker rather than by the project's state, so a pause set by
     hand during the grace period still counts as manual.
     """
-    if flag != "paused":
-        return False
-    return resource.paused_by_grace_period or any(
-        keeper(resource) for keeper in PAUSE_KEEPERS
-    )
+    if flag == "paused":
+        return resource.paused_by_grace_period or any(
+            keeper(resource) for keeper in PAUSE_KEEPERS
+        )
+    return any(keeper(resource) for keeper in DOWNSCALE_KEEPERS)
 
 
 def is_held_by_project_grace(resource) -> bool:

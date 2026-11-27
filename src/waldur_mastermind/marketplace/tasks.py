@@ -118,12 +118,14 @@ def re_evaluate_usage_limit_restrictions():
     usage is reported, this periodic task re-evaluates every currently restricted
     resource so month/quarter/annual restrictions clear on rollover. ``total``
     restrictions never roll over and are only lifted when the limit is raised.
+    Resources of offerings that no longer act on usage limits are included, so
+    a restriction the grace period or a policy kept past that change is lifted
+    once nothing holds it.
     """
-    restricted = models.Resource.objects.exclude(usage_limit_restriction="").filter(
-        offering__plugin_options__action_on_usage_limit__in=(
-            UsageLimitAction.PAUSE,
-            UsageLimitAction.DOWNSCALE,
-        )
+    restricted = (
+        models.Resource.objects.exclude(usage_limit_restriction="")
+        .exclude(state__in=(ResourceStates.TERMINATING, ResourceStates.TERMINATED))
+        .select_related("offering", "project")
     )
     for resource in restricted:
         evaluate_usage_limit_restriction(resource)

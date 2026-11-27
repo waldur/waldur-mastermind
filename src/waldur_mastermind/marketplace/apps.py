@@ -139,6 +139,13 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.evaluate_usage_limit_on_action_change,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "evaluate_usage_limit_on_action_change",
+        )
+
+        signals.post_save.connect(
             handlers.evaluate_usage_limit_on_resource_limit_change,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace."
