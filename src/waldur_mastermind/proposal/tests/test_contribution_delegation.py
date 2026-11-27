@@ -22,6 +22,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.proposal import call_transfer, models, my_tasks, tasks, utils
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     ChangeRequestResolutions,
     ContributionOutcomes,
     ContributorSources,
@@ -427,6 +428,20 @@ class TechnicalReviewerRoleTest(
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.slot.refresh_from_db()
         self.assertIsNone(self.slot.delegate)
+
+    def test_a_pending_delegate_answers_nothing_on_an_archived_call(self):
+        self.delegate(self.manager_a, self.slot, self.reviewer)
+        models.Call.objects.filter(id=self.proposal.round.call_id).update(
+            state=CallStates.ARCHIVED
+        )
+        for answer in (self.accept, self.decline):
+            response = answer(self.reviewer, self.slot)
+            self.assertEqual(
+                response.status_code, status.HTTP_409_CONFLICT, response.data
+            )
+            self.assertEqual(response.data["detail"], "The call is archived.")
+        self.slot.refresh_from_db()
+        self.assertEqual(self.slot.delegate, self.reviewer)
 
     def test_nobody_else_answers_through_the_back_door(self):
         self.delegate(self.manager_a, self.slot, self.reviewer)

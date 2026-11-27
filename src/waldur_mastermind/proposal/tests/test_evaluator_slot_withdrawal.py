@@ -28,6 +28,7 @@ from waldur_mastermind.proposal import (
 )
 from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     COIStatuses,
     ContributorSources,
     OutcomeSets,
@@ -219,6 +220,30 @@ class EvaluatorSlotWithdrawalTest(EvaluatorRoleTestMixin, test.APITestCase):
             self.step_state(),
             (WorkflowStepInstanceStatuses.COMPLETED, WorkflowStepOutcomes.FEASIBLE),
         )
+
+    def test_a_slot_withdrawn_while_archived_completes_the_step_on_activation(self):
+        response = self.submit_contribution(self.second, "accepted")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        models.Call.objects.filter(pk=self.call.pk).update(state=CallStates.ARCHIVED)
+        # The last open slot ends while the call stands still: nothing moves.
+        models.ProposalRoleAssignment.objects.filter(user=self.first).update(
+            is_lead=False, revoked_at=self.instance.created
+        )
+        workflow_service.settle_evaluator_slots(self.proposal, self.first)
+        self.assertEqual(self.slot_of(self.first).status, Statuses.EXPIRED)
+        self.assertEqual(self.step_state()[0], WorkflowStepInstanceStatuses.ACTIVE)
+
+        # Activated again, what the contributions decided is carried out.
+        models.Call.objects.filter(pk=self.call.pk).update(state=CallStates.ACTIVE)
+        resumed = workflow_service.resume_after_archive(self.call)
+        self.assertEqual([proposal.pk for proposal, _ in resumed], [self.proposal.pk])
+        self.assertEqual(
+            self.step_state(),
+            (WorkflowStepInstanceStatuses.COMPLETED, WorkflowStepOutcomes.FEASIBLE),
+        )
+        # Completed by who submitted the last contribution, as it would have
+        # been, and logged as carried on.
+        self.assertEqual(self.instance.completed_by, self.second)
 
     def test_a_holder_revoked_behind_the_api_cannot_fill_their_slot(self):
         models.ProposalRoleAssignment.objects.filter(user=self.first).update(

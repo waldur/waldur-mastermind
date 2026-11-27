@@ -17,6 +17,7 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.proposal import (
     activity,
+    archive,
     budgets,
     change_requests,
     contributions,
@@ -33,6 +34,7 @@ from waldur_mastermind.proposal import (
     permissions as proposal_permissions,
 )
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     ChangeRequestResolutions,
     ContributorSources,
     NotificationRuleTriggers,
@@ -601,6 +603,7 @@ def complete_step(
     ``on_negative`` says -- unless it says ``continue``: then the step is
     completed with its negative outcome and the proposal goes on to the next.
     """
+    archive.refuse_step(proposal, current_instance)
     call_step = current_instance.call_step
     enforce_completion_gates(proposal, current_instance, outcome)
     if (
@@ -1033,6 +1036,16 @@ def complete_from_contributions(proposal, instance, completed_by):
     and the step's row locks inside a transaction.
     """
     call_step = instance.call_step
+    # An archived call's steps stand still, whatever left them to their
+    # contributions -- a role revoked, a conflict settled. Marked, so that
+    # the activation carries on exactly these (``resume_after_archive``).
+    if archive.freezes_step(proposal, instance):
+        if (
+            call_step.derives_outcome
+            and instance.status == WorkflowStepInstanceStatuses.ACTIVE
+        ):
+            _mark(instance, HELD_WHILE_ARCHIVED_KEY)
+        return False, None
     if (
         not call_step.derives_outcome
         or call_step.round_scoped
@@ -1064,6 +1077,173 @@ def complete_from_contributions(proposal, instance, completed_by):
         )
         return False, None
     return True, next_instance
+
+
+# Recorded on a step completed in an archived call whose next stage the
+# archive did not let the proposal enter (``_park_while_archived``).
+PARKED_WHILE_ARCHIVED_KEY = "parked_while_archived"
+# Recorded on a step whose contributions would have decided it while its
+# call was archived (``complete_from_contributions``).
+HELD_WHILE_ARCHIVED_KEY = "held_while_archived"
+
+
+def _mark(instance, key):
+    """Record ``key`` in the step's ledger, once."""
+    if key in (instance.sent_notifications or []):
+        return
+    instance.sent_notifications = [*(instance.sent_notifications or []), key]
+    instance.save(update_fields=["sent_notifications"])
+
+
+def _unmark(instance, key):
+    instance.sent_notifications = [
+        k for k in (instance.sent_notifications or []) if k != key
+    ]
+    instance.save(update_fields=["sent_notifications"])
+
+
+def is_parked_while_archived(proposal) -> bool:
+    """Whether the proposal waits for its call's activation to enter its
+    next stage."""
+    return bool(
+        proposal.current_step_id
+        and models.ProposalWorkflowStepInstance.objects.filter(
+            pk=proposal.current_step_id,
+            sent_notifications__contains=[PARKED_WHILE_ARCHIVED_KEY],
+        ).exists()
+    )
+
+
+def _park_while_archived(proposal, from_instance, members) -> bool:
+    """Leave the proposal at ``from_instance`` instead of entering a stage
+    an archived call stands still (an evaluation step after the award
+    response, say): it is entered once the call is active again
+    (``resume_after_archive``). True if it was parked."""
+    if not archive.freezes_stage(proposal, members):
+        return False
+    _mark(from_instance, PARKED_WHILE_ARCHIVED_KEY)
+    if proposal.current_step_id != from_instance.pk:
+        proposal.current_step = from_instance
+        proposal.save(update_fields=["current_step"])
+    return True
+
+
+def _last_contributor(instance):
+    """Who submitted the step's last counted contribution: the completer of
+    a step its contributions decide. The system, when nobody did."""
+    contribution = (
+        instance.contributions.filter(status=StepContributionStatuses.SUBMITTED)
+        .exclude(submitted_at=None)
+        .select_related("delegate", "contributor")
+        .order_by("-submitted_at", "-pk")
+        .first()
+    )
+    if contribution is None:
+        return get_system_robot()
+    return contribution.delegate or contribution.contributor or get_system_robot()
+
+
+def _log_resumed(proposal, instance):
+    event_logger.emit(
+        activity.worded(
+            "Step {step_name} of proposal {proposal_name} was carried on when "
+            "its call was active again."
+        ),
+        event_type=EventType.PROPOSAL_WORKFLOW_ADVANCED,
+        event_context={
+            "proposal": proposal,
+            "step_name": instance.call_step.name or instance.call_step.key,
+        },
+    )
+
+
+def resume_after_archive(call=None):
+    """Carry on the work an archived call left standing, now that it is
+    active: ``call``'s, or -- run periodically, so it also heals -- every
+    active call's.
+
+    - A step whose contributions would have decided it while archived (its
+      last open slot ended -- a role revoked, a conflict settled), which
+      ``complete_from_contributions`` marked instead of completing: offered
+      to it again now, completed by who submitted the last contribution.
+    - A proposal the archive kept from entering its next stage
+      (``_park_while_archived``): it enters it now.
+
+    One transaction per proposal; a proposal that fails is logged and left
+    for the next run. Returns ``[(proposal, next_instance)]`` for the steps
+    completed or moved past.
+    """
+    calls = models.Call.objects.filter(state=CallStates.ACTIVE)
+    if call is not None:
+        calls = calls.filter(pk=call.pk)
+    instances = models.ProposalWorkflowStepInstance.objects.filter(
+        proposal__round__call__in=calls,
+        proposal__decision_held=False,
+    )
+    # Only what the archive held back: a step whose gate a manager changed
+    # on a call never archived is not decided behind anyone's back.
+    decided = list(
+        instances.filter(sent_notifications__contains=[HELD_WHILE_ARCHIVED_KEY])
+        .order_by("proposal_id", "pk")
+        .values_list("pk", "proposal_id")
+    )
+    parked = list(
+        instances.filter(sent_notifications__contains=[PARKED_WHILE_ARCHIVED_KEY])
+        .order_by("proposal_id", "pk")
+        .values_list("pk", "proposal_id")
+    )
+    resumed = []
+    for instance_id, proposal_id in decided:
+        try:
+            with transaction.atomic():
+                proposal = models.Proposal.objects.select_for_update(of=("self",)).get(
+                    pk=proposal_id
+                )
+                instance = (
+                    models.ProposalWorkflowStepInstance.objects.select_for_update(
+                        of=("self",)
+                    )
+                    .select_related("call_step")
+                    .get(pk=instance_id)
+                )
+                _unmark(instance, HELD_WHILE_ARCHIVED_KEY)
+                done, after = complete_from_contributions(
+                    proposal, instance, _last_contributor(instance)
+                )
+                if done:
+                    _log_resumed(proposal, instance)
+                    resumed.append((proposal, after))
+        except Exception:
+            logger.exception(
+                "Failed to carry on step instance id=%s after its call's archive",
+                instance_id,
+            )
+    for instance_id, proposal_id in parked:
+        try:
+            with transaction.atomic():
+                proposal = models.Proposal.objects.select_for_update(of=("self",)).get(
+                    pk=proposal_id
+                )
+                instance = (
+                    models.ProposalWorkflowStepInstance.objects.select_for_update(
+                        of=("self",)
+                    )
+                    .select_related("call_step", "run")
+                    .get(pk=instance_id)
+                )
+                _unmark(instance, PARKED_WHILE_ARCHIVED_KEY)
+                if proposal.current_step_id != instance.pk:
+                    # It moved on meanwhile.
+                    continue
+                after = _advance_to_next(proposal, instance)
+                _log_resumed(proposal, instance)
+                resumed.append((proposal, after))
+        except Exception:
+            logger.exception(
+                "Failed to move proposal id=%s on after its call's archive",
+                proposal_id,
+            )
+    return resumed
 
 
 def settle_evaluator_slots(proposal, user, acted_by=None):
@@ -1173,6 +1353,12 @@ def _advance_to_next(proposal, from_instance, acting_user=None):
     already exists and allocation is skipped (``_award_approver``).
     """
     members = _next_stage(proposal, from_instance)
+    if (
+        members
+        and from_instance is not None
+        and _park_while_archived(proposal, from_instance, members)
+    ):
+        return None
     if not members and from_instance is not None and from_instance.run_id:
         # The end of a post-award run: granted, or the report accepted.
         # Nothing is allocated; the proposal is accepted already.
@@ -1315,6 +1501,7 @@ def advance_step(proposal, acting_user=None):
     approver recorded is the allocation decision's completer, or the advancer
     when there is none (``_award_approver``).
     """
+    archive.refuse_step(proposal, proposal.current_step)
     if proposal.decision_held:
         raise ValueError(
             "The decision is held until the round's results are published."
@@ -1333,6 +1520,7 @@ def reject_at_step(proposal, current_instance, reason, completed_by, internal_no
     ``internal_notes`` is appended to any pre-existing internal notes on the
     instance; see ``complete_step`` for the rationale.
     """
+    archive.refuse_step(proposal, current_instance)
     current_instance.status = WorkflowStepInstanceStatuses.COMPLETED
     current_instance.outcome = WorkflowStepOutcomes.REJECTED
     current_instance.outcome_reason = reason
@@ -1581,6 +1769,8 @@ def _continue_after_expiry(proposal, instance):
         proposal.current_step = None
         proposal.save(update_fields=["state", "current_step"])
         return None, True
+    if _park_while_archived(proposal, instance, members):
+        return None, False
 
     return _enter_stage(proposal, members), False
 

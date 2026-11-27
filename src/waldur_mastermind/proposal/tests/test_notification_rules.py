@@ -347,6 +347,17 @@ class NotificationRuleDeliveryTest(NotificationRuleDeliveryTestBase):
         self.instance.refresh_from_db()
         self.assertIn("deadline_approaching:2", self.instance.sent_notifications)
 
+    def test_deadline_reminder_skips_an_archived_call(self):
+        self._rule("deadline_approaching", "call_managers", days_before=2)
+        self.instance.deadline = timezone.now() + timedelta(days=2)
+        self.instance.save()
+        self.call.state = CallStates.ARCHIVED
+        self.call.save(update_fields=["state"])
+        self.assertEqual(tasks.send_workflow_step_deadline_reminders(), 0)
+        self.assertEqual(len(mail.outbox), 0)
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.sent_notifications, [])
+
     def test_deadline_reminder_skips_other_days(self):
         self._rule("deadline_approaching", "call_managers", days_before=1)
         self.instance.deadline = timezone.now() + timedelta(days=4)

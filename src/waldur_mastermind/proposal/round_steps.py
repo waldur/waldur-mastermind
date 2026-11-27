@@ -31,6 +31,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_mastermind.proposal import (
+    archive,
     models,
     rankings,
     round_lifecycle,
@@ -436,6 +437,7 @@ def submit_report(note, user):
     covered proposal whose reports are all in has its assessment step
     completed (``complete_covered``). Returns ``(note, completed, failed)``.
     """
+    archive.refuse(note)
     with transaction.atomic():
         note = _lock_report(note)
         if not note.is_report:
@@ -482,6 +484,7 @@ def reopen_report(note, user):
     """Hand a submitted round report back to its author, for the call's
     managers: while the round step is open and proposals stand at it, so
     that a proposal arriving after the report was submitted joins it."""
+    archive.refuse(note)
     with transaction.atomic():
         note = _lock_report(note)
         if not note.is_report:
@@ -574,7 +577,12 @@ def complete_covered(note, user):
     a report covering it. Returns ``(completed, failed)``.
     """
     call_step = note.call_step
-    if not completes_by_reports(call_step) or note.submitted_at is None:
+    if (
+        not completes_by_reports(call_step)
+        or note.submitted_at is None
+        # An archived call's proposals stay at the step.
+        or archive.is_archived_object(note)
+    ):
         return [], []
     proposal_ids = list(note.proposals.order_by("pk").values_list("pk", flat=True))
     completed, _skipped, failed = _for_each(

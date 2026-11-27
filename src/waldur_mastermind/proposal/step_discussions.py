@@ -40,6 +40,7 @@ from waldur_mastermind.matrix_chat import matrix_client, room_provisioning
 from waldur_mastermind.matrix_chat import models as matrix_models
 from waldur_mastermind.matrix_chat import tasks as matrix_tasks
 from waldur_mastermind.proposal import (
+    archive,
     contributions,
     dry_run_context,
     models,
@@ -52,6 +53,7 @@ from waldur_mastermind.proposal import (
 )
 from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     ContributorSources,
     ProposalStates,
     RequestedOfferingStates,
@@ -1284,6 +1286,13 @@ def open_discussion(user, proposal_step=None, round_step=None, panel=None):
             _lock_running(round_step, panel)
         discussion = find(proposal_step, round_step, panel)
         check_open(user, proposal_step, round_step, panel, discussion)
+        # After the checks on who takes part: a stranger learns nothing of
+        # the call. An archived call's evaluation gets no discussion; its
+        # award stage does, as the stale sweep treats it as live.
+        if proposal_step is not None:
+            archive.refuse_step(proposal_step.proposal, proposal_step)
+        else:
+            archive.refuse(round_step)
         # The first, or a new one once the last closed and the step runs
         # again: the closed one keeps its record, room and export.
         created = False
@@ -1493,6 +1502,13 @@ def stale_ids():
                 | Q(round_step__call_step__has_discussion=False),
             )
         )
+        # An archived call's evaluation discussions stay as they are; its
+        # award stage goes on.
+        .exclude(
+            Q(proposal_step__proposal__round__call__state=CallStates.ARCHIVED)
+            & ~archive.post_award_step_q("proposal_step__call_step")
+        )
+        .exclude(round_step__round__call__state=CallStates.ARCHIVED)
         .order_by("pk")
         .values_list("id", flat=True)
     )

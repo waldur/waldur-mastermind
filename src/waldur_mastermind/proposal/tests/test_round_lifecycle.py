@@ -1624,6 +1624,16 @@ class EvaluationStartsAtTheCutoffTest(test.APITestCase):
         self.round.refresh_from_db()
         self.assertEqual(self.round.lifecycle_state, RoundLifecycleStates.EVALUATING)
 
+    def test_an_archived_calls_round_stays_where_it_is(self):
+        self.end_round()
+        self.call.state = CallStates.ARCHIVED
+        self.call.save(update_fields=["state"])
+
+        tasks.start_evaluation_for_closed_rounds()
+
+        self.round.refresh_from_db()
+        self.assertIsNone(self.round.lifecycle_state)
+
 
 class BackfillTest(test.APITestCase):
     def test_ended_rounds_get_a_lifecycle(self):

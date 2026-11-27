@@ -33,6 +33,7 @@ from waldur_mastermind.proposal import (
     workflow_service,
 )
 from waldur_mastermind.proposal.enums import (
+    CallStates,
     ChangeRequestParts,
     ChangeRequestResolutions,
     ContributionOutcomes,
@@ -477,6 +478,18 @@ class ChangeRequestEditGatesTest(ChangeRequestBase):
 
 
 class ChangeRequestLapseTest(ChangeRequestBase):
+    def test_a_request_of_an_archived_call_does_not_lapse(self):
+        self.request_changes(
+            due_at=(timezone.now() + datetime.timedelta(days=1)).isoformat()
+        )
+        models.ProposalChangeRequest.objects.update(
+            due_at=timezone.now() - datetime.timedelta(minutes=1)
+        )
+        self.call.state = CallStates.ARCHIVED
+        self.call.save(update_fields=["state"])
+        self.assertEqual(tasks.lapse_change_requests(), 0)
+        self.assertIsNone(models.ProposalChangeRequest.objects.get().closed_at)
+
     def test_step_does_not_lapse_while_waiting_on_the_applicant(self):
         self.request_changes()
         self.instance.deadline = timezone.now() - datetime.timedelta(hours=1)

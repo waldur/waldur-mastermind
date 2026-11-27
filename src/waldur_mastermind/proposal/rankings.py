@@ -36,6 +36,7 @@ from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.utils import get_scope_ids, has_permission_on_any_source
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.proposal import (
+    archive,
     contributions,
     managers,
     models,
@@ -303,6 +304,8 @@ def ensure_can_write(user, call_round):
                 "one of its proposals."
             )
         )
+    # Nor while the call is archived: its rounds are read-only too.
+    archive.refuse(call_round)
 
 
 def can_write_ranking(user, call_round, meeting_note=None) -> bool:
@@ -362,6 +365,7 @@ def is_ranking_locked(call_round) -> bool:
 
 
 def ensure_ranking_open(call_round):
+    archive.refuse(call_round)
     if is_ranking_locked(call_round):
         raise exceptions.ValidationError(
             _(

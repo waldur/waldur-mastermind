@@ -21,6 +21,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import (
     activity,
+    archive,
     bulk_decisions,
     change_requests,
     contributions,
@@ -41,6 +42,7 @@ from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal import status_labels as step_status_labels
 from waldur_mastermind.proposal.enums import (
+    AWARD_RESPONSE_KEY,
     REVIEW_SCORE_MAX,
     CallStates,
     ChangeRequestParts,
@@ -154,6 +156,8 @@ def proposals_for_ended_rounds_should_be_cancelled():
     """
     # Only drafts: a proposal submitted before the cutoff is reviewed after it,
     # so submitted and in-review proposals are left to the review workflow.
+    # Drafts of an archived call are cancelled too, though the call is
+    # otherwise read-only: never submitted, they no longer can be.
     date = timezone.now()
     ended_rounds = proposal_models.Round.objects.filter(
         cutoff_time__lt=date, proposal__state=ProposalStates.DRAFT
@@ -280,10 +284,17 @@ def expired_reviews_should_be_cancelled():
     """Cancel reviews past their deadline (``Review.review_end_date``): the
     deadline of the step they contribute to, else the round's review
     duration."""
-    for review in proposal_models.Review.objects.filter(
-        state=proposal_models.Review.States.IN_REVIEW
-    ).select_related(
-        "proposal__round", "assignment_item__batch", "contribution__proposal_step"
+    for review in (
+        proposal_models.Review.objects.filter(
+            state=proposal_models.Review.States.IN_REVIEW
+        )
+        .exclude(
+            # The reviews of an archived call stay as they were.
+            archive.archived_q("proposal__round__call")
+        )
+        .select_related(
+            "proposal__round", "assignment_item__batch", "contribution__proposal_step"
+        )
     ):
         review_end_date = review.review_end_date
         if review_end_date and review_end_date <= timezone.now():
@@ -614,7 +625,7 @@ def send_round_report_reminders():
         due_at__gt=now,
         due_at__lte=now + timedelta(days=max(ROUND_REPORT_REMINDER_DAYS) + 1),
         call_step__round_scoped=True,
-    )
+    ).exclude(archive.archived_q("round__call"))
     for round_step in round_steps:
         due_at = round_step.due_at
         if due_at is None:
@@ -1497,7 +1508,7 @@ def start_held_proposals(call_round=None):
         state=ProposalStates.SUBMITTED,
         round__cutoff_time__lte=now,
         workflow_step_instances__status=WorkflowStepInstanceStatuses.PENDING,
-    )
+    ).exclude(archive.archived_q("round__call"))
     if call_round is not None:
         held = held.filter(round=call_round)
     held_ids = list(
@@ -1574,6 +1585,9 @@ def mark_expired_workflow_steps():
         # A step run once per round ends for the round, by its reports or
         # its managers; its due date does not move proposals on one by one.
         .exclude(call_step__round_scoped=True)
+        # An archived call is read-only: its proposals keep the state they
+        # had, overdue or not.
+        .exclude(archive.frozen_steps_q())
         # A final report past its due date stays to be submitted; its lapse
         # was told once.
         .exclude(sent_notifications__contains=[workflow_service.OVERDUE_LEDGER_KEY])
@@ -1613,6 +1627,7 @@ def mark_expired_workflow_steps():
                             workflow_service.OVERDUE_LEDGER_KEY
                         ]
                     )
+                    .exclude(archive.frozen_steps_q())
                     .first()
                 )
                 if instance is None:
@@ -1682,10 +1697,11 @@ def mark_expired_assignment_batches():
         AssignmentItemStatuses,
     )
 
+    # An archived call's assignments wait as they are.
     expired_batches = proposal_models.AssignmentBatch.objects.filter(
         status=AssignmentBatchStatuses.SENT,
         expires_at__lt=timezone.now(),
-    )
+    ).exclude(archive.archived_q("call"))
 
     count = expired_batches.count()
     if count == 0:
@@ -1796,6 +1812,8 @@ def send_assignment_expiry_reminders():
                 ReviewerPoolInvitationStatuses.ACCEPTED
             ),
         )
+        # An archived call asks nothing of its reviewers.
+        .exclude(archive.archived_q("call"))
         .select_related(
             "call",
             "reviewer_pool_entry",
@@ -1871,17 +1889,21 @@ def notify_managers_of_expired_batches():
     from waldur_mastermind.proposal.enums import AssignmentBatchStatuses
 
     # Get recently expired batches that haven't notified managers
-    batches = proposal_models.AssignmentBatch.objects.filter(
-        status=AssignmentBatchStatuses.EXPIRED,
-        manager_notified=False,
-    ).select_related(
-        "call",
-        "call__manager",
-        "call__manager__customer",
-        "reviewer_pool_entry",
-        "reviewer_pool_entry__reviewer",
-        "reviewer_pool_entry__reviewer__user",
-        "reviewer_pool_entry__invited_user",
+    batches = (
+        proposal_models.AssignmentBatch.objects.filter(
+            status=AssignmentBatchStatuses.EXPIRED,
+            manager_notified=False,
+        )
+        .exclude(archive.archived_q("call"))
+        .select_related(
+            "call",
+            "call__manager",
+            "call__manager__customer",
+            "reviewer_pool_entry",
+            "reviewer_pool_entry__reviewer",
+            "reviewer_pool_entry__reviewer__user",
+            "reviewer_pool_entry__invited_user",
+        )
     )
 
     count = 0
@@ -1929,10 +1951,15 @@ def notify_managers_of_expired_batches():
 @shared_task(name="waldur_mastermind.proposal.mark_expired_reviewer_pool_invitations")
 def mark_expired_reviewer_pool_invitations():
     """Expire pending pool invitations past their date and tell who sent them."""
-    candidates = proposal_models.CallReviewerPool.objects.filter(
-        invitation_status=ReviewerPoolInvitationStatuses.PENDING,
-        invitation_expires_at__lt=timezone.now(),
-    ).select_related("call", "invited_by", "reviewer__user", "invited_user")
+    candidates = (
+        proposal_models.CallReviewerPool.objects.filter(
+            invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+            invitation_expires_at__lt=timezone.now(),
+        )
+        # An archived call's invitations wait as they are, as its other work.
+        .exclude(archive.archived_q("call"))
+        .select_related("call", "invited_by", "reviewer__user", "invited_user")
+    )
 
     count = 0
     for invitation in candidates:
@@ -2567,6 +2594,8 @@ def send_workflow_step_deadline_reminders():
             status=WorkflowStepInstanceStatuses.ACTIVE, deadline__gt=now
         )
         .exclude(call_step__round_scoped=True)
+        # Nothing is due in an archived call.
+        .exclude(archive.frozen_steps_q())
         .select_related("proposal__round__call__manager__customer")
     )
     for instance in instances:
@@ -2614,6 +2643,29 @@ def send_workflow_step_deadline_reminders():
     return sent
 
 
+@shared_task(name="waldur_mastermind.proposal.resume_work_after_archive")
+def resume_work_after_archive(call_uuid=None):
+    """Carry on what an archived call left standing, once it is active again:
+    the call activated, or -- periodically -- every active call, so the work
+    is picked up whatever activated it and whatever failed before
+    (``workflow_service.resume_after_archive``). Tells the applicant of a
+    decision as usual. Returns how many steps were carried on."""
+    call = None
+    if call_uuid is not None:
+        call = proposal_models.Call.objects.filter(uuid=call_uuid).first()
+        if call is None:
+            return 0
+    resumed = workflow_service.resume_after_archive(call)
+    for proposal, next_instance in resumed:
+        try:
+            notify_contribution_decision(proposal, True, next_instance)
+        except Exception:
+            logger.exception(
+                "Failed to tell of the decision on proposal %s", proposal.uuid.hex
+            )
+    return len(resumed)
+
+
 @shared_task(name="waldur_mastermind.proposal.lapse_change_requests")
 def lapse_change_requests():
     """Close the requests for changes to an applicant past their due date.
@@ -2625,6 +2677,8 @@ def lapse_change_requests():
     overdue = list(
         change_requests.open_requests()
         .filter(contribution__isnull=True, due_at__lt=timezone.now())
+        # An archived call's requests wait as they are.
+        .exclude(archive.frozen_steps_q("step_instance__"))
         .values_list("id", "proposal_id", "step_instance_id")
     )
     lapsed = 0
@@ -3025,6 +3079,15 @@ def send_offering_team_digests():
     ):
         offering = requested_offering.offering
         slots = provider_calls.open_team_slots(requested_offering)
+        if requested_offering.call.state == CallStates.ARCHIVED:
+            # An archived call's evaluation is nobody's to do; its award
+            # stage still is.
+            slots = [
+                slot
+                for slot in slots
+                if slot["phase"] in WorkflowPhases.POST_AWARD
+                or slot["step_key"] == AWARD_RESPONSE_KEY
+            ]
         if not slots:
             continue
         created = dict(

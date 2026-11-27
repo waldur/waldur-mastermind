@@ -29,6 +29,7 @@ from waldur_core.configuration import config as constance_config
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core.enums import ReviewStates
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.logging.mixins import LoggableMixin
 from waldur_core.permissions.enums import (
     SYSTEM_ROLE_SCOPES,
@@ -168,6 +169,9 @@ ROUND_STEPS_NEED_CUTOFF_MESSAGE = (
 CALL_NOT_ACTIVE_MESSAGE = _(
     "Call is not active, so the proposal can no longer be submitted."
 )
+
+# An archived call is read-only: its configuration and its proposals alike.
+CALL_ARCHIVED_MESSAGE = _("The call is archived.")
 
 EVALUATION_START_LOCKED_MESSAGE = _(
     "Cannot change when evaluation starts while the call has proposals that "
@@ -7556,6 +7560,9 @@ class AssignmentItem(
         """
         Accept this assignment and create a Review record.
         """
+        # No new review for a proposal of an archived call (archive.py).
+        if self.batch.call.state == CallStates.ARCHIVED:
+            raise IncorrectStateException(CALL_ARCHIVED_MESSAGE)
         if self.status != AssignmentItemStatuses.PENDING:
             raise ValidationError(_("Can only accept pending assignments."))
 
