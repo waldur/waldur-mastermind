@@ -343,6 +343,7 @@ class EventType(StrEnum):
     PROPOSAL_STEP_SKIPPED = "proposal_step_skipped"
     PROPOSAL_STEP_STARTED = "proposal_step_started"
     PROPOSAL_STEP_WITHDRAWN = "proposal_step_withdrawn"
+    PROPOSAL_STEPS_DECIDED_IN_BULK = "proposal_steps_decided_in_bulk"
     PROPOSAL_SUBMITTED = "proposal_submitted"
     PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
     PROPOSAL_WORKFLOW_NOTIFICATION_SENT = "proposal_workflow_notification_sent"
@@ -853,6 +854,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PROPOSAL_STEP_SKIPPED,
         EventType.PROPOSAL_STEP_STARTED,
         EventType.PROPOSAL_STEP_WITHDRAWN,
+        EventType.PROPOSAL_STEPS_DECIDED_IN_BULK,
         EventType.PROPOSAL_SUBMITTED,
         EventType.PROPOSAL_RUN_OPENED,
         EventType.PROPOSAL_RUN_CLOSED,

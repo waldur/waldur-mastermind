@@ -27,6 +27,11 @@ class ProposalExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         return {
+            "resume-stale-bulk-step-decisions": {
+                "task": "waldur_mastermind.proposal.resume_stale_bulk_step_decisions",
+                "schedule": timedelta(minutes=5),
+                "args": (),
+            },
             "proposals-for-ended-rounds-should-be-cancelled": {
                 "task": "waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled",
                 "schedule": timedelta(hours=1),

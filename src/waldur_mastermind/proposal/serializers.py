@@ -83,6 +83,8 @@ from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     BulkRoundCadence,
+    BulkStepDecisionResults,
+    BulkStepDecisionStates,
     CallStates,
     ChangeRequestParts,
     CheckRunStatuses,
@@ -16631,4 +16633,191 @@ def add_call_managing_organization_uuid(sender, fields, **kwargs):
         sender,
         "get_call_managing_organization_uuid",
         get_call_managing_organization_uuid,
+    )
+
+
+class DecideWorkflowStepsSerializer(serializers.Serializer):
+    """One decision step of a call taken for many of its proposals at once."""
+
+    call_step_uuid = serializers.UUIDField(
+        help_text=(
+            "UUID of the call step to decide: a decision step that is neither "
+            "the allocation decision nor completed once per round."
+        ),
+    )
+    outcome = serializers.ChoiceField(
+        choices=WorkflowStepOutcomes.CHOICES,
+        help_text="The outcome every proposal is decided with.",
+    )
+    outcome_reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="Explanation for the outcome, recorded on each proposal.",
+    )
+    proposal_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        max_length=2000,
+        help_text="The proposals of the call to decide the step for.",
+    )
+    dry_run = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text=(
+            "Check every proposal as the run would, and write nothing: the "
+            "result tells which would be decided and why the others would "
+            "be refused."
+        ),
+    )
+
+    def validate(self, attrs):
+        call = self.context["call"]
+        call_step = models.CallWorkflowStep.objects.filter(
+            call=call, uuid=attrs["call_step_uuid"]
+        ).first()
+        if call_step is None:
+            raise serializers.ValidationError(
+                {"call_step_uuid": _("The call has no such step.")}
+            )
+        outcome = attrs["outcome"]
+        if outcome in WorkflowStepOutcomes.SYSTEM_RESERVED:
+            raise serializers.ValidationError(
+                {"outcome": _("This outcome is reserved for the system.")}
+            )
+        if outcome not in call_step.allowed_outcomes:
+            raise serializers.ValidationError(
+                {
+                    "outcome": _("'%(outcome)s' is not an outcome of step %(step)s.")
+                    % {"outcome": outcome, "step": call_step.name or call_step.key}
+                }
+            )
+        attrs["call_step"] = call_step
+        return attrs
+
+
+class BulkStepDecisionResultSerializer(serializers.Serializer):
+    proposal_uuid = serializers.CharField(help_text="The proposal named, as hex.")
+    proposal_name = serializers.CharField(
+        allow_blank=True,
+        help_text=(
+            "Empty for a proposal not found in the call, or one the run's "
+            "user may not act on: of those only the id and the reason are told."
+        ),
+    )
+    status = serializers.ChoiceField(choices=BulkStepDecisionResults.CHOICES)
+    detail = serializers.CharField(
+        help_text="What deciding it did, or why it was refused."
+    )
+    proposal_state = serializers.CharField(allow_blank=True)
+    current_step_name = serializers.CharField(
+        allow_blank=True, help_text="Where the proposal stands now."
+    )
+
+
+class BulkStepDecisionSummarySerializer(serializers.Serializer):
+    """A run deciding one step for many proposals, without its results."""
+
+    uuid = serializers.UUIDField(
+        format="hex",
+        allow_null=True,
+        help_text="Null for a preview decided within the request: nothing is recorded.",
+    )
+    dry_run = serializers.BooleanField(
+        help_text="A preview: nothing is decided, each result tells what would be."
+    )
+    state = serializers.ChoiceField(choices=BulkStepDecisionStates.CHOICES)
+    call_uuid = serializers.UUIDField(source="call.uuid", format="hex")
+    call_name = serializers.CharField(source="call.name")
+    call_step_uuid = serializers.UUIDField(
+        source="call_step.uuid", format="hex", allow_null=True
+    )
+    step_name = serializers.CharField()
+    outcome = serializers.CharField()
+    outcome_reason = serializers.CharField(allow_blank=True)
+    created_by_uuid = serializers.UUIDField(
+        source="created_by.uuid", format="hex", allow_null=True
+    )
+    created_by_name = serializers.CharField(
+        source="created_by.full_name", allow_null=True
+    )
+    total = serializers.IntegerField()
+    processed = serializers.IntegerField()
+    decided_count = serializers.IntegerField()
+    refused_count = serializers.IntegerField()
+    created = serializers.DateTimeField(allow_null=True)
+    modified = serializers.DateTimeField(
+        allow_null=True, help_text="When the run last recorded a proposal."
+    )
+    started_at = serializers.DateTimeField(allow_null=True)
+    completed_at = serializers.DateTimeField(allow_null=True)
+    error_message = serializers.CharField(allow_blank=True)
+
+    def _hidden(self, obj):
+        """The results a reader other than the run's starter does not see --
+        those of the proposals they apply with -- and whether the run's
+        reason is hidden too: when a decision on one of them is held. ``hidden_from`` is set by the
+        caller: the serializers do not import the bulk decision module."""
+        hidden_from = self.context.get("hidden_from")
+        request = self.context.get("request")
+        if hidden_from is None or request is None or obj.uuid is None:
+            return set(), False
+        if obj.created_by_id == request.user.pk:
+            # Their own run: of a proposal they apply with it holds only
+            # the id and that they may not act on it, and the reason is
+            # theirs.
+            return set(), False
+        cache = self.context.setdefault("_hidden", {})
+        if obj.pk not in cache:
+            cache[obj.pk] = hidden_from(request.user, obj)
+        return cache[obj.pk]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        _, held = self._hidden(instance)
+        if held:
+            data["outcome_reason"] = ""
+        return data
+
+
+class BulkStepDecisionSerializer(BulkStepDecisionSummarySerializer):
+    """A run deciding one step for many proposals, or a preview of one,
+    with what came of each proposal in the order named."""
+
+    results = serializers.SerializerMethodField()
+
+    @extend_schema_field(BulkStepDecisionResultSerializer(many=True))
+    def get_results(self, obj):
+        rows = getattr(obj, "preview_results", None)
+        if rows is None:
+            rows = obj.result_rows.order_by("position")
+        hidden, _ = self._hidden(obj)
+        if hidden:
+            rows = [
+                row
+                for row in rows
+                if (
+                    row["proposal_uuid"] if isinstance(row, dict) else row.proposal_uuid
+                )
+                not in hidden
+            ]
+        return BulkStepDecisionResultSerializer(rows, many=True).data
+
+
+class DecidableWorkflowStepsRequestSerializer(serializers.Serializer):
+    proposal_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        max_length=2000,
+        help_text="The selected proposals of the call.",
+    )
+
+
+class DecidableWorkflowStepSerializer(serializers.Serializer):
+    call_step_uuid = serializers.UUIDField(format="hex")
+    step_name = serializers.CharField()
+    allowed_outcomes = serializers.ListField(child=serializers.CharField())
+    proposal_uuids = serializers.ListField(
+        child=serializers.UUIDField(format="hex"),
+        help_text="The selected proposals standing on the step.",
     )

@@ -392,6 +392,7 @@
 - proposal_step_skipped
 - proposal_step_started
 - proposal_step_withdrawn
+- proposal_steps_decided_in_bulk
 - proposal_submitted
 - proposal_workflow_advanced
 - proposal_workflow_notification_sent

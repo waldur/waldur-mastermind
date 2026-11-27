@@ -1058,6 +1058,23 @@ class COIDetectionJobFilter(django_filters.FilterSet):
         fields = []
 
 
+class BulkStepDecisionFilter(django_filters.FilterSet):
+    call_uuid = core_filters.RelatedUUIDFilter(
+        view_name="proposal-public-call-detail", field_name="call__uuid"
+    )
+    state = django_filters.MultipleChoiceFilter(
+        choices=models.BulkStepDecision._meta.get_field("state").choices
+    )
+    dry_run = django_filters.BooleanFilter()
+    # A dialog follows one run in the background by its summary.
+    uuid = django_filters.UUIDFilter()
+    o = django_filters.OrderingFilter(fields=("created", "completed_at", "state"))
+
+    class Meta:
+        model = models.BulkStepDecision
+        fields = []
+
+
 class ReviewerBidFilter(django_filters.FilterSet):
     call_uuid = core_filters.RelatedUUIDFilter(
         view_name="proposal-public-call-detail", field_name="call__uuid"

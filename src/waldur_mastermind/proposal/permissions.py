@@ -1432,7 +1432,17 @@ def completes_round_step(user, call, call_step) -> bool:
     panel chair or vice-chair for a step they complete, or a holder of the
     call role that completes it. Each proposal is checked again when it is
     completed (``user_can_act_on_step``)."""
-    if user is None or user.is_anonymous or not call_step.round_scoped:
+    return call_step.round_scoped and completes_call_step(user, call, call_step)
+
+
+def completes_call_step(user, call, call_step) -> bool:
+    """Whether ``user`` completes ``call_step`` of ``call`` as its completer
+    on the call, without managing the call: the call's panel chair or
+    vice-chair for a step they complete, a holder of the proposal role that
+    completes it on a proposal of the call, or a holder of the call role
+    that completes it. Each proposal is checked again when it is completed
+    (``user_can_act_on_step``)."""
+    if user is None or user.is_anonymous or not user.is_active:
         return False
     role = call_step.completer
     if role == ResponsibleRoles.PANEL_CHAIR:
@@ -1477,6 +1487,51 @@ def can_complete_workflow_step_round(request, view, obj=None):
 
 
 can_complete_workflow_step_round.sources = ["*"]
+
+
+def may_decide_in_bulk(user, call, call_step, staff=False) -> bool:
+    """Whether ``user`` may decide ``call_step`` for many proposals of
+    ``call`` at once: acting as staff, driving the call's proposals through
+    its workflow (``manages_call_workflow``), or completing the step on the
+    call as its completer (``completes_call_step``). Each proposal is
+    checked again when it is decided, as on its own page."""
+    if user is None or user.is_anonymous or not user.is_active:
+        return False
+    return (
+        staff
+        or manages_call_workflow(user, call)
+        or (call_step is not None and completes_call_step(user, call, call_step))
+    )
+
+
+def can_decide_workflow_steps_in_bulk(request, view, obj=None):
+    """Users with the staff flag, the call's managers and organisers who
+    decide its proposals (CALL.APPROVE_AND_REJECT_PROPOSALS on its managing
+    organisation), and the completer of the named step on the call (its
+    panel chair, or a holder of the call or proposal role that completes
+    it) decide a step for many proposals at once. Each proposal is then
+    checked as complete_workflow_step checks it."""
+    if obj is None:
+        return
+    data = request.data if hasattr(request.data, "get") else {}
+    step_uuid = parse_step_uuid(data.get("call_step_uuid"))
+    call_step = (
+        proposal_models.CallWorkflowStep.objects.filter(
+            call=obj, uuid=step_uuid
+        ).first()
+        if step_uuid is not None
+        else None
+    )
+    if not may_decide_in_bulk(
+        request.user, obj, call_step, staff=has_staff_access(request)
+    ):
+        raise exceptions.PermissionDenied(
+            "Only the call's managers, or the completer of the step, decide "
+            "a step for many proposals at once."
+        )
+
+
+can_decide_workflow_steps_in_bulk.sources = ["*"]
 
 
 def can_advance_workflow_step(request, view, obj=None):

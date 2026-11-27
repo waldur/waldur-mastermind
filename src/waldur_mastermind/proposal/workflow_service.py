@@ -602,11 +602,7 @@ def complete_step(
     completed with its negative outcome and the proposal goes on to the next.
     """
     call_step = current_instance.call_step
-    _enforce_no_open_change_request(current_instance)
-    _enforce_run_request(current_instance)
-    _enforce_derived_outcome(current_instance, outcome, call_step)
-    _enforce_step_gates(proposal, current_instance, outcome, call_step)
-    _enforce_award_amounts(proposal, current_instance, outcome)
+    enforce_completion_gates(proposal, current_instance, outcome)
     if (
         current_instance.is_allocation_decision
         and outcome not in WorkflowStepOutcomes.NEGATIVE_OUTCOMES
@@ -701,6 +697,23 @@ def complete_step(
         return None
 
     return _advance_to_next(proposal, current_instance, acting_user=completed_by)
+
+
+def enforce_completion_gates(proposal, current_instance, outcome):
+    """Raise ``ValueError`` when completing the active step ``current_instance``
+    with ``outcome`` would be refused by its gates, the budgets aside. Writes
+    nothing.
+
+    ``complete_step`` checks these first, before it writes; a preview of a
+    completion (``bulk_decisions``, dry run) checks the same, so it refuses
+    exactly what the completion would.
+    """
+    call_step = current_instance.call_step
+    _enforce_no_open_change_request(current_instance)
+    _enforce_run_request(current_instance)
+    _enforce_derived_outcome(current_instance, outcome, call_step)
+    _enforce_step_gates(proposal, current_instance, outcome, call_step)
+    _enforce_award_amounts(proposal, current_instance, outcome)
 
 
 def check_approval_gates(proposal, instance):

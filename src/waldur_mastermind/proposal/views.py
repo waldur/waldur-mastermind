@@ -88,6 +88,7 @@ from waldur_mastermind.proposal import (
     applicant_capacity,
     assignments,
     budgets,
+    bulk_decisions,
     call_templates,
     call_transfer,
     change_requests,
@@ -1714,6 +1715,13 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 "staff and support see every form."
             )
         ],
+        # Narrowed in bulk_decisions.decidable_steps to the proposals the
+        # caller may act on, as complete_workflow_step checks it.
+        "decidable_workflow_steps": [
+            access.custom(
+                "Anyone who sees the call, about the selected proposals they see."
+            )
+        ],
         # The kinds are code, the same for every call.
         "workflow_step_kinds": [access.authenticated()],
         "dashboard_stats": [
@@ -1799,6 +1807,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             "detach_documents",
             # Running the call: proposals, reviewers and assignments.
             "notify_proposals",
+            "decide_workflow_steps",
+            # Reads, though posted.
+            "decidable_workflow_steps",
             "compute_affinities",
             "create_manual_assignment",
             "import_assignments",
@@ -3632,6 +3643,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     # that fails is reported and rolled back alone while the rest of the round
     # goes on.
     non_atomic_actions = (
+        "decide_workflow_steps",
         "complete_workflow_step_round",
         "open_workflow_step_round",
         "advance_workflow_step_round",
@@ -5946,6 +5958,157 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             ["*", "manager"],
         )
     ]
+
+    @extend_schema(
+        description=(
+            "Decide one decision step for many proposals of the call at once, "
+            "with one outcome and reason. Each proposal is decided as "
+            "complete_workflow_step decides it on its page -- it must stand on "
+            "the step, the caller must be allowed to act on it, and the step's "
+            "gates must let the outcome through -- each in its own "
+            "transaction, so one refused does not undo the others. Each comes "
+            "back decided, or refused with the reason, in the order named; of "
+            "a proposal the caller may not act on only its id and the reason "
+            "are told. Refused with 403, recording nothing, when the caller "
+            "may act on none of the selected proposals standing on the step, "
+            "and with 400 when none stands on it. With dry_run nothing is "
+            "decided: every proposal is checked as the run would check it. A "
+            f"selection of up to {bulk_decisions.BACKGROUND_THRESHOLD} "
+            "proposals is decided, or previewed, within the request (200; a "
+            "preview is not recorded); a larger one is recorded and run in "
+            "the background (202, state pending): read its progress and "
+            "results from proposal-bulk-step-decisions. A real run is "
+            "recorded with one event on the call. Only a decision step that "
+            "is neither the allocation decision nor completed once per round "
+            "is decided this way."
+        ),
+        request=serializers.DecideWorkflowStepsSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.BulkStepDecisionSerializer,
+            status.HTTP_202_ACCEPTED: serializers.BulkStepDecisionSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def decide_workflow_steps(self, request, uuid=None):
+        call = self.get_object()
+        serializer = serializers.DecideWorkflowStepsSerializer(
+            data=request.data, context={"call": call}
+        )
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        call_step = data["call_step"]
+        refusal = bulk_decisions.bulk_refusal(call_step)
+        if refusal:
+            raise exceptions.ValidationError({"call_step_uuid": refusal})
+        decision = bulk_decisions.Decision(
+            call=call,
+            call_step=call_step,
+            outcome=data["outcome"],
+            outcome_reason=data["outcome_reason"],
+            user=request.user,
+            staff=has_staff_access(request),
+        )
+        proposal_uuids = bulk_decisions.unique_uuids(data["proposal_uuids"])
+        acts, at_step = bulk_decisions.acts_on_any(decision, proposal_uuids)
+        if not acts:
+            if at_step:
+                raise exceptions.PermissionDenied(
+                    _("You may not decide this step for any of the selected proposals.")
+                )
+            raise exceptions.ValidationError(
+                {
+                    "proposal_uuids": _(
+                        "None of the selected proposals stands on this step."
+                    )
+                }
+            )
+        if (
+            data["dry_run"]
+            and len(proposal_uuids) <= bulk_decisions.BACKGROUND_THRESHOLD
+        ):
+            results = bulk_decisions.preview(decision, proposal_uuids)
+            decided = sum(
+                1
+                for entry in results
+                if entry["status"] == proposal_enums.BulkStepDecisionResults.DECIDED
+            )
+            preview = models.BulkStepDecision(
+                call=call,
+                call_step=call_step,
+                step_name=call_step.name or call_step.key,
+                outcome=decision.outcome,
+                outcome_reason=decision.outcome_reason,
+                dry_run=True,
+                created_by=request.user,
+                state=proposal_enums.BulkStepDecisionStates.DONE,
+                total=len(results),
+                processed=len(results),
+                decided_count=decided,
+                refused_count=len(results) - decided,
+            )
+            preview.uuid = None
+            preview.created = preview.modified = None
+            preview.preview_results = results
+            return response.Response(
+                serializers.BulkStepDecisionSerializer(preview).data,
+                status=status.HTTP_200_OK,
+            )
+        run = bulk_decisions.start(decision, proposal_uuids, dry_run=data["dry_run"])
+        return response.Response(
+            serializers.BulkStepDecisionSerializer(
+                run,
+                context={
+                    "request": request,
+                    "hidden_from": bulk_decisions.hidden_from,
+                },
+            ).data,
+            status=(
+                status.HTTP_200_OK
+                if run.state in bulk_decisions.FINISHED
+                else status.HTTP_202_ACCEPTED
+            ),
+        )
+
+    decide_workflow_steps_serializer_class = serializers.DecideWorkflowStepsSerializer
+    decide_workflow_steps_permissions = [
+        proposal_permissions.can_decide_workflow_steps_in_bulk
+    ]
+
+    @extend_schema(
+        description=(
+            "The decision steps the selected proposals of the call stand on "
+            "that decide_workflow_steps takes, each with its outcomes and the "
+            "proposals standing on it that the caller may act on, the largest "
+            "group first. A proposal running steps side by side may stand in "
+            "two groups."
+        ),
+        request=serializers.DecidableWorkflowStepsRequestSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.DecidableWorkflowStepSerializer(many=True)
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def decidable_workflow_steps(self, request, uuid=None):
+        call = self.get_object()
+        serializer = serializers.DecidableWorkflowStepsRequestSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        groups = bulk_decisions.decidable_steps(
+            call,
+            request.user,
+            serializer.validated_data["proposal_uuids"],
+            staff=has_staff_access(request),
+        )
+        return response.Response(
+            serializers.DecidableWorkflowStepSerializer(groups, many=True).data,
+            status=status.HTTP_200_OK,
+        )
+
+    decidable_workflow_steps_serializer_class = (
+        serializers.DecidableWorkflowStepsRequestSerializer
+    )
+    decidable_workflow_steps_permissions = []
 
     @extend_schema(
         description="Email the applicants or the reviewers of selected "
@@ -13272,6 +13435,48 @@ class COIDetectionJobViewSet(ReadOnlyActionsViewSet):
                 )
             )
         ).order_by("-created")
+
+
+class BulkStepDecisionViewSet(ReadOnlyActionsViewSet):
+    """Runs deciding one step for many proposals of a call, and previews of
+    large selections: their progress and, on a run's own page, what was
+    decided or why each proposal was refused."""
+
+    lookup_field = "uuid"
+    queryset = models.BulkStepDecision.objects.all()
+    serializer_class = serializers.BulkStepDecisionSerializer
+    filterset_class = filters.BulkStepDecisionFilter
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_serializer_class(self):
+        # A list is polled while a run goes on: counts only, not results.
+        if self.action == "list":
+            return serializers.BulkStepDecisionSummarySerializer
+        return super().get_serializer_class()
+
+    def get_serializer_context(self):
+        # A reader does not see the results of the proposals they apply with.
+        return {
+            **super().get_serializer_context(),
+            "hidden_from": bulk_decisions.hidden_from,
+        }
+
+    @access.shows(
+        "Users with the staff or support flag see every run. Others see the "
+        "runs of the calls whose proposals they drive through the workflow -- "
+        "as call manager, or holding APPROVE_AND_REJECT_PROPOSALS on the "
+        "call's managing organisation -- and the runs they started while they "
+        "still hold a role on the call; never the results of the proposals "
+        "they apply with."
+    )
+    def get_queryset(self):
+        return bulk_decisions.runs_visible_to(
+            self.request.user,
+            super()
+            .get_queryset()
+            .select_related("call", "call_step", "created_by")
+            .order_by("-created"),
+        )
 
 
 # =============================================================================

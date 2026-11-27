@@ -52,6 +52,7 @@ from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
     AssignmentSources,
+    BulkStepDecisionStates,
     CallStates,
     CheckRunStatuses,
     COISeverityLevels,
@@ -135,6 +136,8 @@ SPECTACULAR_SETTINGS = {
         "ReviewerStandingEnum": ReviewerStandings.CHOICES,
         # When a call step runs; shared by steps, step instances and runs.
         "WorkflowPhaseEnum": WorkflowPhases.CHOICES,
+        # A bulk step decision's state, on a run and on the run list.
+        "BulkStepDecisionStateEnum": BulkStepDecisionStates.CHOICES,
         # A step's discussion, on a proposal's step and on a round step.
         "StepDiscussionStateEnum": StepDiscussionStates.CHOICES,
         # Template checks and a call's scenarios run in the background alike.
