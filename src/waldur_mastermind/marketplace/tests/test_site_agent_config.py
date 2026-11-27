@@ -1543,3 +1543,213 @@ class SiteAgentBootstrapConfigGenerationTest(test.APITestCase):
         self.assertEqual(block, local)
         self.assertIn("backend_settings", block)
         self.assertNotIn("configuration_source", block)
+
+
+@ddt
+class SiteAgentConfigByBackendIdTest(test.APITestCase):
+    """Several offerings of a service provider, selected by backend ID."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        customer = self.fixture.offering_customer
+        self.offerings = {
+            backend_id: factories.OfferingFactory(
+                type=SITE_AGENT_OFFERING,
+                state=OfferingStates.ACTIVE,
+                customer=customer,
+                name=backend_id,
+                backend_id=backend_id,
+            )
+            for backend_id in ("alps-dora-q", "alps-dora-u", "alps-eiger-q")
+        }
+        factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            state=OfferingStates.ARCHIVED,
+            customer=customer,
+            name="alps-dora-old",
+            backend_id="alps-dora-old",
+        )
+        # Another provider's offering with a matching backend ID.
+        factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            state=OfferingStates.ACTIVE,
+            name="alps-dora-x",
+            backend_id="alps-dora-x",
+        )
+        factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            state=OfferingStates.ACTIVE,
+            customer=customer,
+            backend_id="alps-dora-basic",
+        )
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE
+        )
+        self.client.force_authenticate(self.fixture.offering_owner)
+
+    def _post(self, action, body):
+        return self.client.post(
+            factories.ServiceProviderFactory.get_url(self.service_provider, action),
+            body,
+            format="json",
+        )
+
+    def _get(self, **params):
+        return self.client.get(
+            factories.ServiceProviderFactory.get_url(
+                self.service_provider, "site_agent_config"
+            ),
+            params,
+        )
+
+    def _names(self, body):
+        response = self._post("generate_site_agent_config", body)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.content)
+        config = yaml.safe_load(response.content)
+        return [offering["name"] for offering in config["offerings"]]
+
+    def test_prefix_selects_every_offering_of_a_cluster(self):
+        self.assertEqual(
+            self._names({"backend_id_startswith": "alps-dora"}),
+            ["alps-dora-q", "alps-dora-u"],
+        )
+
+    def test_exact_backend_id(self):
+        self.assertEqual(self._names({"backend_id": "alps-dora-q"}), ["alps-dora-q"])
+        # backend_id does not match a prefix.
+        response = self._post("generate_site_agent_config", {"backend_id": "alps"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_selectors_all_apply(self):
+        body = {
+            "offering_uuids": [
+                str(self.offerings["alps-dora-q"].uuid),
+                str(self.offerings["alps-eiger-q"].uuid),
+            ],
+            "backend_id_startswith": "alps-dora",
+        }
+        self.assertEqual(self._names(body), ["alps-dora-q"])
+
+    @data({}, {"backend_id_startswith": "nothing"})
+    def test_request_selecting_nothing_is_refused(self, body):
+        response = self._post("generate_site_agent_config", body)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_secrets_follow_the_same_selection(self):
+        response = self._post(
+            "site_agent_config_secrets", {"backend_id_startswith": "alps-dora"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            {secret["offering_name"] for secret in response.data},
+            {"alps-dora-q", "alps-dora-u"},
+        )
+
+    def test_get_returns_the_per_offering_blocks(self):
+        # Test roles do not load permissions.yaml, which grants it to owners.
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)
+        response = self._get(backend_id_startswith="alps-dora")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        blocks = json.loads(response.content)
+        self.assertEqual(
+            [block["offering_name"] for block in blocks],
+            ["alps-dora-q", "alps-dora-u"],
+        )
+        for block in blocks:
+            offering = self.offerings[block["offering_name"]]
+            self.assertEqual(block["offering_uuid"], offering.uuid.hex)
+            own = self.client.get(
+                factories.OfferingFactory.get_url(offering, "site_agent_config")
+            )
+            self.assertEqual(own.status_code, status.HTTP_200_OK)
+            self.assertEqual(
+                {k: block[k] for k in ("offering", "secrets", "version")},
+                json.loads(own.content),
+            )
+
+    def test_get_filters(self):
+        def names(**params):
+            response = self._get(**params)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            return [block["offering_name"] for block in response.data]
+
+        # By backend ID; an archived offering is left out only when backend
+        # IDs select.
+        self.assertEqual(
+            names(), ["alps-dora-old", "alps-dora-q", "alps-dora-u", "alps-eiger-q"]
+        )
+        self.assertEqual(names(backend_id="alps-eiger-q"), ["alps-eiger-q"])
+        self.assertEqual(
+            names(
+                backend_id_startswith="alps",
+                offering_uuid=str(self.offerings["alps-dora-u"].uuid),
+            ),
+            ["alps-dora-u"],
+        )
+        self.assertEqual(names(backend_id_startswith="nothing"), [])
+
+    def test_get_is_refused_to_who_may_read_no_offering(self):
+        self.client.force_authenticate(structure_factories.UserFactory())
+
+        response = self._get(backend_id_startswith="alps-dora")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_query_is_not_read_for_who_may_read_no_offering(self):
+        # A stranger gets the same answer whether a UUID is one of the
+        # provider's offerings or not.
+        self.client.force_authenticate(structure_factories.UserFactory())
+
+        for offering_uuid in (
+            self.offerings["alps-dora-q"].uuid.hex,
+            "0" * 32,
+        ):
+            response = self._get(offering_uuid=offering_uuid)
+            self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_get_unknown_offering_uuid_matches_nothing(self):
+        # Answered like another provider offering the caller may not read,
+        # so neither tells which offerings exist.
+        OfferingRole.MANAGER.add_permission(PermissionEnum.MANAGE_OFFERING_AGENT)
+        agent = structure_factories.UserFactory()
+        self.offerings["alps-dora-q"].add_user(agent, OfferingRole.MANAGER)
+        self.client.force_authenticate(agent)
+
+        for offering_uuid in (self.offerings["alps-dora-u"].uuid.hex, "0" * 32):
+            response = self._get(offering_uuid=offering_uuid)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            self.assertEqual(response.data, [])
+
+    def test_archived_offering_named_by_uuid_is_kept(self):
+        archived = factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            state=OfferingStates.ARCHIVED,
+            customer=self.fixture.offering_customer,
+            name="alps-dora-archived",
+            backend_id="alps-dora-archived",
+        )
+        body = {
+            "offering_uuids": [str(archived.uuid)],
+            "backend_id_startswith": "alps-dora",
+        }
+        self.assertEqual(self._names(body), ["alps-dora-archived"])
+
+    def test_get_without_the_generator_permission_returns_readable_offerings(
+        self,
+    ):
+        # Test roles do not load permissions.yaml.
+        OfferingRole.MANAGER.add_permission(PermissionEnum.MANAGE_OFFERING_AGENT)
+        agent = structure_factories.UserFactory()
+        self.offerings["alps-dora-q"].add_user(agent, OfferingRole.MANAGER)
+        self.client.force_authenticate(agent)
+
+        response = self._get(backend_id_startswith="alps-dora")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            [block["offering_name"] for block in response.data], ["alps-dora-q"]
+        )

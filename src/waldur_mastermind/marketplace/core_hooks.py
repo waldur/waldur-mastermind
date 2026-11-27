@@ -243,13 +243,16 @@ def register_core_hooks() -> None:
     def _service_provider(ids, view=None):
         # A token bound to an offering may list and retrieve the record of the
         # provider selling it: the site agent looks it up before anything
-        # else. Only those two actions: a detail action such as list_users
-        # finds the provider through this same filter and checks only the
-        # user's roles, so it must not reach the provider from an offering
-        # binding.
+        # else. It may also read the provider's site_agent_config, which
+        # returns only the offerings whose own configuration the token may
+        # read, each checked with the token's binding. No other action: one
+        # such as list_users finds the provider through this same filter and
+        # checks only the user's roles, so it must not reach the provider from
+        # an offering binding.
         offering_ids = (
             ids.get("offering")
-            if getattr(view, "action", None) in ("list", "retrieve")
+            if getattr(view, "action", None)
+            in ("list", "retrieve", "site_agent_config")
             else None
         )
         return combine_or(

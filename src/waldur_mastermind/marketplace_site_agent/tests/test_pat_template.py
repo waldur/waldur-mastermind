@@ -515,6 +515,30 @@ class SiteAgentTokenTest(SiteAgentFixtureMixin, test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
+    @data("offering_manager", "owner_as_manager", "offering_owner")
+    def test_reads_its_offerings_from_the_service_provider(self, user_role):
+        # An agent serving several offerings of a cluster loads them with one
+        # call; the token's binding keeps the provider's other offerings out.
+        self.offering.backend_id = "cluster-a-q"
+        self.offering.save()
+        sibling = marketplace_factories.OfferingFactory(
+            customer=self.offering.customer,
+            type=marketplace_enums.SITE_AGENT_OFFERING,
+            backend_id="cluster-a-u",
+        )
+        sibling.add_user(self.fixture.offering_manager, OfferingRole.MANAGER)
+        self.use_template_token(user_role)
+        response = self.client.get(
+            marketplace_factories.ServiceProviderFactory.get_url(
+                self.fixture.service_provider, "site_agent_config"
+            ),
+            {"backend_id_startswith": "cluster-a"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            [row["offering_uuid"] for row in response.data], [self.offering.uuid.hex]
+        )
+
     def test_cannot_read_a_sibling_offerings_configuration(self):
         other = marketplace_factories.OfferingFactory(
             customer=self.offering.customer,
