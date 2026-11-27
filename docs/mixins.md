@@ -23,6 +23,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SelectiveEncryptionMixin`](#selectiveencryptionmixin) | `waldur_core.core.fields` | Encrypts the values under sensitive keys of a JSON-valued field |
 | [`GenericKeyMixin`](#generickeymixin) | `waldur_core.core.managers` | Filtering by generic key field  Support filtering by:  - generic key directly... |
 | [`CreateExecutorMixin`](#createexecutormixin) | `waldur_core.core.mixins` | Mixin to execute create operations using background executors |
+| [`DataciteMixin`](#datacitemixin) | `waldur_core.core.mixins` | A marker model for models that can be registered with PIDs and referred to in... |
 | [`DeleteExecutorMixin`](#deleteexecutormixin) | `waldur_core.core.mixins` | Mixin to execute delete operations using background executors |
 | [`EagerLoadMixin`](#eagerloadmixin) | `waldur_core.core.mixins` | Reduce number of requests to DB |
 | [`ExecutorMixin`](#executormixin) | `waldur_core.core.mixins` | Execute create/update/delete operation with executor |
@@ -103,6 +104,9 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_freeipa.views` | Raise exception if extension is disabled |
 | [`DocsTestMixin`](#docstestmixin) | `waldur_mastermind.chat.tests.test_search_docs` | No description available |
 | [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that AI Assistant is enabled, the user has the required role, and t... |
+| [`DeploymentPresetsMixin`](#deploymentpresetsmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_deployment` | Built-in presets in one temporary directory and the deployment's in another, ... |
+| [`PreviewTestMixin`](#previewtestmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_preview` | No description available |
+| [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_settings` | No description available |
 | [`FeedbackTestMixin`](#feedbacktestmixin) | `waldur_mastermind.feedback.tests.test_feedback` | No description available |
 | [`PeriodMixin`](#periodmixin) | `waldur_mastermind.invoices.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`PaidCreditAffiliateMixin`](#paidcreditaffiliatemixin) | `waldur_mastermind.invoices.tests.test_credit_lots` | The referred customer's invoice is 300; the affiliate earns 10% |
@@ -116,9 +120,6 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`MemberSyncFieldsMixin`](#membersyncfieldsmixin) | `waldur_mastermind.marketplace.serializers` | Adds agent-reported sync fields to a UserRole-shaped serializer |
 | [`ResourceEndDateUpdateMixin`](#resourceenddateupdatemixin) | `waldur_mastermind.marketplace.serializers` | Write the end date and who set it, and nothing else |
 | [`UserProfileAttributeFieldsMixin`](#userprofileattributefieldsmixin) | `waldur_mastermind.marketplace.serializers` | Read-only ``user_<attr>`` fields for the personal-data attributes an offering... |
-| [`DeploymentPresetsMixin`](#deploymentpresetsmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_deployment` | Built-in presets in one temporary directory and the deployment's in another, ... |
-| [`PreviewTestMixin`](#previewtestmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_preview` | No description available |
-| [`PresetSettingsTestMixin`](#presetsettingstestmixin) | `waldur_mastermind.demo_presets.tests.test_demo_preset_settings` | No description available |
 | [`DerivedLimitsOrderMixin`](#derivedlimitsordermixin) | `waldur_mastermind.marketplace.tests.test_derived_limits` | No description available |
 | [`SecretAbsenceMixin`](#secretabsencemixin) | `waldur_mastermind.marketplace.tests.test_network_options` | No description available |
 | [`LimitActionPermissionMixin`](#limitactionpermissionmixin) | `waldur_mastermind.marketplace.tests.test_order_creation_permission` | No description available |
@@ -202,7 +203,6 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`UnmanagedOwnerShareMixin`](#unmanagedownersharemixin) | `waldur_openstack.tests.test_unmanaged_owner_share` | No description available |
 | [`LBaaSAuditMixin`](#lbaasauditmixin) | `waldur_openstack.views` | Emit lifecycle audit events for LBaaS resources on create/update/delete |
 | [`UnmanagedOwnerReadOnlyMixin`](#unmanagedownerreadonlymixin) | `waldur_openstack.views` | Refuse write actions on a tenant Waldur does not manage, and on its networks |
-| [`DataciteMixin`](#datacitemixin) | `waldur_pid.mixins` | A marker model for models that can be registered with PIDs and referred to in... |
 | [`RoleMixin`](#rolemixin) | `waldur_rancher.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`SettingsMixin`](#settingsmixin) | `waldur_rancher.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`SyncDestroyMixin`](#syncdestroymixin) | `waldur_rancher.views` | No description available |
@@ -436,6 +436,16 @@ Support filtering by:
 Mixin to execute create operations using background executors.
 
 **Base classes:** `AsyncExecutor`
+
+### DataciteMixin
+
+**Module:** `waldur_core.core.mixins`
+
+**Description:**
+
+A marker model for models that can be registered with PIDs and referred to in a Datacite PID way.
+
+**Base classes:** `Model`
 
 ### DeleteExecutorMixin
 
@@ -1506,6 +1516,27 @@ AI_ASSISTANT_ENABLED_ROLES controls which user roles can access the feature.
 
 **Base classes:** `ConstanceCheckExtensionMixin`
 
+### DeploymentPresetsMixin
+
+**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_deployment`
+
+**Description:**
+
+Built-in presets in one temporary directory and the deployment's in
+another, set as its extra directory.
+
+### PreviewTestMixin
+
+**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_preview`
+
+**Description:** No description available.
+
+### PresetSettingsTestMixin
+
+**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_settings`
+
+**Description:** No description available.
+
 ### FeedbackTestMixin
 
 **Module:** `waldur_mastermind.feedback.tests.test_feedback`
@@ -1648,27 +1679,6 @@ serves both offering users and user role grants. Username, full name and
 email are declared by the serializers themselves.
 
 **Base classes:** `Serializer`
-
-### DeploymentPresetsMixin
-
-**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_deployment`
-
-**Description:**
-
-Built-in presets in one temporary directory and the deployment's in
-another, set as its extra directory.
-
-### PreviewTestMixin
-
-**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_preview`
-
-**Description:** No description available.
-
-### PresetSettingsTestMixin
-
-**Module:** `waldur_mastermind.demo_presets.tests.test_demo_preset_settings`
-
-**Description:** No description available.
 
 ### DerivedLimitsOrderMixin
 
@@ -2455,16 +2465,6 @@ Refuse write actions on a tenant Waldur does not manage, and on its networks.
 Such a tenant is an OpenStack project that only shares networks with
 managed tenants. Waldur holds no credentials for it, and the project and its
 networks are not Waldur's to change, so it is only ever read.
-
-### DataciteMixin
-
-**Module:** `waldur_pid.mixins`
-
-**Description:**
-
-A marker model for models that can be registered with PIDs and referred to in a Datacite PID way.
-
-**Base classes:** `Model`
 
 ### RoleMixin
 
