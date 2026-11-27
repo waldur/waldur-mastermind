@@ -152,7 +152,10 @@ class _Document:
             if isinstance(self.configuration.get(field), str)
             and self.configuration[field]
         }
-        if not any(role in named for role in DEFAULT_ROLES):
+        # Whether the roles are set, rather than run by default: the config
+        # generator then follows the agent configuration.
+        self.roles_set = any(role in named for role in DEFAULT_ROLES)
+        if not self.roles_set:
             named.update(dict.fromkeys(DEFAULT_ROLES, DEFAULT_BACKEND))
         return named
 
@@ -397,6 +400,9 @@ def _cluster_name(doc: _Document) -> Iterator[dict]:
     the agent refuses to start. Warning: cluster_name is empty otherwise, as
     the agent warns that sacctmgr runs unscoped; one of the two is filled by a
     parameter and the other is fixed, which a template cannot check.
+
+    With agent roles set, the config generator fills an empty cluster_name
+    from the backend ID, so only a backend ID that is empty leaves it unset.
     """
     if not doc.runs(SLURM_BACKEND):
         return
@@ -404,11 +410,17 @@ def _cluster_name(doc: _Document) -> Iterator[dict]:
     cluster_name, cluster_path = doc.setting("cluster_name")
     backend_id_by_parameter = doc.filled_by_parameter(BACKEND_ID_PATH)
     cluster_by_parameter = doc.filled_by_parameter(cluster_path)
+    # The generator writes the backend ID as cluster_name when it is empty.
+    filled_from_backend_id = doc.roles_set and _empty(cluster_name)
     if backend_id_by_parameter or cluster_by_parameter:
         same_parameter = any(
             {BACKEND_ID_PATH, cluster_path} <= paths for paths in doc.parameter_paths
         )
-        if not same_parameter:
+        if not same_parameter and not (
+            backend_id_by_parameter
+            and not cluster_by_parameter
+            and filled_from_backend_id
+        ):
             yield finding(
                 RULE_CLUSTER_NAME,
                 WARNING,
@@ -418,7 +430,7 @@ def _cluster_name(doc: _Document) -> Iterator[dict]:
             )
         return
     rest_mode = doc.setting("execution_mode")[0] == "rest"
-    if _empty(cluster_name):
+    if _empty(cluster_name) and not (filled_from_backend_id and not _empty(backend_id)):
         yield finding(
             RULE_CLUSTER_NAME,
             ERROR if rest_mode else WARNING,

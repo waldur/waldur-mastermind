@@ -280,6 +280,17 @@ def build_backend_settings(
         )
         if periodic_limits:
             backend_settings[PERIODIC_LIMITS_SETTING] = periodic_limits
+    if (
+        not legacy
+        and uses_slurm
+        and offering.backend_id
+        and offering.backend_id.strip()
+        and not str(backend_settings.get("cluster_name") or "").strip()
+    ):
+        # SLURM's cluster_name names the same cluster as the backend ID.
+        # Offerings with no roles set keep theirs unset: their backend ID may
+        # not name a SLURM cluster, and the agent refuses an unknown one.
+        backend_settings["cluster_name"] = offering.backend_id.strip()
     if not legacy:
         # What the configuration leaves out, the agent would take from its
         # plugins' defaults anyway; written out, the file says what runs.
