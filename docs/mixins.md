@@ -137,8 +137,8 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ConcealmentMixin`](#concealmentmixin) | `waldur_mastermind.marketplace_openstack.tests.test_plugin_resource_concealment` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
 | [`ContainerExecutorMixin`](#containerexecutormixin) | `waldur_mastermind.marketplace_script.utils` | Mixin to execute scripts in containers for marketplace script processing |
-| [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration` | No description available |
-| [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
+| [`AgentConfigurationTestMixin`](#agentconfigurationtestmixin) | `waldur_mastermind.marketplace.tests.test_agent_configuration` | No description available |
+| [`AgentConfigurationTrustTestMixin`](#agentconfigurationtrusttestmixin) | `waldur_mastermind.marketplace.tests.test_agent_configuration_trust` | An offering with a SLURM agent configuration, its owner, service provider man... |
 | [`ConformanceMixin`](#conformancemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_contract_conformance` | Capture what a consumer queue receives and check it against a contract |
 | [`ResourceGlauthAccessMixin`](#resourceglauthaccessmixin) | `waldur_mastermind.marketplace_site_agent.tests.test_glauth_resource_access` | No description available |
 | [`SiteAgentFixtureMixin`](#siteagentfixturemixin) | `waldur_mastermind.marketplace_site_agent.tests.test_pat_template` | No description available |
@@ -1826,13 +1826,13 @@ Mixin to execute scripts in containers for marketplace script processing.
 
 ### AgentConfigurationTestMixin
 
-**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration`
+**Module:** `waldur_mastermind.marketplace.tests.test_agent_configuration`
 
 **Description:** No description available.
 
 ### AgentConfigurationTrustTestMixin
 
-**Module:** `waldur_mastermind.marketplace_site_agent.tests.test_agent_configuration_trust`
+**Module:** `waldur_mastermind.marketplace.tests.test_agent_configuration_trust`
 
 **Description:**
 

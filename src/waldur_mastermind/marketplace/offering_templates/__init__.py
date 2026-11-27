@@ -29,6 +29,9 @@ from django.db import models as django_models
 from rest_framework import serializers
 
 from waldur_core.core.yaml_utils import json_size, too_large_message
+from waldur_mastermind.marketplace import (
+    agent_configuration as site_agent_configuration,
+)
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
@@ -42,9 +45,6 @@ from waldur_mastermind.marketplace.import_fields import (
     PLAN_IMPORT_FIELDS,
 )
 from waldur_mastermind.marketplace.utils import UsernameGenerationPolicy
-from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration as site_agent_configuration,
-)
 
 PRESETS_DIRECTORY = Path(__file__).resolve().parent / "presets"
 

@@ -1,6 +1,64 @@
 from django.apps import AppConfig
 
 
+def _on_component_usage_billed(usage, created: bool) -> None:
+    from waldur_mastermind.marketplace import models as marketplace_models
+    from waldur_mastermind.policy import handlers
+
+    # Fire every handler that used to be wired directly to ComponentUsage
+    # post_save in policy/apps.py (those with trigger_class=ComponentUsage).
+    # These fire on every save to match the pre-MR semantics.
+    handlers.offering_usage_policy_trigger_handler(
+        sender=marketplace_models.ComponentUsage,
+        instance=usage,
+        created=created,
+    )
+    handlers.slurm_periodic_usage_policy_trigger_handler(
+        sender=marketplace_models.ComponentUsage,
+        instance=usage,
+        created=created,
+    )
+    handlers.customer_component_usage_policy_trigger_handler(
+        sender=marketplace_models.ComponentUsage,
+        instance=usage,
+        created=created,
+    )
+
+
+def _schedule_slurm_policy_evaluation(offering_id: int, resource_uuid: str) -> None:
+    from waldur_mastermind.policy import models, tasks
+
+    policies = models.SlurmPeriodicUsagePolicy.objects.filter(scope_id=offering_id)
+    for policy in policies:
+        tasks.evaluate_resource_against_policy.delay(resource_uuid, str(policy.uuid))
+
+
+def _has_slurm_periodic_policy(offering) -> bool:
+    from waldur_mastermind.policy import models
+
+    return models.SlurmPeriodicUsagePolicy.objects.filter(scope=offering).exists()
+
+
+def _snapshot_estimated_cost_policies(resource):
+    from waldur_mastermind.policy import rebill_helpers
+
+    return rebill_helpers.snapshot_estimated_cost_policies(resource)
+
+
+def _get_policy_scope_label(policy) -> str:
+    from waldur_mastermind.policy import rebill_helpers
+
+    return rebill_helpers.get_policy_scope_label(policy)
+
+
+def _preview_policy_action_resources(policy, action_name, meta, now_triggered):
+    from waldur_mastermind.policy import rebill_helpers
+
+    return rebill_helpers.preview_policy_action_resources(
+        policy, action_name, meta, now_triggered
+    )
+
+
 class PolicyConfig(AppConfig):
     name = "waldur_mastermind.policy"
     verbose_name = "Policy"
@@ -95,4 +153,17 @@ class PolicyConfig(AppConfig):
             handlers.lift_slurm_actions_upon_policy_deletion,
             sender=models.SlurmPeriodicUsagePolicy,
             dispatch_uid="waldur_mastermind.policy.lift_slurm_actions_upon_policy_deletion",
+        )
+
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
+
+        marketplace_hooks.register_policy_provider(
+            marketplace_hooks.PolicyProvider(
+                on_component_usage_billed=_on_component_usage_billed,
+                schedule_slurm_policy_evaluation=_schedule_slurm_policy_evaluation,
+                has_slurm_periodic_policy=_has_slurm_periodic_policy,
+                snapshot_estimated_cost_policies=_snapshot_estimated_cost_policies,
+                get_policy_scope_label=_get_policy_scope_label,
+                preview_policy_action_resources=_preview_policy_action_resources,
+            )
         )

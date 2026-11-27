@@ -9,8 +9,9 @@ secrets are added to that file on the agent host.
 What a backend accepts comes from the plugin catalogue the site agent exports
 (``waldur_site_export_plugin_catalogue``), vendored as
 ``plugin_catalogue/catalogue.json``; refresh it with
-``scripts/update_site_agent_plugin_catalogue.sh``. This module imports nothing
-from ``marketplace`` so that the marketplace serializers can use it.
+``scripts/update_site_agent_plugin_catalogue.sh``. This module keeps its imports
+self-contained so marketplace serializers, views, and templates can import it
+without circular dependencies.
 """
 
 from __future__ import annotations

@@ -11,6 +11,7 @@ from waldur_mastermind.invoices import ledger
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices.utils import credit_compensation_q
 from waldur_mastermind.marketplace import billing_discount, billing_mode
+from waldur_mastermind.marketplace import hooks as marketplace_hooks
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
 from waldur_mastermind.marketplace.billing_utils import convert_quantity
@@ -25,12 +26,6 @@ from waldur_mastermind.marketplace.models import (
     Offering,
     PlanComponent,
     Resource,
-)
-from waldur_mastermind.policy import models as policy_models
-from waldur_mastermind.policy.policy_actions import (
-    POLICY_ACTIONS,
-    _filter_resources_by_scope,
-    _resources_locked_by_other_policies,
 )
 
 logger = logging.getLogger(__name__)
@@ -500,27 +495,10 @@ class Command(BaseCommand):
         signal, and never writes to usage itself -- so it can never be
         affected by anything this command does.
         """
-        project = resource.project
-        policies = (
-            list(policy_models.ProjectEstimatedCostPolicy.objects.filter(scope=project))
-            + list(
-                policy_models.CustomerEstimatedCostPolicy.objects.filter(
-                    scope=project.customer
-                )
-            )
-            + list(
-                policy_models.OfferingEstimatedCostPolicy.objects.filter(
-                    scope=resource.offering
-                )
-            )
-        )
-        return [(policy, policy.has_fired) for policy in policies]
-
-    _POLICY_SCOPE_LABELS = {
-        policy_models.ProjectEstimatedCostPolicy: "Project",
-        policy_models.CustomerEstimatedCostPolicy: "Customer",
-        policy_models.OfferingEstimatedCostPolicy: "Offering",
-    }
+        provider = marketplace_hooks.get_policy_provider()
+        if provider is None:
+            return []
+        return provider.snapshot_estimated_cost_policies(resource)
 
     def _report_policy_impact(self, resource, policies_before, dry_run) -> None:
         """Log every in-scope Cost Policy's gate state after the correction.
@@ -548,9 +526,14 @@ class Command(BaseCommand):
             )
             return
 
+        provider = marketplace_hooks.get_policy_provider()
         for policy, was_fired in policies_before:
             policy.refresh_from_db()
-            scope_label = self._POLICY_SCOPE_LABELS[type(policy)]
+            scope_label = (
+                provider.get_policy_scope_label(policy)
+                if provider is not None
+                else type(policy).__name__
+            )
 
             # One simulation for the figures and the verdict, as is_triggered()
             # itself does.
@@ -624,13 +607,14 @@ class Command(BaseCommand):
                     f"{', '.join(other_actions)} (not a resource pause / "
                     f"downscale / terminate action -- not previewed here)"
                 )
+            if provider is None:
+                continue
             for action_name in resource_actions:
                 meta = self._POLICY_RESOURCE_ACTIONS[action_name]
-
-                if (
-                    not now_triggered
-                    and POLICY_ACTIONS[action_name].reset_method is None
-                ):
+                has_reset, affected = provider.preview_policy_action_resources(
+                    policy, action_name, meta, now_triggered
+                )
+                if not has_reset:
                     # e.g. terminate_resources: nothing runs on a fired -> clear
                     # transition, so a resource list here would read as if
                     # terminated resources get restored.
@@ -639,32 +623,8 @@ class Command(BaseCommand):
                         f"nothing would run for it on this reset"
                     )
                     continue
-
-                candidates = Resource.objects.filter(**meta["filter_kwargs"]).exclude(
-                    state__in=meta["exclude_states"]
-                )
-                affected = _filter_resources_by_scope(candidates, policy)
                 if affected is None:
                     continue
-
-                field_name = meta["field_name"]
-                if field_name is not None:
-                    # Mirror _apply_generic_action exactly: a resource already
-                    # at the target value is a no-op the real action skips,
-                    # and (only when clearing) one another still-firing policy
-                    # wants kept set is left alone too.
-                    affected = affected.exclude(**{field_name: now_triggered})
-                    if not now_triggered:
-                        locked = _resources_locked_by_other_policies(policy, field_name)
-                        if locked:
-                            affected = affected.exclude(pk__in=locked)
-                    if field_name == "paused" and not now_triggered:
-                        # ...and one its project's grace period keeps paused.
-                        affected = [
-                            r
-                            for r in affected
-                            if not marketplace_utils.is_held_by_project_grace(r)
-                        ]
 
                 names = [f"{r.name} ({r.uuid.hex})" for r in affected]
                 direction = "would apply to" if now_triggered else "would reset on"

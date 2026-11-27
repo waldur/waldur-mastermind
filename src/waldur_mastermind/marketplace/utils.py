@@ -112,7 +112,6 @@ from waldur_mastermind.marketplace.enums import (
     ServiceAccountState,
     UsageLimitAction,
 )
-from waldur_mastermind.marketplace_openstack import get_mb_component_types
 
 from . import managers, model_lists, models, order_rules, plugins, posix_ids
 from . import project_groups as provider_project_groups
@@ -3317,7 +3316,7 @@ def get_components_usage_data(resources, for_current_month=False):
     the sum of its history. Their share of `usage` and `limit_usage`
     is also reported as `usage_terminated` and `limit_usage_terminated`.
     """
-    MB_COMPONENT_TYPES = get_mb_component_types()
+    MB_COMPONENT_TYPES = hooks.get_mb_component_types()
 
     # Exclude child offerings (OpenStack VM/Volume) — their component usages
     # overlap with the parent tenant offering and must not be summed together.
@@ -3569,7 +3568,7 @@ def get_components_usage_data_per_offering(resources):
     `limit_usage_terminated`.
     """
     today = datetime.date.today()
-    MB_COMPONENT_TYPES = get_mb_component_types()
+    MB_COMPONENT_TYPES = hooks.get_mb_component_types()
 
     # Exclude child offerings (OpenStack VM/Volume) — same rationale as
     # get_components_usage_data: VPC-level and VM-level usages must not be summed.

@@ -6,12 +6,12 @@ from waldur_core.core import access, auth_utils
 from waldur_core.logging import enums as logging_enums
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
+from waldur_mastermind.marketplace import agent_configuration
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_COMPATIBLE_OFFERING_TYPES,
 )
 from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration,
     enums,
     models,
 )

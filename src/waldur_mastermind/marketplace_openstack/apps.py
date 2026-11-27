@@ -40,6 +40,24 @@ def components_filter(offering, qs):
     return qs
 
 
+def _get_restore_limits_executor():
+    from waldur_mastermind.marketplace_openstack import executors
+
+    return executors.RestoreTenantLimitsExecutor
+
+
+def _schedule_create_lost_resources() -> None:
+    from waldur_mastermind.marketplace_openstack import tasks
+
+    tasks.create_resources_for_lost_instances_and_volumes.delay()
+
+
+def _get_mb_component_types() -> frozenset[str]:
+    from waldur_mastermind.marketplace_openstack import get_mb_component_types
+
+    return get_mb_component_types()
+
+
 class MarketplaceOpenStackConfig(AppConfig):
     name = "waldur_mastermind.marketplace_openstack"
     verbose_name = "Marketplace OpenStack"
@@ -48,6 +66,7 @@ class MarketplaceOpenStackConfig(AppConfig):
         from waldur_core.quotas import models as quota_models
         from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import handlers as marketplace_handlers
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_metrics import ingest as metrics_ingest
@@ -61,6 +80,7 @@ class MarketplaceOpenStackConfig(AppConfig):
             AVAILABLE_LIMITS,
             INSTANCE_METRIC_KEYS,
             VOLUME_METRIC_KEYS,
+            chat_tools,  # noqa: F401 registers VM chat tools
             handlers,
             importers,
             processors,
@@ -69,6 +89,14 @@ class MarketplaceOpenStackConfig(AppConfig):
 
         # Instance and volume metrics are read from Nova, not reported.
         metrics_ingest.RESERVED_KEYS.update(INSTANCE_METRIC_KEYS + VOLUME_METRIC_KEYS)
+
+        marketplace_hooks.register_openstack_admin_provider(
+            marketplace_hooks.OpenStackAdminProvider(
+                get_restore_limits_executor=_get_restore_limits_executor,
+                schedule_create_lost_resources=_schedule_create_lost_resources,
+            )
+        )
+        marketplace_hooks.register_mb_component_types_provider(_get_mb_component_types)
 
         signals.post_save.connect(
             handlers.create_offering_from_tenant,

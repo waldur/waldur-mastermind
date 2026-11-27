@@ -24,10 +24,10 @@ read a value skip such paths, because the parameter supplies it on creation.
 from collections.abc import Callable, Iterator
 from typing import Any
 
-from waldur_mastermind.marketplace.enums import BillingTypes
-from waldur_mastermind.marketplace_site_agent import (
+from waldur_mastermind.marketplace import (
     agent_configuration as site_agent_configuration,
 )
+from waldur_mastermind.marketplace.enums import BillingTypes
 
 ERROR = "error"
 WARNING = "warning"

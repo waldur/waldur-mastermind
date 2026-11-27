@@ -9,30 +9,30 @@ from django.test import SimpleTestCase, TestCase
 from waldur_auth_social import oauth_tokens
 from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests.fixtures import ProjectFixture
-from waldur_firecrest.tests.test_monitor_only import accounting, job_row
-from waldur_firecrest.workspace import identity_cache_key
-from waldur_mastermind.chat.block_schemas import BlockSerializer
-from waldur_mastermind.chat.llm_streamer import LLMStreamer
-from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
-from waldur_mastermind.chat.tools.executor import ToolExecutor
-from waldur_mastermind.chat.tools.hpc.cluster import (
+from waldur_firecrest.chat_tools.cluster import (
     GetHpcClusterStatusTool,
     ListHpcAllocationsTool,
 )
-from waldur_mastermind.chat.tools.hpc.helpers import job_summary
-from waldur_mastermind.chat.tools.hpc.insights import (
+from waldur_firecrest.chat_tools.helpers import job_summary
+from waldur_firecrest.chat_tools.insights import (
     GetHpcAllocationUsageTool,
     GetHpcClusterLoadTool,
     GetHpcJobStatsTool,
     PlotHpcOutputTool,
 )
-from waldur_mastermind.chat.tools.hpc.jobs import (
+from waldur_firecrest.chat_tools.jobs import (
     CARD_SHOWS_SCRIPT,
     CancelHpcJobTool,
     GetHpcJobTool,
     PlanHpcJobTool,
     SubmitHpcJobTool,
 )
+from waldur_firecrest.tests.test_monitor_only import accounting, job_row
+from waldur_firecrest.workspace import identity_cache_key
+from waldur_mastermind.chat.block_schemas import BlockSerializer
+from waldur_mastermind.chat.llm_streamer import LLMStreamer
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
+from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import (
     _HPC_TOOLS,

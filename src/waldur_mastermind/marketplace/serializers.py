@@ -141,16 +141,25 @@ from waldur_mastermind.invoices.serializers import (
     PaymentProfileSerializer,
     get_payment_profiles,
 )
-from waldur_mastermind.marketplace import offering_merge_coverage, offering_templates
+from waldur_mastermind.marketplace import (
+    agent_configuration as site_agent_configuration,
+)
+from waldur_mastermind.marketplace import (
+    consistency,
+    offering_merge_coverage,
+    offering_templates,
+)
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     DEPLOYMENT_MODE_MANAGED,
     DEPLOYMENT_MODE_SELF_MANAGED,
+    INSTANCE_METRIC_KEYS,
     LEGACY_SITE_AGENT_OFFERING,
     MAX_LIMIT_DECIMAL_PLACES,
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
     SWAPPABLE_OFFERING_TYPES,
+    VOLUME_METRIC_KEYS,
     AccountScopes,
     AccountSettingSources,
     BillingModes,
@@ -199,15 +208,6 @@ from waldur_mastermind.marketplace.utils import (
     validate_end_date,
     validate_limits,
 )
-from waldur_mastermind.marketplace_openstack import (
-    INSTANCE_METRIC_KEYS,
-    VOLUME_METRIC_KEYS,
-)
-from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration as site_agent_configuration,
-)
-from waldur_mastermind.marketplace_site_agent import consistency
-from waldur_mastermind.proposal import models as proposal_models
 
 from . import (
     api_key_spending_limits,
@@ -216,6 +216,7 @@ from . import (
     daily_usage,
     derived_limits,
     display_limits,
+    hooks,
     k8s_egress,
     log,
     model_lists,
@@ -6544,11 +6545,7 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
         annotated = getattr(offering, "open_for_proposals", None)
         if annotated is not None:
             return annotated
-        return (
-            proposal_models.RequestedOffering.objects.open_for_proposals()
-            .filter(offering=offering)
-            .exists()
-        )
+        return hooks.is_offering_open_for_proposals(offering)
 
     def get_fields(self):
         fields = super().get_fields()
@@ -15653,38 +15650,6 @@ def add_service_provider_url(sender, fields, **kwargs):
     )
 
 
-def get_call_managing_organization_uuid(serializer, scope) -> str | None:
-    customer = structure_permissions._get_customer(scope)
-
-    # Use prefetched data if available to avoid N+1 queries
-    if (
-        hasattr(customer, "_prefetched_objects_cache")
-        and "callmanagingorganisation" in customer._prefetched_objects_cache
-    ):
-        organization = customer._prefetched_objects_cache["callmanagingorganisation"]
-        if organization:
-            return str(organization.uuid)
-        return None
-    else:
-        # Fallback to original query behavior
-        call_managing_organisation = (
-            proposal_models.CallManagingOrganisation.objects.filter(customer=customer)
-        )
-        if call_managing_organisation.exists():
-            return str(call_managing_organisation.first().uuid)
-        return None
-
-
-def add_call_managing_organization_uuid(sender, fields, **kwargs):
-    """Add a call managing organization UUID field to the serializer."""
-    fields["call_managing_organization_uuid"] = serializers.SerializerMethodField()
-    setattr(
-        sender,
-        "get_call_managing_organization_uuid",
-        get_call_managing_organization_uuid,
-    )
-
-
 class ResourceTerminateSerializer(serializers.Serializer):
     attributes = serializers.JSONField(
         label=_("Termination attributes"),
@@ -15744,11 +15709,6 @@ core_signals.pre_serializer_fields.connect(
 core_signals.pre_serializer_fields.connect(
     sender=structure_serializers.CustomerSerializer,
     receiver=add_service_provider_uuid,
-)
-
-core_signals.pre_serializer_fields.connect(
-    sender=structure_serializers.CustomerSerializer,
-    receiver=add_call_managing_organization_uuid,
 )
 
 

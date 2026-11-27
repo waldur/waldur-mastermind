@@ -118,20 +118,27 @@ Progress:
   `billing`, `matrix_chat`, `notifications`, `promotions`, `support`,
   `marketplace_rancher`, `waldur_freeipa`, `waldur_pid`), reducing marketplace
   upward dependencies from 15 to 6.
+- **Wave 5 — Seal `integrations` layer (`chat` and `marketplace` decoupled from providers, `policy`, and `proposal`)**:
+  moved HPC chat tools into `waldur_firecrest` and VM chat tools into
+  `waldur_mastermind.marketplace_openstack`, moved site-agent configuration and
+  consistency schemas into `waldur_mastermind.marketplace`, and inverted the
+  remaining provider, `policy`, and `proposal` hooks (eliminating 7 upward edges:
+  `chat` now has zero upward dependencies, `marketplace` is down to 1 upward
+  edge, and zero modules in `kernel`, `tenancy`, `marketplace`, or `supporting`
+  depend on `integrations`).
 
 Current snapshot (excluding `migrations/` and `tests/`, with `waldur_core.core`
-as a utility module): 67 modules, 327 declared edges, of which **15 edges
-across 6 modules** remain as upward layer violations (61 modules already
+as a utility module): 67 modules, 321 declared edges, of which **8 edges
+across 5 modules** remain as upward layer violations (62 modules already
 respect the target layer order):
 
 | Module | Target Layer | Upward Edges | Upward Targets |
 | --- | --- | --- | --- |
-| `waldur_mastermind.marketplace` | `marketplace` | 6 | `invoices`, `policy`, `proposal`, `marketplace_openstack`, `marketplace_site_agent`, `waldur_openstack` |
 | `waldur_core.core` | `kernel` | 3 | `changelog`, `structure`, `users` |
 | `waldur_core.structure` | `tenancy` | 2 | `marketplace`, `proposal` |
-| `waldur_mastermind.chat` | `supporting` | 2 | `waldur_firecrest`, `waldur_openstack` |
 | `waldur_core.logging` | `kernel` | 1 | `structure` |
 | `waldur_core.permissions` | `kernel` | 1 | `structure` |
+| `waldur_mastermind.marketplace` | `marketplace` | 1 | `invoices` |
 
 Workflow for burning down remaining edges:
 

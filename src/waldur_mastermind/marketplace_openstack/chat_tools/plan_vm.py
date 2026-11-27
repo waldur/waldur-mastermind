@@ -23,7 +23,7 @@ from rest_framework.exceptions import ValidationError as DRFValidationError
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.vm.helpers import (
+from waldur_mastermind.marketplace_openstack.chat_tools.helpers import (
     MultipleOfferingsAvailable,
     format_needs_config,
     format_needs_name,

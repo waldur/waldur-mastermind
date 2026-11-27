@@ -1,5 +1,5 @@
-from waldur_firecrest import workspace
 from waldur_mastermind.chat import deployment_profile
+from waldur_mastermind.chat import hooks as chat_hooks
 from waldur_mastermind.chat.docs import corpus as docs_corpus
 from waldur_mastermind.chat.tools.enums import ToolName
 
@@ -163,7 +163,7 @@ def get_tool_set_for_user(user, delegated=False) -> list[ToolName]:
     else:
         tools = END_USER_TOOLS
     # The HPC tools act as the user's own sign-in, and need an endpoint.
-    if delegated or not workspace.is_configured():
+    if delegated or not chat_hooks.is_hpc_configured():
         tools = [tool for tool in tools if tool not in _OWN_SIGN_IN_TOOLS]
     # No documentation corpus is loaded, or staff turned the bundled
     # documentation off (DOCS_SEARCH_ENABLED).

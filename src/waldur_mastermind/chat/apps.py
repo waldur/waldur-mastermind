@@ -12,10 +12,8 @@ class ChatConfig(AppConfig):
             account,
             ask_user,
             docs,
-            hpc,
             marketplace,
             proposals_researcher,
             proposals_reviewer,
             search_tools,
-            vm,
         )

@@ -87,7 +87,6 @@ from waldur_mastermind.marketplace.utils import (
     get_new_order_notification_recipients,
     get_provider_approvers,
 )
-from waldur_mastermind.marketplace_site_agent import utils as site_agent_utils
 
 logger = logging.getLogger(__name__)
 
@@ -1470,7 +1469,7 @@ def _follow_grace_window(resource, today, open_grace_ids):
     ):
         utils.pause_for_grace(resource, today)
     if utils.sync_grace_period_signal(resource, today):
-        site_agent_utils.push_resource_update_message(resource)
+        hooks.push_site_agent_resource_update(resource)
 
 
 def _end_grace_windows(resources, today, open_grace_ids):
@@ -1478,7 +1477,7 @@ def _end_grace_windows(resources, today, open_grace_ids):
     for resource in resources.select_related("offering", "project__customer"):
         if resource.pk in open_grace_ids or resource.is_in_grace_period_on(today):
             if utils.end_grace_period_signal(resource):
-                site_agent_utils.push_resource_update_message(resource)
+                hooks.push_site_agent_resource_update(resource)
 
 
 @shared_task(name="waldur_mastermind.marketplace.follow_offering_grace_windows")

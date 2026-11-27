@@ -12,14 +12,14 @@ from collections import defaultdict
 from django.utils import timezone
 
 from waldur_firecrest import charts
-from waldur_mastermind.chat.tools.arguments import shorten
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
-from waldur_mastermind.chat.tools.hpc.helpers import (
+from waldur_firecrest.chat_tools.helpers import (
     ALLOCATION_PROPERTY,
     allocation_summary,
     run,
 )
+from waldur_mastermind.chat.tools.arguments import shorten
+from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 JOB_VIEWS = {

@@ -378,7 +378,7 @@ class VisibilityTest(MCPToolsTestCase):
         token = access_token(self.user)
 
         with mock.patch(
-            "waldur_mastermind.chat.tools.tool_sets.workspace.is_configured",
+            "waldur_firecrest.workspace.is_configured",
             return_value=True,
         ):
             self.assertNotIn("list_hpc_jobs", listed_names(token))

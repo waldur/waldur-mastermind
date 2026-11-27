@@ -30,7 +30,7 @@ from waldur_core.configuration import registry as settings_registry
 from waldur_core.configuration.models import Setting
 from waldur_core.core import features
 from waldur_core.core.models import Feature
-from waldur_firecrest import workspace
+from waldur_mastermind.chat import hooks as chat_hooks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
@@ -48,7 +48,7 @@ CACHE_TIMEOUT = 60
 # Named capabilities: things a deployment can do that no single setting says.
 CAPABILITIES: dict[str, Callable[[], bool]] = {
     # FirecREST or a cluster monitor is allowed, so HPC allocations are reachable.
-    "hpc": lambda: workspace.is_configured(),
+    "hpc": chat_hooks.is_hpc_configured,
 }
 
 

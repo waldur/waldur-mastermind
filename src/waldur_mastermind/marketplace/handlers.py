@@ -67,10 +67,10 @@ from waldur_mastermind.marketplace.permissions import (
     order_should_not_be_reviewed_by_consumer,
 )
 from waldur_mastermind.marketplace.secret_options import is_sensitive_key
-from waldur_mastermind.marketplace_site_agent import utils as site_agent_utils
 
 from . import (
     callbacks,
+    hooks,
     log,
     models,
     order_approval,
@@ -379,7 +379,7 @@ def _release_and_signal_grace(resources):
     utils.release_project_grace_pauses(fresh)
     for resource in fresh.exclude(state=ResourceStates.TERMINATED):
         if utils.sync_grace_period_signal(resource):
-            site_agent_utils.push_resource_update_message(resource)
+            hooks.push_site_agent_resource_update(resource)
 
 
 def release_grace_pauses_when_project_end_date_changes(
@@ -1084,16 +1084,7 @@ def _trigger_slurm_policy_reevaluation(resource_uuid, offering_id):
     QoS restrictions are lifted promptly instead of waiting for the
     next periodic evaluation cycle.
     """
-    from waldur_mastermind.policy import models as policy_models
-    from waldur_mastermind.policy import tasks as policy_tasks
-
-    policies = policy_models.SlurmPeriodicUsagePolicy.objects.filter(
-        scope_id=offering_id,
-    )
-    for policy in policies:
-        policy_tasks.evaluate_resource_against_policy.delay(
-            resource_uuid, str(policy.uuid)
-        )
+    hooks.schedule_slurm_policy_evaluation(offering_id, resource_uuid)
 
 
 def limit_update_failed(sender, order: models.Order, error_message, **kwargs):

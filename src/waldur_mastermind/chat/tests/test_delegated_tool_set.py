@@ -14,12 +14,12 @@ from rest_framework import status, test
 
 from waldur_core.configuration.testing import override_config
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_firecrest.tests.test_hpc_tools import API_URL, HpcToolsTestBase
 from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.prompts.rejection import (
     CATEGORY_PHRASES,
     build_canned_rejection,
 )
-from waldur_mastermind.chat.tests.test_hpc_tools import API_URL, HpcToolsTestBase
 from waldur_mastermind.chat.tests.utils import (
     _make_content_chunk,
     _mock_openai_client,

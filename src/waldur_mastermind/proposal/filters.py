@@ -2,6 +2,8 @@ import django_filters
 from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
+from drf_spectacular.plumbing import build_parameter_type
+from drf_spectacular.utils import OpenApiParameter
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core.enums import ReviewStates as CoreReviewStates
@@ -1410,3 +1412,27 @@ REQUESTED_OFFERING_FACETS = (
         labels=CallStates.CHOICES,
     ),
 )
+
+
+class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
+    def filter_queryset(self, request, queryset, view):
+        is_call_managing_organization = request.query_params.get(
+            "is_call_managing_organization"
+        )
+        if is_call_managing_organization in ["true", "True"]:
+            customers = models.CallManagingOrganisation.objects.values_list(
+                "customer_id", flat=True
+            )
+            return queryset.filter(pk__in=customers)
+        return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="is_call_managing_organization",
+                schema={"type": "boolean"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by customers that are call managing organizations.",
+            )
+        ]

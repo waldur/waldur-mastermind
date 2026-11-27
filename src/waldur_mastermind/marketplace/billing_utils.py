@@ -2,6 +2,9 @@ import math
 from decimal import Decimal
 
 from waldur_mastermind.marketplace.enums import (
+    OPENSTACK_CORES_TYPE,
+    OPENSTACK_RAM_TYPE,
+    OPENSTACK_STORAGE_TYPE,
     OPENSTACK_TENANT_OFFERING,
     SLURM_OFFERING,
 )
@@ -10,8 +13,6 @@ from waldur_mastermind.marketplace.models import (
     PlanComponent,
     Resource,
 )
-from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE, STORAGE_TYPE
-from waldur_openstack.utils import is_valid_volume_type_name
 
 
 def convert_slurm_usage(usage: int | float | Decimal, component_type: str) -> int:
@@ -48,7 +49,7 @@ def convert_quantity(usage, offering_type, component_type: str, billing_type=Non
     if offering_type == SLURM_OFFERING:
         return convert_slurm_usage(usage, component_type)
     if offering_type == OPENSTACK_TENANT_OFFERING:
-        if component_type in (STORAGE_TYPE, RAM_TYPE):
+        if component_type in (OPENSTACK_STORAGE_TYPE, OPENSTACK_RAM_TYPE):
             result = Decimal(str(usage)) / 1024
         else:
             result = Decimal(str(usage))
@@ -70,13 +71,13 @@ def get_component_name(plan_component: PlanComponent) -> str:
     """
     if plan_component.component.offering.type == OPENSTACK_TENANT_OFFERING:
         component_type = plan_component.component.type
-        if component_type == CORES_TYPE:
+        if component_type == OPENSTACK_CORES_TYPE:
             return "CPU"
-        elif component_type == RAM_TYPE:
+        elif component_type == OPENSTACK_RAM_TYPE:
             return "RAM"
-        elif component_type == STORAGE_TYPE:
+        elif component_type == OPENSTACK_STORAGE_TYPE:
             return "storage"
-        elif is_valid_volume_type_name(component_type):
+        elif component_type.startswith("gigabytes_"):
             return f"{component_type.replace('gigabytes_', '')} storage"
     return plan_component.component.name
 

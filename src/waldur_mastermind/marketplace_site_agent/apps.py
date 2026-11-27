@@ -4,6 +4,41 @@ from django.db.models import signals
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 
 
+def _push_resource_update_message(resource) -> None:
+    from waldur_mastermind.marketplace_site_agent import utils
+
+    utils.push_resource_update_message(resource)
+
+
+def _generate_agent_config(validated_offerings, validated_data, waldur_api_url: str):
+    from waldur_mastermind.marketplace_site_agent import config_builder
+
+    source = validated_data["configuration_source"]
+    generated = config_builder.GeneratedAgentConfig(
+        validated_data["secret_format"], source
+    )
+    generated.config["timezone"] = validated_data.get("timezone", "UTC")
+    include_policy = validated_data.get("include_policy_settings", True)
+
+    for offering in validated_offerings:
+        if source == config_builder.WALDUR_SOURCE:
+            offering_config = config_builder.build_bootstrap_offering_config(
+                offering, waldur_api_url, generated
+            )
+        else:
+            offering_config = config_builder.build_offering_config(
+                offering, waldur_api_url, include_policy, generated
+            )
+        generated.config["offerings"].append(offering_config)
+    return generated
+
+
+def _offering_agent_config(offering):
+    from waldur_mastermind.marketplace_site_agent import config_builder
+
+    return config_builder.offering_agent_config(offering)
+
+
 class MarketplaceSlurmConfig(AppConfig):
     name = "waldur_mastermind.marketplace_site_agent"
     verbose_name = "Marketplace SLURM Remote"
@@ -12,6 +47,7 @@ class MarketplaceSlurmConfig(AppConfig):
     def ready(self):
         from waldur_core.permissions import signals as permission_signals
         from waldur_core.structure import signals as structure_signals
+        from waldur_mastermind.marketplace import hooks as marketplace_hooks
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_site_agent import (
@@ -96,4 +132,12 @@ class MarketplaceSlurmConfig(AppConfig):
         structure_signals.project_moved.connect(
             handlers.send_resource_messages_on_project_move,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_messages_on_project_move",
+        )
+
+        marketplace_hooks.register_site_agent_provider(
+            marketplace_hooks.SiteAgentProvider(
+                push_resource_update_message=_push_resource_update_message,
+                generate_agent_config=_generate_agent_config,
+                offering_agent_config=_offering_agent_config,
+            )
         )

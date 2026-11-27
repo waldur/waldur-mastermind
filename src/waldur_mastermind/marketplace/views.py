@@ -167,8 +167,12 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.invoices import utils as invoice_utils
 from waldur_mastermind.marketplace import (
+    agent_configuration as site_agent_configuration,
+)
+from waldur_mastermind.marketplace import (
     billing_mode,
     callbacks,
+    consistency,
     dependents,
     derived_limits,
     display_limits,
@@ -232,13 +236,6 @@ from waldur_mastermind.marketplace.utils import (
     validate_attributes,
     validate_endpoint_domain,
 )
-from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration as site_agent_configuration,
-)
-from waldur_mastermind.marketplace_site_agent import config_builder, consistency
-from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
-from waldur_mastermind.proposal import managers as proposal_managers
-from waldur_openstack import models as openstack_models
 
 from . import (
     api_key_cost,
@@ -1368,34 +1365,20 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         )
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
+        provider = hooks.get_site_agent_provider()
+        if provider is None:
+            raise rf_exceptions.APIException(
+                "Site agent integration is not configured."
+            )
 
-        source = validated_data["configuration_source"]
-        generated = config_builder.GeneratedAgentConfig(
-            validated_data["secret_format"], source
-        )
-        generated.config["timezone"] = validated_data.get("timezone", "UTC")
         waldur_api_url = validated_data.get(
             "waldur_api_url"
         ) or request.build_absolute_uri("/api/")
-        include_policy = validated_data.get("include_policy_settings", True)
-
-        for offering in serializer.context.get("validated_offerings", []):
-            if source == config_builder.WALDUR_SOURCE:
-                offering_config = config_builder.build_bootstrap_offering_config(
-                    offering, waldur_api_url, generated
-                )
-            else:
-                offering_config = config_builder.build_offering_config(
-                    offering, waldur_api_url, include_policy, generated
-                )
-            generated.config["offerings"].append(offering_config)
-        return generated
-
-    # Kept for callers of the class; the builders are in config_builder.
-    _add_secret_placeholder = staticmethod(config_builder.add_secret_placeholder)
-
-
-_GeneratedAgentConfig = config_builder.GeneratedAgentConfig
+        return provider.generate_agent_config(
+            serializer.context.get("validated_offerings", []),
+            validated_data,
+            waldur_api_url,
+        )
 
 
 SERVICE_PROVIDER_UUID = OpenApiParameter(
@@ -4140,7 +4123,12 @@ class ProviderOfferingViewSet(
             )
         # Returned as built rather than through the serializer, which only
         # describes it: offering must stay the generator's block key for key.
-        return Response(config_builder.offering_agent_config(offering))
+        provider = hooks.get_site_agent_provider()
+        if provider is None:
+            raise rf_exceptions.APIException(
+                "Site agent integration is not configured."
+            )
+        return Response(provider.offering_agent_config(offering))
 
     # Who may update the offering's integration, or the site agent itself,
     # whose token carries OFFERING.MANAGE_AGENT and loads this at startup
@@ -7724,7 +7712,7 @@ class PublicOfferingViewSet(FacetsMixin, rf_viewsets.ReadOnlyModelViewSet):
     @access.shows(OfferingQuerySet.ORDERING_AVAILABILITY)
     def get_queryset(self):
         user = self.request.user
-        queryset = proposal_managers.annotate_offerings_open_for_proposals(
+        queryset = hooks.annotate_offerings_open_for_proposals(
             self.queryset.filter_by_ordering_availability_for_user(user).select_related(
                 # get_filtered_plans reads offering.parent; the details serializer
                 # walks customer and category, and account_settings the provider.
@@ -12793,9 +12781,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         # Drop offending entries silently rather than rejecting: the agent
         # has no error-handling for set_limits 4xx and would mark the
         # resource as ERRED.
-        has_active_periodic_policy = SlurmPeriodicUsagePolicy.objects.filter(
-            scope=resource.offering
-        ).exists()
+        has_active_periodic_policy = hooks.has_slurm_periodic_policy(resource.offering)
         ignored_components = {}
         if has_active_periodic_policy:
             for component in limit_based_components:
@@ -17989,85 +17975,16 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["get"])
     def openstack_instances(self, request):
-        queryset = (
-            openstack_models.Instance.objects.all()
-            .select_related(
-                "service_settings",
-                "project__customer",
-                "tenant",
-                "availability_zone",
-            )
-            .prefetch_related("ports__floating_ips", "volumes")
-        )
+        provider = hooks.get_openstack_instance_report_provider()
+        if provider is None:
+            return Response([], status=status.HTTP_200_OK)
 
-        filterset = filters.OpenStackInstanceReportFilter(
-            request.query_params, queryset=queryset
-        )
-        queryset = filterset.qs
-
+        queryset = provider.get_instance_queryset(request)
         paginator = LinkHeaderPagination()
         page = paginator.paginate_queryset(queryset, request)
         instances = page if page is not None else queryset
 
-        data = []
-        for instance in instances:
-            volumes = instance.volumes.all()
-            ports = instance.ports.all()
-            floating_ips = []
-            internal_ips = set()
-            for port in ports:
-                for fip in port.floating_ips.all():
-                    floating_ips.append(fip)
-                if port.fixed_ips:
-                    for fixed_ip in port.fixed_ips:
-                        ip_address = (
-                            fixed_ip.get("ip_address")
-                            if isinstance(fixed_ip, dict)
-                            else None
-                        )
-                        if ip_address:
-                            internal_ips.add(ip_address)
-
-            data.append(
-                {
-                    "uuid": instance.uuid,
-                    "name": instance.name,
-                    "created": instance.created,
-                    "cores": instance.cores,
-                    "ram": instance.ram,
-                    "disk": instance.disk,
-                    "flavor_name": instance.flavor_name,
-                    "flavor_disk": instance.flavor_disk,
-                    "image_name": instance.image_name,
-                    "hypervisor_hostname": instance.hypervisor_hostname,
-                    "runtime_state": instance.runtime_state,
-                    "state": instance.get_state_display(),
-                    "availability_zone_name": (
-                        instance.availability_zone.name
-                        if instance.availability_zone
-                        else None
-                    ),
-                    "start_time": instance.start_time,
-                    "service_settings_uuid": instance.service_settings.uuid,
-                    "service_settings_name": instance.service_settings.name,
-                    "tenant_uuid": instance.tenant.uuid if instance.tenant else None,
-                    "tenant_name": instance.tenant.name if instance.tenant else "",
-                    "project_uuid": instance.project.uuid,
-                    "project_name": instance.project.name,
-                    "customer_uuid": instance.project.customer.uuid,
-                    "customer_name": instance.project.customer.name,
-                    "customer_abbreviation": instance.project.customer.abbreviation,
-                    "volume_count": len(volumes),
-                    "total_volume_size_mb": sum(v.size for v in volumes),
-                    "floating_ip_count": len(floating_ips),
-                    "port_count": len(ports),
-                    "internal_ips": sorted(internal_ips),
-                    "external_ips": sorted(
-                        {fip.address for fip in floating_ips if fip.address}
-                    ),
-                }
-            )
-
+        data = provider.serialize_instances(instances)
         serializer = serializers.OpenStackInstanceReportSerializer(data, many=True)
         if page is not None:
             return paginator.get_paginated_response(serializer.data)
@@ -18189,73 +18106,12 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
                 }
             )
 
+        provider = hooks.get_openstack_instance_report_provider()
+        if provider is None:
+            return Response([], status=status.HTTP_200_OK)
+
         mapping = self.OPENSTACK_INSTANCE_GROUP_BY_MAPPING[group_by]
-        key_field = mapping["key_field"]
-        label_field = mapping.get("label_field")
-
-        queryset = openstack_models.Instance.objects.all()
-        filterset = filters.OpenStackInstanceReportFilter(
-            request.query_params, queryset=queryset
-        )
-        queryset = filterset.qs
-
-        group_fields = [key_field]
-        if label_field:
-            group_fields.append(label_field)
-
-        # Use per-instance subqueries for volume size and floating IP count,
-        # then aggregate the subquery results per group. This avoids both
-        # cross-join inflation and the N+1 of per-group queries.
-        volume_size_subquery = (
-            openstack_models.Volume.objects.filter(instance=OuterRef("pk"))
-            .order_by()
-            .values("instance")
-            .annotate(total=Sum("size"))
-            .values("total")
-        )
-        floating_ip_subquery = (
-            openstack_models.FloatingIP.objects.filter(port__instance=OuterRef("pk"))
-            .order_by()
-            .values("port__instance")
-            .annotate(total=Count("id"))
-            .values("total")
-        )
-
-        annotated_qs = queryset.annotate(
-            _vol_size=Coalesce(Subquery(volume_size_subquery), 0),
-            _fip_count=Coalesce(Subquery(floating_ip_subquery), 0),
-        )
-
-        aggregated = (
-            annotated_qs.values(*group_fields)
-            .annotate(
-                instance_count=Count("id"),
-                total_cores=Sum("cores"),
-                total_ram_mb=Sum("ram"),
-                total_disk_mb=Sum("disk"),
-                total_volume_size_mb=Sum("_vol_size"),
-                total_floating_ips=Sum("_fip_count"),
-            )
-            .order_by("-instance_count")
-        )
-
-        data = []
-        for row in aggregated:
-            key = row[key_field]
-            label = row.get(label_field, key) if label_field else key
-            data.append(
-                {
-                    "group_key": str(key) if key is not None else "",
-                    "group_label": str(label) if label is not None else "",
-                    "instance_count": row["instance_count"],
-                    "total_cores": row["total_cores"],
-                    "total_ram_mb": row["total_ram_mb"],
-                    "total_disk_mb": row["total_disk_mb"],
-                    "total_volume_size_mb": row["total_volume_size_mb"],
-                    "total_floating_ips": row["total_floating_ips"],
-                }
-            )
-
+        data = provider.aggregate_instances(request, mapping)
         serializer = serializers.OpenStackInstanceAggregateSerializer(data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 

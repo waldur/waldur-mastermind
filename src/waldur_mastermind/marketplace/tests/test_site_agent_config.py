@@ -13,6 +13,9 @@ from waldur_core.permissions.fixtures import (
     ServiceProviderRole,
 )
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import (
+    agent_configuration as site_agent_configuration,
+)
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SITE_AGENT_OFFERING,
@@ -20,13 +23,6 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace.views import (
-    ServiceProviderViewSet,
-    _GeneratedAgentConfig,
-)
-from waldur_mastermind.marketplace_site_agent import (
-    agent_configuration as site_agent_configuration,
-)
 from waldur_mastermind.marketplace_site_agent import config_builder
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 
@@ -628,10 +624,10 @@ class SiteAgentConfigFromAgentConfigurationTest(test.APITestCase):
 
     def test_required_secret_of_a_missing_block_is_only_listed(self):
         settings = {"cluster_name": "alpha"}
-        generated = _GeneratedAgentConfig("comment")
+        generated = config_builder.GeneratedAgentConfig("comment")
 
         for backend, path in (("ldap", "ldap.bind_password"), ("other", "token")):
-            ServiceProviderViewSet._add_secret_placeholder(
+            config_builder.add_secret_placeholder(
                 settings,
                 self.slurm_offering,
                 backend,

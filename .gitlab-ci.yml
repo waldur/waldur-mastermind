@@ -135,7 +135,7 @@ Check US spelling:
   script:
     - python scripts/check_us_spelling.py src/
 
-# The vendored site agent plugin catalogue (marketplace_site_agent/plugin_catalogue)
+# The vendored site agent plugin catalogue (marketplace/plugin_catalogue)
 # against what the site agent's main exports now. Never blocks: a difference
 # only means the file should be refreshed with
 # scripts/update_site_agent_plugin_catalogue.sh, and the job log says what
@@ -160,7 +160,7 @@ Check site agent plugin catalogue:
     - if: '$CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
       changes:
-        - src/waldur_mastermind/marketplace_site_agent/plugin_catalogue/**/*
+        - src/waldur_mastermind/marketplace/plugin_catalogue/**/*
         - src/waldur_mastermind/marketplace_site_agent/agent_configuration.py
         - scripts/update_site_agent_plugin_catalogue.sh
         - .gitlab-ci.yml

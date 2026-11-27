@@ -7,13 +7,17 @@ from django.core.management import get_commands
 from django.db.models import signals
 from django.test import SimpleTestCase
 from django.urls import reverse
+from rest_framework import exceptions as rf_exceptions
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory
 
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import signals as core_signals
+from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import serializers as structure_serializers
 from waldur_freeipa import handlers as freeipa_handlers
 from waldur_freeipa import models as freeipa_models
+from waldur_mastermind import marketplace_openstack
 from waldur_mastermind.analytics import handlers as analytics_handlers
 from waldur_mastermind.billing import handlers as billing_handlers
 from waldur_mastermind.billing.serializers import NestedPriceEstimateSerializer
@@ -21,17 +25,30 @@ from waldur_mastermind.chat.validation import presets as chat_presets
 from waldur_mastermind.demo_presets import DemoPresetManager
 from waldur_mastermind.demo_presets.manifest import DEFAULT_PERMISSIONS_PATHS
 from waldur_mastermind.marketplace import admin as marketplace_admin
+from waldur_mastermind.marketplace import agent_configuration
 from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import hooks as marketplace_hooks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace import utils as marketplace_utils
+from waldur_mastermind.marketplace import views as marketplace_views
+from waldur_mastermind.marketplace_openstack import (
+    executors as marketplace_openstack_executors,
+)
 from waldur_mastermind.marketplace_rancher import const as rancher_const
+from waldur_mastermind.marketplace_site_agent import config_builder
+from waldur_mastermind.marketplace_site_agent import utils as site_agent_utils
 from waldur_mastermind.notifications import maintenance_handlers
 from waldur_mastermind.notifications import models as notifications_models
 from waldur_mastermind.notifications import serializers as notifications_serializers
+from waldur_mastermind.policy import handlers as policy_handlers
+from waldur_mastermind.policy import rebill_helpers as policy_rebill_helpers
 from waldur_mastermind.promotions import handlers as promotions_handlers
 from waldur_mastermind.promotions import models as promotions_models
+from waldur_mastermind.proposal import filters as proposal_filters
+from waldur_mastermind.proposal import managers as proposal_managers
+from waldur_mastermind.proposal import models as proposal_models
+from waldur_mastermind.proposal import serializers as proposal_serializers
 from waldur_mastermind.support import handlers as support_handlers
 from waldur_pid import mixins as pid_mixins
 from waldur_pid import utils as pid_utils
@@ -334,3 +351,226 @@ class MarketplaceHooksWiringTest(SimpleTestCase):
                 self.assertEqual(message_user.call_args.args[2], messages.WARNING)
                 queryset.filter.assert_not_called()
                 queryset.exclude.assert_not_called()
+
+    def test_openstack_constants_mb_components_admin_and_reports(self):
+        self.assertEqual(
+            marketplace_openstack.CORES_TYPE, marketplace_enums.OPENSTACK_CORES_TYPE
+        )
+        self.assertEqual(
+            marketplace_openstack.RAM_TYPE, marketplace_enums.OPENSTACK_RAM_TYPE
+        )
+        self.assertEqual(
+            marketplace_openstack.STORAGE_TYPE, marketplace_enums.OPENSTACK_STORAGE_TYPE
+        )
+        self.assertEqual(
+            marketplace_openstack.INSTANCE_METRIC_KEYS,
+            marketplace_enums.INSTANCE_METRIC_KEYS,
+        )
+        self.assertEqual(
+            marketplace_openstack.VOLUME_METRIC_KEYS,
+            marketplace_enums.VOLUME_METRIC_KEYS,
+        )
+        self.assertEqual(
+            marketplace_hooks.get_mb_component_types(),
+            marketplace_openstack.get_mb_component_types(),
+        )
+        with mock.patch.object(marketplace_hooks, "_mb_component_types_provider", None):
+            self.assertEqual(marketplace_hooks.get_mb_component_types(), frozenset())
+
+        admin_provider = marketplace_hooks.get_openstack_admin_provider()
+        self.assertIsNotNone(admin_provider)
+        self.assertIs(
+            admin_provider.get_restore_limits_executor(),
+            marketplace_openstack_executors.RestoreTenantLimitsExecutor,
+        )
+
+        resource_admin = marketplace_admin.ResourceAdmin(
+            marketplace_models.Resource, mock.MagicMock()
+        )
+        request = mock.MagicMock()
+        with (
+            mock.patch.object(marketplace_hooks, "_openstack_admin_provider", None),
+            mock.patch.object(resource_admin, "message_user") as message_user,
+        ):
+            resource_admin.restore_limits.execute(
+                resource_admin, request, mock.MagicMock()
+            )
+            message_user.assert_called_once()
+            self.assertEqual(message_user.call_args.args[2], messages.WARNING)
+
+        with (
+            mock.patch.object(marketplace_hooks, "_openstack_admin_provider", None),
+            mock.patch.object(resource_admin, "message_user") as message_user,
+        ):
+            response = resource_admin.create_resources_for_lost_instances_and_volumes(
+                request
+            )
+            message_user.assert_called_once()
+            self.assertEqual(message_user.call_args.args[2], messages.WARNING)
+            self.assertEqual(response.status_code, 302)
+
+        self.assertIsNotNone(marketplace_hooks.get_openstack_instance_report_provider())
+        stats_view = marketplace_views.StatsViewSet()
+        factory = APIRequestFactory()
+        with mock.patch.object(
+            marketplace_hooks, "_openstack_instance_report_provider", None
+        ):
+            list_resp = stats_view.openstack_instances(Request(factory.get("/")))
+            self.assertEqual(list_resp.status_code, 200)
+            self.assertEqual(list_resp.data, [])
+            agg_resp = stats_view.openstack_instances_aggregate(
+                Request(factory.get("/?group_by=flavor_name"))
+            )
+            self.assertEqual(agg_resp.status_code, 200)
+            self.assertEqual(agg_resp.data, [])
+
+    def test_site_agent_configuration_and_provider(self):
+        self.assertTrue(agent_configuration.CATALOGUE_PATH.exists())
+
+        sentinel_resource = object()
+        with mock.patch.object(
+            site_agent_utils, "push_resource_update_message"
+        ) as push_mock:
+            marketplace_hooks.push_site_agent_resource_update(sentinel_resource)
+            push_mock.assert_called_once_with(sentinel_resource)
+
+        provider = marketplace_hooks.get_site_agent_provider()
+        self.assertIsNotNone(provider)
+        sentinel_offering = mock.MagicMock(type=marketplace_enums.SITE_AGENT_OFFERING)
+        with mock.patch.object(
+            config_builder, "offering_agent_config", return_value={"offerings": []}
+        ) as config_mock:
+            self.assertEqual(
+                provider.offering_agent_config(sentinel_offering), {"offerings": []}
+            )
+            config_mock.assert_called_once_with(sentinel_offering)
+
+        offering_view = marketplace_views.ProviderOfferingViewSet()
+        with (
+            mock.patch.object(marketplace_hooks, "_site_agent_provider", None),
+            mock.patch.object(
+                offering_view, "get_object", return_value=sentinel_offering
+            ),
+            self.assertRaises(rf_exceptions.APIException),
+        ):
+            offering_view.site_agent_config(mock.MagicMock())
+
+    def test_policy_provider_delegates_and_falls_back(self):
+        provider = marketplace_hooks.get_policy_provider()
+        self.assertIsNotNone(provider)
+        sentinel_usage = object()
+        with (
+            mock.patch.object(
+                policy_handlers, "offering_usage_policy_trigger_handler"
+            ) as offering_mock,
+            mock.patch.object(
+                policy_handlers, "slurm_periodic_usage_policy_trigger_handler"
+            ) as slurm_mock,
+            mock.patch.object(
+                policy_handlers, "customer_component_usage_policy_trigger_handler"
+            ) as customer_mock,
+        ):
+            marketplace_hooks.on_component_usage_billed(sentinel_usage, True)
+            offering_mock.assert_called_once()
+            slurm_mock.assert_called_once()
+            customer_mock.assert_called_once()
+
+        sentinel_resource = object()
+        with (
+            mock.patch.object(
+                policy_rebill_helpers,
+                "snapshot_estimated_cost_policies",
+                return_value=[],
+            ) as snap_mock,
+            mock.patch.object(
+                policy_rebill_helpers,
+                "get_policy_scope_label",
+                return_value="Project",
+            ) as label_mock,
+            mock.patch.object(
+                policy_rebill_helpers,
+                "preview_policy_action_resources",
+                return_value=(True, []),
+            ) as preview_mock,
+        ):
+            self.assertEqual(
+                provider.snapshot_estimated_cost_policies(sentinel_resource), []
+            )
+            snap_mock.assert_called_once_with(sentinel_resource)
+            self.assertEqual(
+                provider.get_policy_scope_label(sentinel_resource), "Project"
+            )
+            label_mock.assert_called_once_with(sentinel_resource)
+            self.assertEqual(
+                provider.preview_policy_action_resources(
+                    sentinel_resource, "pause", {}, True
+                ),
+                (True, []),
+            )
+            preview_mock.assert_called_once_with(sentinel_resource, "pause", {}, True)
+
+        with mock.patch.object(marketplace_hooks, "_policy_provider", None):
+            marketplace_hooks.on_component_usage_billed(sentinel_usage, False)
+            marketplace_hooks.schedule_slurm_policy_evaluation(1, "uuid")
+            self.assertFalse(marketplace_hooks.has_slurm_periodic_policy(object()))
+
+    def test_proposal_provider_and_customer_extensions(self):
+        self.assertIsNotNone(marketplace_hooks.get_proposal_provider())
+        self.assertTrue(
+            any(
+                isinstance(
+                    backend, proposal_filters.CustomerCallManagingOrganisationFilter
+                )
+                for backend in structure_filters.ExternalCustomerFilterBackend._filters
+            )
+        )
+        serializer_receivers = core_signals.pre_serializer_fields._live_receivers(
+            structure_serializers.CustomerSerializer
+        )[0]
+        self.assertIn(
+            proposal_serializers.add_call_managing_organization_uuid,
+            serializer_receivers,
+        )
+
+        sentinel_qs = mock.MagicMock()
+        with (
+            mock.patch.object(
+                proposal_managers,
+                "annotate_offerings_open_for_proposals",
+                return_value=sentinel_qs,
+            ) as annotate_mock,
+            mock.patch.object(
+                proposal_models.RequestedOffering.objects,
+                "offering_ids_in_active_calls",
+                return_value=[1, 2],
+            ) as active_ids_mock,
+            mock.patch.object(
+                proposal_models.RequestedOffering.objects,
+                "offering_ids_open_for_proposals",
+                return_value=[3],
+            ) as open_ids_mock,
+        ):
+            self.assertIs(
+                marketplace_hooks.annotate_offerings_open_for_proposals(sentinel_qs),
+                sentinel_qs,
+            )
+            annotate_mock.assert_called_once_with(sentinel_qs)
+            self.assertEqual(marketplace_hooks.offering_ids_in_active_calls(), [1, 2])
+            active_ids_mock.assert_called_once_with()
+            self.assertEqual(marketplace_hooks.offering_ids_open_for_proposals(), [3])
+            open_ids_mock.assert_called_once_with()
+
+        with mock.patch.object(marketplace_hooks, "_proposal_provider", None):
+            self.assertIs(
+                marketplace_hooks.annotate_offerings_open_for_proposals(sentinel_qs),
+                sentinel_qs,
+            )
+            self.assertFalse(marketplace_hooks.is_offering_open_for_proposals(object()))
+            self.assertEqual(marketplace_hooks.offering_ids_in_active_calls(), ())
+            self.assertEqual(marketplace_hooks.offering_ids_open_for_proposals(), ())
+            self.assertIs(
+                marketplace_hooks.filter_orders_from_award(sentinel_qs, False),
+                sentinel_qs,
+            )
+            marketplace_hooks.filter_orders_from_award(sentinel_qs, True)
+            sentinel_qs.none.assert_called_once_with()

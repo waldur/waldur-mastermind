@@ -8,11 +8,11 @@ from rest_framework import status, test
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace import consistency
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace.offering_templates import load
 from waldur_mastermind.marketplace.tests import factories, fixtures
-from waldur_mastermind.marketplace_site_agent import consistency
 
 PRESETS = Path(__file__).resolve().parents[2] / "marketplace" / "tests"
 DWDI_PRESET = PRESETS / "offering_template_presets" / "slurm_dwdi.json"
