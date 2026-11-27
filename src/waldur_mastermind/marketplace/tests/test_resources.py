@@ -1,4 +1,5 @@
 import datetime
+import json
 import re
 import uuid
 from decimal import Decimal
@@ -653,9 +654,7 @@ class ResourceRenewTest(test.APITestCase):
             flattened_payload = {}
             for key, value in payload.items():
                 if key == "limits" and isinstance(value, dict):
-                    # Convert limits dict to JSON string for multipart
-                    import json
-
+                    # As the SDK sends it: a JSON string under the field's name.
                     flattened_payload[key] = json.dumps(value)
                 else:
                     flattened_payload[key] = value
@@ -844,6 +843,63 @@ class ResourceRenewTest(test.APITestCase):
         self.assertEqual(order.request_comment, "Annual renewal with increased storage")
         self.assertTrue(order.attachment)
         self.assertIn("renewal_documentation.pdf", order.attachment.name)
+
+    def _purchase_order(self):
+        return SimpleUploadedFile(
+            "purchase_order.pdf", b"%PDF-1.4\n%%EOF", content_type="application/pdf"
+        )
+
+    @freeze_time("2024-06-01")
+    def test_renewal_with_a_purchase_order_keeps_its_limits(self):
+        self.resource.end_date = timezone.datetime.fromisoformat("2024-07-01").date()
+        self.resource.save()
+
+        response = self.renew_resource(
+            self.fixture.owner,
+            self.resource,
+            {
+                "extension_months": 12,
+                "limits": {"storage": 200},
+                "attachment": self._purchase_order(),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits["storage"], 200)
+        # Priced at the raise, as the same renewal sent as JSON is.
+        self.assertEqual(order.cost, Decimal("24986.31"))
+
+    def test_renewal_with_a_purchase_order_reads_the_form_encoding(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "renew"),
+            {
+                "extension_months": 12,
+                "limits.storage": 200,
+                "attachment": self._purchase_order(),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits["storage"], 200)
+
+    def test_renewal_refuses_limits_that_are_not_an_object(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "renew"),
+            {
+                "extension_months": 12,
+                "limits": "storage=200",
+                "attachment": self._purchase_order(),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("limits", response.data)
 
     def test_renewal_validates_comment_length(self):
         # Arrange - comment longer than 255 characters
@@ -1603,6 +1659,43 @@ class ResourceUpdateLimitsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         order = models.Order.objects.filter(resource=self.resource).latest("created")
         self.assertEqual(order.limits["vcpu"], 1.5)
+
+    def test_limits_sent_with_a_purchase_order_are_ordered(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "update_limits"),
+            {
+                "limits": json.dumps({"vcpu": 10}),
+                "attachment": SimpleUploadedFile(
+                    "purchase_order.pdf",
+                    b"%PDF-1.4\n%%EOF",
+                    content_type="application/pdf",
+                ),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.limits, {"vcpu": 10})
+        self.assertTrue(order.attachment)
+
+    def test_over_nested_limits_are_refused(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            factories.ResourceFactory.get_url(self.resource, "update_limits"),
+            {
+                "limits": "[" * 100_000,
+                "attachment": SimpleUploadedFile(
+                    "purchase_order.pdf",
+                    b"%PDF-1.4\n%%EOF",
+                    content_type="application/pdf",
+                ),
+            },
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_owner_can_not_update_limits_of_private_offering_of_other_customer(self):
         self.resource.offering.shared = False
