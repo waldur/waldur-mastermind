@@ -23302,7 +23302,10 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
             "everything is checked and the filled-in document returned, and "
             "nothing is created. The site-agent consistency rules check the "
             "filled-in document: an error finding refuses the create, under "
-            "findings; a dry run returns every finding."
+            "findings; a dry run returns every finding. agent_roles replaces "
+            "the template's role backends before the checks, and "
+            "backend_settings is merged over the template's backend settings "
+            "after them; a secret in it is refused, under backend_settings."
         ),
         request=serializers.OfferingTemplateCreateOfferingSerializer,
         responses={
@@ -23323,11 +23326,34 @@ class OfferingTemplateViewSet(core_views.ActionsViewSet):
             raise rf_exceptions.PermissionDenied(
                 _("You do not have permission to create offerings for this customer.")
             )
+        if template.offering_type != SITE_AGENT_OFFERING:
+            refused = {}
+            if data.get("agent_roles"):
+                refused["agent_roles"] = [
+                    _("Only site agent offerings have agent roles.")
+                ]
+            if data.get("backend_settings"):
+                refused["backend_settings"] = [
+                    _("Only site agent offerings have backend settings.")
+                ]
+            if refused:
+                raise rf_exceptions.ValidationError(refused)
         document = template.document
         values = offering_templates.resolve_parameters(
             document.get(offering_templates.PARAMETERS_KEY) or [], data["parameters"]
         )
         filled = offering_templates.fill_document(document, values)
+        if data.get("agent_roles"):
+            filled["agent_configuration"] = offering_templates.with_agent_roles(
+                filled.get("agent_configuration") or {}, data["agent_roles"]
+            )
+        # After the roles, so that the settings are checked against the
+        # backends chosen; who may set them is checked with the rest of the
+        # configuration, as the offering is imported.
+        if data.get("backend_settings"):
+            filled["agent_configuration"] = offering_templates.with_backend_settings(
+                filled.get("agent_configuration") or {}, data["backend_settings"]
+            )
         filled["offering"] = {
             **(filled.get("offering") or {}),
             "name": data["name"],
