@@ -3,6 +3,7 @@ import dataclasses
 import datetime
 import functools
 import ipaddress
+import json
 import logging
 import math
 import re
@@ -46,6 +47,7 @@ from rest_framework import serializers
 from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.reverse import reverse
+from rest_framework.utils import html
 
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist import models as checklist_models
@@ -4821,6 +4823,33 @@ class LimitValueField(serializers.FloatField):
         # both return their limits — so narrowing here too is what keeps an
         # integer-only deployment's payloads byte-identical.
         return self._narrow(value)
+
+
+class LimitsField(serializers.DictField):
+    """Component limits, from a JSON body or from a multipart one.
+
+    A request that carries a file is sent as multipart/form-data, and clients
+    (the generated SDK among them) send a nested object there as a JSON string
+    under the field's own name. DRF's DictField reads that key as an explicit
+    empty dict and drops its value, so the limits a purchase order was uploaded
+    with vanished from the order. The DRF form encoding (``limits.<type>=<n>``)
+    is still read as before.
+    """
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("child", LimitValueField(min_value=0))
+        super().__init__(**kwargs)
+
+    def get_value(self, dictionary):
+        if html.is_html_input(dictionary) and self.field_name in dictionary:
+            value = dictionary.get(self.field_name)
+            if isinstance(value, str) and value.strip():
+                try:
+                    return json.loads(value)
+                except (ValueError, RecursionError):
+                    # Left to to_internal_value, which rejects a non-dict.
+                    return value
+        return super().get_value(dictionary)
 
 
 class LimitBoundField(serializers.DecimalField):
@@ -10880,8 +10909,7 @@ class ResourceRenewSerializer(serializers.Serializer):
         max_value=MAX_RENEWAL_MONTHS,
         help_text=_("Number of months to extend the subscription by."),
     )
-    limits = serializers.DictField(
-        child=LimitValueField(min_value=0),
+    limits = LimitsField(
         required=False,
         help_text=_(
             "Optional new limits for the resource; components left out keep "
@@ -11647,7 +11675,7 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
         model = models.Order
         fields = ("limits", "request_comment", "attachment")
 
-    limits = serializers.DictField(child=LimitValueField(min_value=0), required=True)
+    limits = LimitsField(required=True)
     attachment = serializers.FileField(
         required=False,
         help_text=_("Optional PDF attachment for the limit update request."),
