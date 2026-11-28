@@ -4875,7 +4875,7 @@ class OpenStackBackend(ServiceBackend):
         try:
             server_group_backend_id = filtered_backend_server_groups[0].id
         except IndexError:
-            instance.server_group = None
+            server_group = None
         else:
             try:
                 server_group = models.ServerGroup.objects.get(
@@ -4886,8 +4886,13 @@ class OpenStackBackend(ServiceBackend):
                     f"Server group with id {server_group_backend_id} does not exist in database. "
                     f"Server ID: {server_id}"
                 )
-            else:
-                instance.server_group = server_group
+                return
+
+        # Saved here: the pull runs as its own task on a freshly loaded
+        # instance, so a change left unsaved would be lost.
+        if instance.server_group != server_group:
+            instance.server_group = server_group
+            instance.save(update_fields=["server_group"])
 
     @log_backend_action()
     def create_volume(self, volume: models.Volume):
