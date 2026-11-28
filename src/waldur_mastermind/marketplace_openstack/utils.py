@@ -922,6 +922,7 @@ def _import_resource_of_tenant(
         with transaction.atomic():
             created = import_method(tenant, backend_id, tenant.project)
             create_marketplace_resource_for_imported_resources(created)
+            return created
     except TENANT_WIDE_IMPORT_ERRORS:
         raise
     except (
@@ -942,6 +943,47 @@ def _import_resource_of_tenant(
         )
 
 
+# What InstancePullExecutor pulls after the instance itself, in its order:
+# floating IPs are matched through the ports pulled before them.
+INSTANCE_SUB_OBJECT_PULLS = (
+    "pull_instance_security_groups",
+    "pull_instance_ports",
+    "pull_instance_floating_ips",
+    "pull_instance_server_group",
+)
+
+
+def _pull_sub_objects_of_imported_instance(
+    backend: OpenStackBackend, instance: openstack_models.Instance
+):
+    """Pull what import_instance leaves out: security groups, ports, floating IPs.
+
+    Runs outside the import savepoint, so a failure leaves the instance
+    imported; its next pull fills in the rest. Each pull gets its own
+    savepoint: a row the database rejects (a Neutron port name longer than
+    Waldur allows, say) must not stop the rest of the tenant's import.
+    """
+    try:
+        for method in INSTANCE_SUB_OBJECT_PULLS:
+            with transaction.atomic():
+                getattr(backend, method)(instance)
+    except TENANT_WIDE_IMPORT_ERRORS:
+        raise
+    except (
+        OpenStackBackendError,
+        nova_exceptions.ClientException,
+        DataError,
+        IntegrityError,
+    ) as e:
+        logger.warning(
+            "Failed to pull security groups, ports or floating IPs of imported "
+            "instance %s (PK: %s): %s",
+            instance,
+            instance.pk,
+            e,
+        )
+
+
 def import_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):
     """Import the tenant's servers and volumes that Waldur does not know yet.
 
@@ -951,9 +993,11 @@ def import_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):
     backend = OpenStackBackend(tenant.service_settings)
 
     for instance in backend.get_importable_instances(tenant):
-        _import_resource_of_tenant(
+        imported = _import_resource_of_tenant(
             tenant, backend.import_instance, "instance", instance["backend_id"]
         )
+        if imported is not None:
+            _pull_sub_objects_of_imported_instance(backend, imported)
 
     for volume in backend.get_importable_volumes(tenant):
         _import_resource_of_tenant(

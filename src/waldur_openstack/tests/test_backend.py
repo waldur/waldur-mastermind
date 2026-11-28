@@ -1886,6 +1886,42 @@ class CreateServerGroupTest(BaseBackendTest):
         self.assertEqual(server_group.backend_id, "sg-backend-id")
 
 
+class PullInstanceServerGroupTest(BaseBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+        self.instance.server_group = None
+        self.instance.save()
+        self.server_group = self.fixture.server_group
+
+    def _backend_group(self, members):
+        return mock.Mock(id=self.server_group.backend_id, _info={"members": members})
+
+    def test_pulled_server_group_is_saved(self):
+        # Each pull step runs as its own task on a freshly loaded instance,
+        # so the group must reach the database, not just the object.
+        self.mocked_nova.server_groups.list.return_value = [
+            self._backend_group([self.instance.backend_id])
+        ]
+
+        self.backend.pull_instance_server_group(self.instance)
+
+        self.instance.refresh_from_db()
+        self.assertEqual(self.instance.server_group, self.server_group)
+
+    def test_server_group_is_cleared_when_instance_left_it(self):
+        self.instance.server_group = self.server_group
+        self.instance.save()
+        self.mocked_nova.server_groups.list.return_value = [
+            self._backend_group(["another-server"])
+        ]
+
+        self.backend.pull_instance_server_group(self.instance)
+
+        self.instance.refresh_from_db()
+        self.assertIsNone(self.instance.server_group)
+
+
 class EnhancedImageDetectionTest(BaseBackendTest):
     def setUp(self):
         super().setUp()

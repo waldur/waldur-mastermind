@@ -1,5 +1,6 @@
 from unittest import mock
 
+from django.db import DataError
 from novaclient import exceptions as nova_exceptions
 
 from waldur_core.core import utils as core_utils
@@ -305,6 +306,97 @@ class TaskSyncTenantTest(BaseOpenStackTest):
         self.assertRaises(
             openstack_models.Volume.DoesNotExist, self.volume.refresh_from_db
         )
+
+    def test_sub_objects_of_imported_instance_are_pulled(self, mock_backend):
+        # import_instance leaves out security groups, ports and floating IPs,
+        # so the import must pull them the way InstancePullExecutor does.
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": self.instance.backend_id}
+        ]
+        mock_backend().get_importable_volumes.return_value = []
+        mock_backend().import_instance.return_value = self.instance
+
+        tasks.sync_instances_and_volumes_of_tenant(
+            core_utils.serialize_instance(self.tenant)
+        )
+
+        pulls = [
+            call
+            for call in mock_backend().method_calls
+            if call[0].startswith("pull_instance_")
+        ]
+        self.assertEqual(
+            pulls,
+            [
+                mock.call.pull_instance_security_groups(self.instance),
+                mock.call.pull_instance_ports(self.instance),
+                mock.call.pull_instance_floating_ips(self.instance),
+                mock.call.pull_instance_server_group(self.instance),
+            ],
+        )
+
+    def test_failed_sub_object_pull_keeps_the_imported_instance(self, mock_backend):
+        other_instance = openstack_factories.InstanceFactory(
+            tenant=self.instance.tenant,
+            service_settings=self.instance.service_settings,
+            project=self.instance.project,
+        )
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": self.instance.backend_id},
+            {"backend_id": other_instance.backend_id},
+        ]
+        mock_backend().get_importable_volumes.return_value = []
+        mock_backend().import_instance.side_effect = [self.instance, other_instance]
+        mock_backend().pull_instance_ports.side_effect = [
+            OpenStackBackendError("Neutron is unavailable"),
+            None,
+        ]
+
+        tasks.sync_instances_and_volumes_of_tenant(
+            core_utils.serialize_instance(self.tenant)
+        )
+
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=self.instance).exists()
+        )
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=other_instance).exists()
+        )
+        mock_backend().pull_instance_floating_ips.assert_called_once_with(
+            other_instance
+        )
+
+    def test_database_error_in_sub_object_pull_does_not_stop_the_tenant(
+        self, mock_backend
+    ):
+        # A Neutron port name may be longer than Waldur's Port.name allows.
+        other_instance = openstack_factories.InstanceFactory(
+            tenant=self.instance.tenant,
+            service_settings=self.instance.service_settings,
+            project=self.instance.project,
+        )
+        mock_backend().get_importable_instances.return_value = [
+            {"backend_id": self.instance.backend_id},
+            {"backend_id": other_instance.backend_id},
+        ]
+        mock_backend().get_importable_volumes.return_value = []
+        mock_backend().import_instance.side_effect = [self.instance, other_instance]
+        mock_backend().pull_instance_ports.side_effect = [
+            DataError("value too long for type character varying(150)"),
+            None,
+        ]
+
+        tasks.sync_instances_and_volumes_of_tenant(
+            core_utils.serialize_instance(self.tenant)
+        )
+
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=self.instance).exists()
+        )
+        self.assertTrue(
+            marketplace_models.Resource.objects.filter(scope=other_instance).exists()
+        )
+        mock_backend().get_expired_instances.assert_called_once()
 
 
 @mock.patch("waldur_mastermind.marketplace_openstack.handlers.tasks")
